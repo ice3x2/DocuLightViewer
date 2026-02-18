@@ -1,0 +1,61 @@
+appId: com.doculight.app
+productName: DocuLight
+copyright: Copyright (c) 2026
+
+directories:
+  buildResources: assets
+  output: dist
+
+files:
+  - src/**/*
+  - assets/**/*
+  - package.json
+
+fileAssociations:
+  - ext: md
+    name: Markdown Document
+    description: Markdown Document
+    mimeType: text/markdown
+    role: Viewer
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: assets/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: DocuLight-Setup-${version}.${ext}
+
+portable:
+  artifactName: DocuLight-Portable-${version}.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: assets/icon.png
+  category: public.app-category.developer-tools
+  artifactName: DocuLight-${version}-${arch}.dmg
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: assets/icon.png
+  category: Development
+  artifactName: DocuLight-${version}.AppImage
+  mimeTypes:
+    - text/markdown
+    - text/x-markdown

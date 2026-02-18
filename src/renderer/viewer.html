@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; font-src 'self'">
+  <title>DocuLight</title>
+  <link id="highlight-theme" rel="stylesheet" href="./lib/highlight-github.min.css">
+  <link rel="stylesheet" href="./viewer.css">
+</head>
+<body>
+  <div id="app-container">
+    <div id="sidebar-container" class="hidden">
+      <div id="sidebar-header">
+        <span id="sidebar-title">Navigation</span>
+      </div>
+      <div id="sidebar-tree"></div>
+    </div>
+    <div id="resize-handle" class="hidden"></div>
+    <div id="viewer-container">
+      <div id="content" class="markdown-body"></div>
+    </div>
+    <div id="toc-container" class="hidden">
+      <div id="toc-header">
+        <span id="toc-title">목차</span>
+      </div>
+      <div id="toc-list"></div>
+    </div>
+  </div>
+
+  <div id="performance-warning">
+    <span id="warning-text"></span>
+  </div>
+
+  <div id="floating-buttons">
+    <button id="btn-toggle-sidebar" class="fab" title="파일 목록 (Ctrl+B)">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <button id="btn-toggle-toc" class="fab" title="목차">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+    </button>
+    <button id="btn-toggle-pin" class="fab" title="항상 위에 표시">
+      <svg viewBox="0 0 24 24"><path d="M9 4v6l-2 4v2h10v-2l-2-4V4"/><line x1="12" y1="16" x2="12" y2="21"/><line x1="8" y1="4" x2="16" y2="4"/></svg>
+    </button>
+  </div>
+
+  <!-- Libraries (order matters) -->
+  <script src="./lib/marked.min.js"></script>
+  <script src="./lib/purify.min.js"></script>
+  <script src="./lib/highlight.min.js"></script>
+  <script src="./lib/mermaid.min.js"></script>
+  <!-- App -->
+  <script src="./viewer.js"></script>
+</body>
+</html>

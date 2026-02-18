@@ -1,0 +1,464 @@
+/* === CSS Variables — Light Theme (default) === */
+:root {
+  --bg-color: #ffffff;
+  --text-color: #24292e;
+  --muted-text: #6a737d;
+  --border-color: #e1e4e8;
+  --code-bg: #f6f8fa;
+  --link-color: #0366d6;
+  --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-size: 16px;
+  --sidebar-bg: #f6f8fa;
+  --sidebar-hover: #e1e4e8;
+  --highlight-bg: #e8f0fe;
+}
+
+/* === Dark Theme === */
+[data-theme="dark"] {
+  --bg-color: #0d1117;
+  --text-color: #c9d1d9;
+  --muted-text: #8b949e;
+  --border-color: #30363d;
+  --code-bg: #161b22;
+  --link-color: #58a6ff;
+  --sidebar-bg: #161b22;
+  --sidebar-hover: #30363d;
+  --highlight-bg: #1f2937;
+}
+
+/* === Reset & Base === */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  color: var(--text-color);
+  background: var(--bg-color);
+}
+
+/* === App Layout === */
+#app-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+}
+
+/* === Sidebar === */
+#sidebar-container {
+  width: 260px;
+  min-width: 150px;
+  max-width: 50vw;
+  background: var(--sidebar-bg);
+  overflow-y: auto;
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
+  transition: width 200ms ease;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-container.hidden {
+  display: none;
+}
+
+#sidebar-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+#sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* === Resize Handle === */
+#resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 150ms;
+}
+
+#resize-handle:hover,
+#resize-handle.dragging {
+  background: var(--link-color);
+}
+
+#resize-handle.hidden {
+  display: none;
+}
+
+/* === Viewer Container === */
+#viewer-container {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* === Markdown Body (GitHub-flavored) === */
+.markdown-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-color); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border-color); }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em; }
+.markdown-body h5 { font-size: 0.875em; }
+.markdown-body h6 { font-size: 0.85em; color: var(--muted-text); }
+
+.markdown-body p { margin: 1em 0; }
+
+.markdown-body a { color: var(--link-color); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+
+.markdown-body code {
+  background: var(--code-bg);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+}
+
+.markdown-body pre {
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.markdown-body pre > code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.875em;
+  display: block;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid var(--border-color);
+  padding-left: 1em;
+  color: var(--muted-text);
+  margin: 1em 0;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 2px solid var(--border-color);
+  margin: 2em 0;
+}
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 2em;
+  margin: 1em 0;
+}
+
+.markdown-body li { margin: 0.25em 0; }
+
+.markdown-body li > p { margin: 0.5em 0; }
+
+/* Task list items */
+.markdown-body input[type="checkbox"] {
+  margin-right: 0.5em;
+}
+
+/* === TOC (Table of Contents) Panel === */
+#toc-container {
+  width: 220px;
+  min-width: 150px;
+  background: var(--sidebar-bg);
+  overflow-y: auto;
+  border-left: 1px solid var(--border-color);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#toc-container.hidden {
+  display: none;
+}
+
+#toc-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+#toc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.toc-item {
+  display: block;
+  padding: 4px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-color);
+  text-decoration: none;
+  border-radius: 4px;
+  margin: 1px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-item:hover { background: var(--sidebar-hover); }
+.toc-item.active { background: var(--highlight-bg); font-weight: 600; }
+.toc-item[data-level="2"] { padding-left: 16px; }
+.toc-item[data-level="3"] { padding-left: 32px; font-size: 12px; }
+.toc-item[data-level="4"] { padding-left: 48px; font-size: 12px; color: var(--muted-text); }
+
+/* === Floating Action Buttons === */
+#floating-buttons {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 900;
+}
+
+.fab {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+  color: var(--muted-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 150ms, color 150ms, opacity 150ms;
+  opacity: 0.6;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.fab:hover {
+  opacity: 1;
+  background: var(--sidebar-hover);
+  color: var(--text-color);
+}
+
+.fab.active {
+  opacity: 1;
+  color: var(--link-color);
+  border-color: var(--link-color);
+}
+
+.fab svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* === Mermaid === */
+.mermaid {
+  text-align: center;
+  margin: 1em 0;
+}
+
+.mermaid-error {
+  color: var(--muted-text);
+  background: var(--code-bg);
+  padding: 1em;
+  border-radius: 6px;
+  font-style: italic;
+  margin: 1em 0;
+}
+
+/* === Performance Warning Toast === */
+#performance-warning {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--code-bg);
+  border: 1px solid var(--border-color);
+  padding: 12px 20px;
+  border-radius: 8px;
+  display: none;
+  z-index: 1000;
+  font-size: 14px;
+  color: var(--muted-text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  animation: fadeIn 300ms ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* === Empty State (Drop Zone) === */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  gap: 12px;
+  color: var(--muted-text);
+  user-select: none;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  opacity: 0.5;
+}
+
+.empty-state-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.empty-state-text {
+  font-size: 16px;
+}
+
+.empty-state-hint {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* === Drag Over Highlight === */
+.drag-over #viewer-container {
+  position: relative;
+}
+
+.drag-over #viewer-container::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed var(--link-color);
+  border-radius: 12px;
+  background: var(--highlight-bg);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* === Tree Items (Phase 5) === */
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  gap: 4px;
+  margin: 1px 4px;
+  font-size: 13px;
+}
+
+.tree-item:hover { background: var(--sidebar-hover); }
+.tree-item.active { background: var(--highlight-bg); font-weight: 600; }
+.tree-item.not-exists { opacity: 0.5; cursor: not-allowed; }
+
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.tree-children { padding-left: 16px; }
+
+.tree-toggle {
+  width: 16px;
+  text-align: center;
+  font-size: 10px;
+  flex-shrink: 0;
+  user-select: none;
+  color: var(--muted-text);
+}
+
+.tree-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* Sidebar loading spinner */
+.sidebar-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  color: var(--muted-text);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-text);
+}

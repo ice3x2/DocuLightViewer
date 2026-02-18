@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'">
+  <title>DocuLight 설정</title>
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <div id="settings-container">
+    <h1>설정</h1>
+
+    <form id="settings-form">
+      <div class="form-group">
+        <label for="theme-select">테마</label>
+        <select id="theme-select">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="fontSize-input">글꼴 크기 (px)</label>
+        <input type="number" id="fontSize-input" min="8" max="32" value="16">
+      </div>
+
+      <div class="form-group">
+        <label for="fontFamily-input">글꼴 패밀리</label>
+        <input type="text" id="fontFamily-input" value="system-ui, -apple-system, sans-serif">
+      </div>
+
+      <div class="form-group">
+        <label for="codeTheme-select">코드 테마</label>
+        <select id="codeTheme-select">
+          <option value="github">GitHub</option>
+          <option value="monokai">Monokai</option>
+          <option value="dracula">Dracula</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="defaultWindowWidth-input">기본 창 너비 (px)</label>
+        <input type="number" id="defaultWindowWidth-input" min="400" max="3840" value="1000">
+      </div>
+
+      <div class="form-group">
+        <label for="defaultWindowHeight-input">기본 창 높이 (px)</label>
+        <input type="number" id="defaultWindowHeight-input" min="300" max="2160" value="750">
+      </div>
+
+      <div class="form-group">
+        <label for="sidebarWidth-input">사이드바 너비 (px)</label>
+        <input type="number" id="sidebarWidth-input" min="150" max="800" value="260">
+      </div>
+
+      <div class="form-group">
+        <label for="maxRecursionDepth-input">최대 재귀 깊이</label>
+        <input type="number" id="maxRecursionDepth-input" min="1" max="20" value="10">
+      </div>
+
+      <div class="form-group">
+        <label for="mcpPort-input">MCP 서버 포트</label>
+        <input type="number" id="mcpPort-input" min="1024" max="65535" value="52580">
+        <small class="hint">변경 시 앱 재시작 필요</small>
+      </div>
+
+      <div class="section-divider"></div>
+      <div class="form-group">
+        <label class="section-label">파일 연결</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="fileAssociation-checkbox">
+            <span>.md 파일의 기본 앱으로 등록</span>
+          </label>
+          <small class="hint" id="file-assoc-hint"></small>
+          <div id="file-assoc-status" class="status-indicator hidden"></div>
+        </div>
+        <button type="button" id="open-default-apps-btn" class="link-button hidden">
+          시스템 기본 앱 설정 열기
+        </button>
+      </div>
+
+      <div class="button-group">
+        <button type="button" id="reset-button">기본값으로 초기화</button>
+        <button type="button" id="save-button">저장</button>
+      </div>
+
+      <div id="save-message" class="hidden">설정이 저장되었습니다</div>
+    </form>
+  </div>
+
+  <script src="./settings.js"></script>
+</body>
+</html>

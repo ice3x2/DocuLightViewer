@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Configuration
+config.json5
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+.claude/
+
+# Test results
+test-results/
+
+# Document root (if local)
+/data/
+
+# HTML Cache (Step 13)
+.cache/
+.playwright-mcp/
+trash/
+
+test-source/
+playwright-report/
+nul
+.github/
+
+tmpclaude-*-cwd
+
+# PM2 instance name (generated per deployment)
+.pm2-app-name
+
+# Build output
+dist/

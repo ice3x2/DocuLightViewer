@@ -1,0 +1,233 @@
+:root {
+  --bg-color: #ffffff;
+  --text-color: #24292e;
+  --border-color: #e1e4e8;
+  --input-bg: #f6f8fa;
+  --button-bg: #0366d6;
+  --button-text: #ffffff;
+  --button-secondary-bg: #e1e4e8;
+  --button-secondary-text: #24292e;
+  --success-color: #28a745;
+  --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: var(--text-color);
+  background: var(--bg-color);
+  padding: 24px;
+}
+
+#settings-container {
+  max-width: 450px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-family: var(--font-family);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--button-bg);
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.15);
+}
+
+.form-group .hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6a737d;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+#save-button {
+  flex: 1;
+  padding: 10px 16px;
+  background: #24292e;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+#save-button:hover {
+  opacity: 0.9;
+}
+
+#reset-button {
+  padding: 10px 16px;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#reset-button:hover {
+  opacity: 0.8;
+}
+
+#save-message {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #dcffe4;
+  color: var(--success-color);
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
+}
+
+#save-message.hidden {
+  display: none;
+}
+
+/* Section divider */
+.section-divider {
+  margin: 20px 0 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.section-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Checkbox group */
+.checkbox-group {
+  padding: 4px 0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.checkbox-label input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.checkbox-label input:disabled + span {
+  opacity: 0.5;
+}
+
+/* Status indicator */
+.status-indicator {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-indicator.hidden {
+  display: none;
+}
+
+.status-indicator.success {
+  background: #dcffe4;
+  color: #28a745;
+}
+
+.status-indicator.error {
+  background: #ffeef0;
+  color: #d73a49;
+}
+
+.status-indicator.info {
+  background: #f1f8ff;
+  color: #0366d6;
+}
+
+/* Link button */
+.link-button {
+  background: none;
+  border: none;
+  color: var(--button-bg);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+  margin-top: 8px;
+}
+
+.link-button.hidden {
+  display: none;
+}
+
+/* Scrollbar styling (same as viewer) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #959da5;
+}
