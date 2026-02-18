@@ -6,24 +6,15 @@
     fontSize: 16,
     fontFamily: 'system-ui, -apple-system, sans-serif',
     codeTheme: 'github',
-    defaultWindowWidth: 1000,
-    defaultWindowHeight: 750,
-    sidebarWidth: 260,
-    maxRecursionDepth: 10,
     mcpPort: 52580
   };
 
   const VALIDATION = {
     fontSize: { min: 8, max: 32 },
-    defaultWindowWidth: { min: 400, max: 3840 },
-    defaultWindowHeight: { min: 300, max: 2160 },
-    sidebarWidth: { min: 150, max: 800 },
-    maxRecursionDepth: { min: 1, max: 20 },
     mcpPort: { min: 1024, max: 65535 }
   };
 
   // DOM elements
-  const form = document.getElementById('settings-form');
   const saveBtn = document.getElementById('save-button');
   const resetBtn = document.getElementById('reset-button');
   const saveMessage = document.getElementById('save-message');
@@ -33,10 +24,6 @@
     fontSize: document.getElementById('fontSize-input'),
     fontFamily: document.getElementById('fontFamily-input'),
     codeTheme: document.getElementById('codeTheme-select'),
-    defaultWindowWidth: document.getElementById('defaultWindowWidth-input'),
-    defaultWindowHeight: document.getElementById('defaultWindowHeight-input'),
-    sidebarWidth: document.getElementById('sidebarWidth-input'),
-    maxRecursionDepth: document.getElementById('maxRecursionDepth-input'),
     mcpPort: document.getElementById('mcpPort-input')
   };
 

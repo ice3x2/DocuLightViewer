@@ -4,7 +4,6 @@
   --border-color: #e1e4e8;
   --input-bg: #f6f8fa;
   --button-bg: #0366d6;
-  --button-text: #ffffff;
   --button-secondary-bg: #e1e4e8;
   --button-secondary-text: #24292e;
   --success-color: #28a745;
@@ -184,7 +183,7 @@ h1 {
 
 .status-indicator.success {
   background: #dcffe4;
-  color: #28a745;
+  color: var(--success-color);
 }
 
 .status-indicator.error {

@@ -53,5 +53,8 @@ tmpclaude-*-cwd
 # PM2 instance name (generated per deployment)
 .pm2-app-name
 
+# OMC state
+.omc/
+
 # Build output
 dist/

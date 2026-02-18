@@ -702,4 +702,4 @@ class WindowManager {
 // Exports
 // ---------------------------------------------------------------------------
 
-module.exports = { WindowManager, NavigationHistory };
+module.exports = { WindowManager };

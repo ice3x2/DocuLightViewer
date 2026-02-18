@@ -95,8 +95,10 @@ npm run build:linux  # Linux AppImage
 - Initialized with electron-store instance
 
 **Preload: src/main/preload.js**
-- contextBridge API between main and renderer processes
-- Exposes: `loadContent`, `loadSettings`, `saveSettings`, `toggleSidebar`, `navigateBack`, `navigateForward`, `openExternal`, `getVersion`, `releaseAlwaysOnTop`
+- contextBridge API (`window.doclight`) between main and renderer processes
+- Listeners (Main→Renderer): `onRenderMarkdown`, `onUpdateMarkdown`, `onSidebarTree`, `onSidebarHighlight`, `onThemeChanged`, `onSettingsChanged`, `onEmptyWindow`, `onAlwaysOnTopChanged`, `onPanelVisibility`
+- Senders (Renderer→Main): `navigateTo`, `navigateBack`, `navigateForward`, `openExternal`, `notifyReady`, `zoomIn`, `zoomOut`, `zoomReset`, `releaseAlwaysOnTop`, `toggleAlwaysOnTop`, `setAlwaysOnTop`, `fileDropped`, `getFilePath`
+- Settings: `getSettings`, `saveSettings`, `registerFileAssociation`, `unregisterFileAssociation`, `getFileAssociationStatus`, `openDefaultAppsSettings`
 
 ### Renderer Process (src/renderer/)
 
@@ -224,10 +226,8 @@ DocuLightViewer/
 ### Production Dependencies
 - `@modelcontextprotocol/sdk` ^1.12.1 — MCP protocol implementation
 - `electron-store` ^8.2.0 — Settings persistence
-- `marked` ^17.0.1 — Markdown parsing
-- `dompurify` ^3.3.1 — XSS sanitization
-- `highlight.js` ^11.11.1 — Syntax highlighting
-- `uuid` ^9.0.1 — Unique ID generation
+
+Note: `marked`, `dompurify`, `highlight.js` are used as vendored bundles in `src/renderer/lib/`, not as npm imports.
 
 ### Development Dependencies
 - `electron` ^33.4.0 — Desktop app framework
@@ -247,10 +247,8 @@ Stored in JSON format at OS-specific locations:
 | `fontSize` | `16` | 8-32 | Base font size in pixels |
 | `fontFamily` | `system-ui, -apple-system, sans-serif` | string | Font stack for content |
 | `codeTheme` | `github` | `github`, `monokai`, `dracula` | Code syntax highlighting theme |
-| `defaultWindowWidth` | `1000` | 400-3840 | Default window width |
-| `defaultWindowHeight` | `750` | 300-2160 | Default window height |
-| `sidebarWidth` | `260` | 150-800 | Sidebar panel width |
-| `maxRecursionDepth` | `10` | 1-20 | Max depth for link tree parsing |
+| `mcpPort` | `52580` | 1024-65535 | HTTP MCP server port |
+| `fileAssociation` | `false` | boolean | Whether .md file association is registered |
 
 Settings can be modified via:
 1. Settings UI (accessible from system tray → Settings)

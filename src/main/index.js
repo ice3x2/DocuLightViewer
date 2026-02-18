@@ -72,10 +72,6 @@ const store = new Store({
     fontSize: { type: 'number', minimum: 8, maximum: 32, default: 16 },
     fontFamily: { type: 'string', minLength: 1, default: 'system-ui, -apple-system, sans-serif' },
     codeTheme: { type: 'string', default: 'github' },
-    defaultWindowWidth: { type: 'number', minimum: 400, maximum: 3840, default: 1000 },
-    defaultWindowHeight: { type: 'number', minimum: 300, maximum: 2160, default: 750 },
-    sidebarWidth: { type: 'number', minimum: 150, maximum: 800, default: 260 },
-    maxRecursionDepth: { type: 'number', minimum: 1, maximum: 20, default: 10 },
     mcpPort: { type: 'number', minimum: 1024, maximum: 65535, default: 52580 },
     fileAssociation: { type: 'boolean', default: false },
     fileAssociationPrevProgId: { type: 'string', default: '' }
@@ -137,7 +133,6 @@ app.on('ready', async () => {
 
   // Re-register file association on startup (fixes path changes after app updates)
   const fileAssoc = require('./file-association');
-  fileAssoc.init(store);
   if (store.get('fileAssociation', false) && fileAssoc.isSupported()) {
     fileAssoc.register().catch(err => {
       console.error('[doculight] Failed to re-register file association:', err.message);

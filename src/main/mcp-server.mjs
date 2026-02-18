@@ -191,7 +191,6 @@ function spawnDetached(command, args) {
     const child = spawn(command, args, {
       detached: true,
       stdio: 'ignore',
-      windowsHide: false
     });
     child.unref();
   } catch (err) {
@@ -303,7 +302,7 @@ function cleanupSocket() {
   ipcSocket = null;
   ipcBuffer = '';
 
-  for (const [id, pending] of pendingRequests) {
+  for (const [, pending] of pendingRequests) {
     clearTimeout(pending.timer);
     pending.reject(new Error('IPC connection lost'));
   }
@@ -531,7 +530,7 @@ async function shutdown() {
   }
 
   // Reject any remaining pending requests
-  for (const [id, pending] of pendingRequests) {
+  for (const [, pending] of pendingRequests) {
     clearTimeout(pending.timer);
     pending.reject(new Error('MCP server shutting down'));
   }
