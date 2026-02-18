@@ -73,6 +73,21 @@ const store = new Store({
     fontFamily: { type: 'string', minLength: 1, default: 'system-ui, -apple-system, sans-serif' },
     codeTheme: { type: 'string', default: 'github' },
     mcpPort: { type: 'number', minimum: 1024, maximum: 65535, default: 52580 },
+    defaultWindowSize: {
+      type: 'string',
+      enum: ['auto', 's', 'm', 'l', 'f'],
+      default: 'auto'
+    },
+    lastWindowBounds: {
+      type: 'object',
+      properties: {
+        x: { type: 'number' },
+        y: { type: 'number' },
+        width: { type: 'number' },
+        height: { type: 'number' }
+      },
+      default: {}
+    },
     fileAssociation: { type: 'boolean', default: false },
     fileAssociationPrevProgId: { type: 'string', default: '' }
   }
@@ -127,6 +142,9 @@ app.on('ready', async () => {
   createTray();
   startIpcServer();
   registerIpcHandlers();
+
+  // Pass store to windowManager for default window size / auto bounds
+  windowManager.setStore(store);
 
   // Wire up tray menu updates whenever windows change
   windowManager.onTrayUpdate = updateTrayMenu;

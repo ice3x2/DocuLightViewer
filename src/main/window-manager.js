@@ -87,6 +87,17 @@ class WindowManager {
      * @type {Map<string, { resolve: Function, content: string, filePath: string|null, title: string }>}
      */
     this.pendingReady = new Map();
+
+    /** @type {import('electron-store')|null} */
+    this.store = null;
+  }
+
+  /**
+   * Set the electron-store instance for reading default window size settings.
+   * @param {import('electron-store')} store
+   */
+  setStore(store) {
+    this.store = store;
   }
 
   // -----------------------------------------------------------------------
@@ -130,8 +141,23 @@ class WindowManager {
     const windowId = crypto.randomUUID();
 
     // --- Size & position ---------------------------------------------------
-    const { width, height } = this.resolveWindowSize(size);
-    const { x, y } = this.getNextPosition(width, height);
+    // If size is not explicitly provided (file open, drag & drop, etc.),
+    // read the default from settings
+    const effectiveSize = size || (this.store ? this.store.get('defaultWindowSize', 'auto') : 'm');
+    const { width, height } = this.resolveWindowSize(effectiveSize);
+
+    // For 'auto' mode with saved bounds and first window, restore position
+    let resolvedPos;
+    if (effectiveSize === 'auto' && this.store && this.windows.size === 0) {
+      const saved = this.store.get('lastWindowBounds', {});
+      if (saved.x !== undefined && saved.y !== undefined) {
+        resolvedPos = { x: saved.x, y: saved.y };
+      }
+    }
+    if (!resolvedPos) {
+      resolvedPos = this.getNextPosition(width, height);
+    }
+    const { x, y } = resolvedPos;
 
     // --- Title -------------------------------------------------------------
     const resolvedTitle =
@@ -159,7 +185,7 @@ class WindowManager {
     });
 
     // Fullscreen preset: maximize after creation
-    if (size === 'f') {
+    if (effectiveSize === 'f') {
       win.maximize();
     }
 
@@ -187,6 +213,15 @@ class WindowManager {
     });
 
     // --- Lifecycle events --------------------------------------------------
+    // Save window bounds when closing (for 'auto' default size mode)
+    win.on('close', () => {
+      if (this.store && this.store.get('defaultWindowSize') === 'auto') {
+        if (!win.isMaximized() && !win.isMinimized()) {
+          this.store.set('lastWindowBounds', win.getBounds());
+        }
+      }
+    });
+
     win.on('closed', () => {
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);
@@ -551,8 +586,20 @@ class WindowManager {
     }
 
     const windowId = crypto.randomUUID();
-    const { width, height } = this.resolveWindowSize(size);
-    const { x, y } = this.getNextPosition(width, height);
+    const effectiveSize = size || (this.store ? this.store.get('defaultWindowSize', 'auto') : 'm');
+    const { width, height } = this.resolveWindowSize(effectiveSize);
+
+    let resolvedPos;
+    if (effectiveSize === 'auto' && this.store && this.windows.size === 0) {
+      const saved = this.store.get('lastWindowBounds', {});
+      if (saved.x !== undefined && saved.y !== undefined) {
+        resolvedPos = { x: saved.x, y: saved.y };
+      }
+    }
+    if (!resolvedPos) {
+      resolvedPos = this.getNextPosition(width, height);
+    }
+    const { x, y } = resolvedPos;
     const resolvedTitle = 'DocuLight';
 
     const win = new BrowserWindow({
@@ -572,7 +619,7 @@ class WindowManager {
       }
     });
 
-    if (size === 'f') {
+    if (effectiveSize === 'f') {
       win.maximize();
     }
 
@@ -590,6 +637,14 @@ class WindowManager {
         rootFilePath: null,
         tree: null,
         history
+      }
+    });
+
+    win.on('close', () => {
+      if (this.store && this.store.get('defaultWindowSize') === 'auto') {
+        if (!win.isMaximized() && !win.isMinimized()) {
+          this.store.set('lastWindowBounds', win.getBounds());
+        }
       }
     });
 
@@ -639,6 +694,18 @@ class WindowManager {
     // Fullscreen: return entire work area
     if (size === 'f') {
       return { width: workArea.width, height: workArea.height };
+    }
+
+    // Auto: use saved bounds if available, otherwise fall back to 'm'
+    if (size === 'auto' && this.store) {
+      const saved = this.store.get('lastWindowBounds', {});
+      if (saved.width && saved.height) {
+        return {
+          width: Math.min(saved.width, workArea.width),
+          height: Math.min(saved.height, workArea.height)
+        };
+      }
+      size = 'm';
     }
 
     const preset = SIZE_PRESETS[size] || SIZE_PRESETS.m;

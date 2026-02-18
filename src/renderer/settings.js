@@ -6,7 +6,8 @@
     fontSize: 16,
     fontFamily: 'system-ui, -apple-system, sans-serif',
     codeTheme: 'github',
-    mcpPort: 52580
+    mcpPort: 52580,
+    defaultWindowSize: 'auto'
   };
 
   const VALIDATION = {
@@ -24,7 +25,8 @@
     fontSize: document.getElementById('fontSize-input'),
     fontFamily: document.getElementById('fontFamily-input'),
     codeTheme: document.getElementById('codeTheme-select'),
-    mcpPort: document.getElementById('mcpPort-input')
+    mcpPort: document.getElementById('mcpPort-input'),
+    defaultWindowSize: document.getElementById('defaultWindowSize-select')
   };
 
   // Load settings from main process
@@ -78,6 +80,12 @@
     if (!values.fontFamily || values.fontFamily.trim() === '') {
       values.fontFamily = DEFAULTS.fontFamily;
       fields.fontFamily.value = DEFAULTS.fontFamily;
+    }
+
+    // Validate defaultWindowSize
+    if (!['auto', 's', 'm', 'l', 'f'].includes(values.defaultWindowSize)) {
+      values.defaultWindowSize = DEFAULTS.defaultWindowSize;
+      fields.defaultWindowSize.value = DEFAULTS.defaultWindowSize;
     }
 
     return values;
