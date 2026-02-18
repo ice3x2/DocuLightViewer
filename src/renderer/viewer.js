@@ -3,6 +3,50 @@
 (function() {
   'use strict';
 
+  // === i18n ===
+  let _strings = {};
+
+  function t(key, vars) {
+    let str = _strings[key];
+    if (str === undefined) return key;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+      }
+    }
+    return str;
+  }
+
+  async function initI18n() {
+    try {
+      const { strings } = await window.doclight.getStrings();
+      _strings = strings;
+    } catch {
+      _strings = {};
+    }
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      const translated = t(key);
+      if (translated !== key) {
+        el.textContent = translated;
+      }
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      const translated = t(key);
+      if (translated !== key) {
+        el.setAttribute('title', translated);
+      }
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const key = el.getAttribute('data-i18n-placeholder');
+      const translated = t(key);
+      if (translated !== key) {
+        el.setAttribute('placeholder', translated);
+      }
+    });
+  }
+
   // === State ===
   const cleanups = [];
   let currentFilePath = null;
@@ -161,7 +205,7 @@
       } catch (err) {
         const errorDiv = document.createElement('div');
         errorDiv.className = 'mermaid-error';
-        errorDiv.textContent = `Mermaid 렌더링 오류: ${err.message}`;
+        errorDiv.textContent = t('viewer.mermaidError', { message: err.message });
         pre.replaceWith(errorDiv);
       }
     }
@@ -174,7 +218,7 @@
     if (!warningEl || !textEl) return;
 
     const sizeMB = (size / (1024 * 1024)).toFixed(1);
-    textEl.textContent = `이 문서는 매우 큽니다 (${sizeMB}MB). 렌더링에 시간이 걸릴 수 있습니다.`;
+    textEl.textContent = t('viewer.largeDocWarning', { sizeMB });
     warningEl.style.display = 'block';
 
     setTimeout(() => {
@@ -247,8 +291,8 @@
       <div class="empty-state">
         <div class="empty-state-icon">📄</div>
         <div class="empty-state-title">DocuLight</div>
-        <div class="empty-state-text">Markdown 파일을 여기에 드래그하세요</div>
-        <div class="empty-state-hint">.md 파일만 지원됩니다</div>
+        <div class="empty-state-text">${t('viewer.dropHint')}</div>
+        <div class="empty-state-hint">${t('viewer.dropFileType')}</div>
       </div>
     `;
   }));
@@ -373,7 +417,7 @@
     // Label
     const label = document.createElement('span');
     label.className = 'tree-label';
-    label.textContent = node.title || 'Untitled';
+    label.textContent = node.title || t('viewer.untitled');
     label.title = node.path || '';
     item.appendChild(label);
 
@@ -714,6 +758,7 @@
 
   // === Window Ready ===
   document.addEventListener('DOMContentLoaded', async () => {
+    await initI18n();
     const prefs = await loadPanelPrefs();
     if (prefs) {
       savedPrefs = prefs;

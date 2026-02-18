@@ -7,6 +7,22 @@ const path = require('path');
 const fs = require('fs');
 const { WindowManager } = require('./window-manager');
 const Store = require('electron-store');
+const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
+
+// === CLI locale override ===
+// --flags are consumed by Chromium (--lang) or npm (--locale, --language).
+// Use plain keyword: "locale ja"  →  npm run dev -- locale ja
+const _langOverride = (() => {
+  for (let i = 2; i < process.argv.length; i++) {
+    if (process.argv[i] === 'locale' && process.argv[i + 1] && !process.argv[i + 1].startsWith('-')) {
+      return process.argv[i + 1].toLowerCase();
+    }
+  }
+  if (process.env.DOCULIGHT_LOCALE) {
+    return process.env.DOCULIGHT_LOCALE.toLowerCase();
+  }
+  return undefined;
+})();
 
 // === Constants ===
 const PIPE_PATH = process.platform === 'win32'
@@ -137,6 +153,8 @@ if (!gotTheLock) {
 // App Lifecycle
 // =============================================================================
 app.on('ready', async () => {
+  // Use pre-parsed --lang value from module scope
+  initStrings(_langOverride);
   Menu.setApplicationMenu(null);
   cleanupStaleSocket();
   createTray();
@@ -238,7 +256,7 @@ function updateTrayMenu() {
   const visible = windows.slice(0, MAX_TRAY_ITEMS);
   for (const info of visible) {
     menuItems.push({
-      label: info.title || `Window ${info.windowId}`,
+      label: info.title || t('tray.windowFallback', { windowId: info.windowId }),
       click: () => {
         const entry = windowManager.getWindowEntry(info.windowId);
         if (entry && entry.win) {
@@ -253,7 +271,7 @@ function updateTrayMenu() {
   // If there are more windows than the limit, show a count
   if (windows.length > MAX_TRAY_ITEMS) {
     menuItems.push({
-      label: `외 ${windows.length - MAX_TRAY_ITEMS}개...`,
+      label: t('tray.overflow', { count: windows.length - MAX_TRAY_ITEMS }),
       enabled: false,
     });
   }
@@ -264,14 +282,14 @@ function updateTrayMenu() {
   }
 
   menuItems.push({
-    label: '새 뷰어',
+    label: t('tray.newViewer'),
     click: () => {
       windowManager.createEmptyWindow();
     },
   });
 
   menuItems.push({
-    label: '모든 창 닫기',
+    label: t('tray.closeAll'),
     enabled: windows.length > 0,
     click: () => {
       windowManager.closeWindow(); // close all
@@ -281,14 +299,14 @@ function updateTrayMenu() {
   menuItems.push({ type: 'separator' });
 
   menuItems.push({
-    label: '설정',
+    label: t('tray.settings'),
     click: () => {
       openSettingsWindow();
     },
   });
 
   menuItems.push({
-    label: 'DocuLight 종료',
+    label: t('tray.quit'),
     click: () => {
       app.quit();
     },
@@ -318,7 +336,7 @@ function openSettingsWindow() {
     minimizable: false,
     maximizable: false,
     alwaysOnTop: true,
-    title: 'DocuLight 설정',
+    title: t('settings.pageTitle'),
     icon: nativeImage.createFromPath(ICON_PATH),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -484,7 +502,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('register-file-association', async () => {
     if (!fileAssoc.isSupported()) {
-      return { success: false, message: '빌드된 앱에서만 사용 가능합니다' };
+      return { success: false, message: t('fileAssoc.unsupported') };
     }
     const result = await fileAssoc.register();
     if (result.success) store.set('fileAssociation', true);
@@ -566,6 +584,11 @@ function registerIpcHandlers() {
       }
       event.sender.send('settings-changed', { fontSize, fontFamily, codeTheme });
     }
+  });
+
+  // i18n: provide locale strings to renderer
+  ipcMain.handle('get-strings', () => {
+    return getAllStrings();
   });
 
   // Settings: get all settings

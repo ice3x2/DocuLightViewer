@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { buildDirectoryTree } = require('./link-parser');
+const { t } = require('./strings');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -121,20 +122,20 @@ class WindowManager {
 
     // --- Validate inputs ---------------------------------------------------
     if (!content && !filePath) {
-      throw new Error('Either content or filePath must be provided');
+      throw new Error(t('error.contentRequired'));
     }
 
     // If filePath is supplied, read from disk
     if (filePath) {
       if (path.extname(filePath).toLowerCase() !== '.md') {
-        throw new Error(`Only .md files are supported: ${filePath}`);
+        throw new Error(t('error.mdOnly', { filePath }));
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
     }
 
     // Enforce window cap
     if (this.windows.size >= MAX_WINDOWS) {
-      throw new Error(`Maximum number of windows (${MAX_WINDOWS}) reached`);
+      throw new Error(t('error.maxWindows', { max: MAX_WINDOWS }));
     }
 
     // --- Window identity ---------------------------------------------------
@@ -336,7 +337,7 @@ class WindowManager {
 
     const entry = this.windows.get(windowId);
     if (!entry) {
-      throw new Error(`Window not found: ${windowId}`);
+      throw new Error(t('error.windowNotFound', { windowId }));
     }
     entry.win.close();
     return { closed: 1 };
@@ -359,7 +360,7 @@ class WindowManager {
   async updateWindow(windowId, opts = {}) {
     const entry = this.windows.get(windowId);
     if (!entry) {
-      throw new Error(`Window not found: ${windowId}`);
+      throw new Error(t('error.windowNotFound', { windowId }));
     }
 
     let { content, filePath, title } = opts;
@@ -367,13 +368,13 @@ class WindowManager {
     // Read from disk if filePath provided
     if (filePath) {
       if (path.extname(filePath).toLowerCase() !== '.md') {
-        throw new Error(`Only .md files are supported: ${filePath}`);
+        throw new Error(t('error.mdOnly', { filePath }));
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
     }
 
     if (content == null) {
-      throw new Error('Either content or filePath must be provided for update');
+      throw new Error(t('error.contentRequiredUpdate'));
     }
 
     // Resolve title
@@ -467,7 +468,7 @@ class WindowManager {
   async navigateTo(windowId, rawPath) {
     const entry = this.windows.get(windowId);
     if (!entry) {
-      throw new Error(`Window not found: ${windowId}`);
+      throw new Error(t('error.windowNotFound', { windowId }));
     }
 
     // Resolve relative paths against current file's directory
@@ -515,7 +516,7 @@ class WindowManager {
   async navigateBack(windowId) {
     const entry = this.windows.get(windowId);
     if (!entry) {
-      throw new Error(`Window not found: ${windowId}`);
+      throw new Error(t('error.windowNotFound', { windowId }));
     }
 
     const filePath = entry.meta.history.back();
@@ -544,7 +545,7 @@ class WindowManager {
   async navigateForward(windowId) {
     const entry = this.windows.get(windowId);
     if (!entry) {
-      throw new Error(`Window not found: ${windowId}`);
+      throw new Error(t('error.windowNotFound', { windowId }));
     }
 
     const filePath = entry.meta.history.forward();
@@ -582,7 +583,7 @@ class WindowManager {
 
     // Enforce window cap
     if (this.windows.size >= MAX_WINDOWS) {
-      throw new Error(`Maximum number of windows (${MAX_WINDOWS}) reached`);
+      throw new Error(t('error.maxWindows', { max: MAX_WINDOWS }));
     }
 
     const windowId = crypto.randomUUID();

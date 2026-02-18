@@ -7,6 +7,7 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { t } = require('./strings');
 
 // === Constants ===
 const PROG_ID = 'DocuLight.Markdown';
@@ -121,7 +122,7 @@ async function winRegister() {
     ], { windowsHide: true });
   } catch { /* non-fatal */ }
 
-  return { success: true, message: '파일 연결이 등록되었습니다' };
+  return { success: true, message: t('fileAssoc.registered') };
 }
 
 async function winUnregister() {
@@ -161,7 +162,7 @@ async function winUnregister() {
     ], { windowsHide: true });
   } catch { /* non-fatal */ }
 
-  return { success: true, message: '파일 연결이 해제되었습니다' };
+  return { success: true, message: t('fileAssoc.unregistered') };
 }
 
 async function winIsRegistered() {
@@ -198,24 +199,24 @@ async function macRegister() {
 
   // Validate it's actually an .app bundle
   if (!appPath.endsWith('.app')) {
-    return { success: false, message: '빌드된 앱에서만 사용 가능합니다' };
+    return { success: false, message: t('fileAssoc.unsupported') };
   }
   if (!fs.existsSync(path.join(appPath, 'Contents', 'Info.plist'))) {
-    return { success: false, message: '빌드된 앱에서만 사용 가능합니다' };
+    return { success: false, message: t('fileAssoc.noPlist') };
   }
 
   // Reject if running from mounted volume (DMG)
   if (appPath.startsWith('/Volumes/')) {
-    return { success: false, message: 'Applications 폴더로 이동 후 등록해주세요' };
+    return { success: false, message: t('fileAssoc.moveToApps') };
   }
 
   // Run lsregister
   if (!fs.existsSync(LSREGISTER)) {
-    return { success: false, message: 'lsregister를 찾을 수 없습니다' };
+    return { success: false, message: t('fileAssoc.noLsregister') };
   }
   execFileSync(LSREGISTER, ['-f', appPath]);
 
-  return { success: true, message: '등록 완료. 시스템 설정에서 기본 앱을 선택해주세요.' };
+  return { success: true, message: t('fileAssoc.macSuccess') };
 }
 
 async function macUnregister() {
@@ -225,7 +226,7 @@ async function macUnregister() {
       execFileSync(LSREGISTER, ['-u', appPath]);
     }
   } catch { /* ignore */ }
-  return { success: true, message: '파일 연결이 해제되었습니다' };
+  return { success: true, message: t('fileAssoc.macUnregistered') };
 }
 
 async function macIsRegistered() {
@@ -286,7 +287,7 @@ async function linuxRegister() {
     execFileSync('xdg-mime', ['default', 'doculight.desktop', 'text/x-markdown']);
   } catch { /* ignore */ }
 
-  return { success: true, message: '파일 연결이 등록되었습니다' };
+  return { success: true, message: t('fileAssoc.linuxRegistered') };
 }
 
 async function linuxUnregister() {
@@ -302,7 +303,7 @@ async function linuxUnregister() {
     execFileSync('update-desktop-database', [appsDir]);
   } catch { /* ignore */ }
 
-  return { success: true, message: '파일 연결이 해제되었습니다' };
+  return { success: true, message: t('fileAssoc.linuxUnregistered') };
 }
 
 async function linuxIsRegistered() {
@@ -329,14 +330,14 @@ async function register() {
   if (platform === 'win32') return winRegister();
   if (platform === 'darwin') return macRegister();
   if (platform === 'linux') return linuxRegister();
-  return { success: false, message: `지원하지 않는 플랫폼: ${platform}` };
+  return { success: false, message: t('fileAssoc.unsupportedPlatform', { platform }) };
 }
 
 async function unregister() {
   if (platform === 'win32') return winUnregister();
   if (platform === 'darwin') return macUnregister();
   if (platform === 'linux') return linuxUnregister();
-  return { success: false, message: `지원하지 않는 플랫폼: ${platform}` };
+  return { success: false, message: t('fileAssoc.unsupportedPlatform', { platform }) };
 }
 
 async function isRegistered() {

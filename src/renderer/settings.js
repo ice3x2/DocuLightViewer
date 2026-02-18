@@ -1,6 +1,50 @@
 (function() {
   'use strict';
 
+  // === i18n ===
+  let _strings = {};
+
+  function t(key, vars) {
+    let str = _strings[key];
+    if (str === undefined) return key;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+      }
+    }
+    return str;
+  }
+
+  async function initI18n() {
+    try {
+      const { strings } = await window.doclight.getStrings();
+      _strings = strings;
+    } catch {
+      _strings = {};
+    }
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      const translated = t(key);
+      if (translated !== key) {
+        el.textContent = translated;
+      }
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      const translated = t(key);
+      if (translated !== key) {
+        el.setAttribute('title', translated);
+      }
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const key = el.getAttribute('data-i18n-placeholder');
+      const translated = t(key);
+      if (translated !== key) {
+        el.setAttribute('placeholder', translated);
+      }
+    });
+  }
+
   const DEFAULTS = {
     theme: 'light',
     fontSize: 16,
@@ -112,7 +156,7 @@
 
   // Reset handler
   resetBtn.addEventListener('click', async () => {
-    if (!confirm('모든 설정을 기본값으로 초기화하시겠습니까?')) return;
+    if (!confirm(t('settings.resetConfirm'))) return;
 
     populateForm(DEFAULTS);
     try {
@@ -148,7 +192,7 @@
 
       if (!status.supported) {
         fileAssocCheckbox.disabled = true;
-        fileAssocHint.textContent = '빌드된 앱에서만 사용 가능합니다';
+        fileAssocHint.textContent = t('settings.unsupported');
         return;
       }
 
@@ -156,24 +200,24 @@
 
       // Platform-specific hints
       if (status.platform === 'darwin') {
-        fileAssocHint.textContent = '등록 후 시스템 설정에서 기본 앱을 선택해야 합니다';
+        fileAssocHint.textContent = t('settings.hintMac');
         openDefaultAppsBtn.classList.remove('hidden');
       } else if (status.platform === 'win32') {
-        fileAssocHint.textContent = '등록 후 "연결 프로그램"에서 DocuLight를 선택할 수 있습니다';
+        fileAssocHint.textContent = t('settings.hintWindows');
         openDefaultAppsBtn.classList.remove('hidden');
       } else {
-        fileAssocHint.textContent = 'XDG MIME 기반으로 등록됩니다';
+        fileAssocHint.textContent = t('settings.hintLinux');
       }
     } catch (err) {
       console.error('Failed to load file association status:', err);
       fileAssocCheckbox.disabled = true;
-      fileAssocHint.textContent = '상태를 확인할 수 없습니다';
+      fileAssocHint.textContent = t('settings.cannotCheckStatus');
     }
   }
 
   fileAssocCheckbox.addEventListener('change', async () => {
     fileAssocCheckbox.disabled = true;
-    showFileAssocStatus('info', '처리 중...');
+    showFileAssocStatus('info', t('settings.processing'));
     try {
       const result = fileAssocCheckbox.checked
         ? await window.doclight.registerFileAssociation()
@@ -186,7 +230,7 @@
       }
     } catch (err) {
       fileAssocCheckbox.checked = !fileAssocCheckbox.checked; // revert
-      showFileAssocStatus('error', `오류: ${err.message}`);
+      showFileAssocStatus('error', t('settings.errorPrefix', { message: err.message }));
     } finally {
       fileAssocCheckbox.disabled = false;
     }
@@ -197,7 +241,9 @@
   });
 
   // Load on startup
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
+    await initI18n();
+    document.title = t('settings.pageTitle');
     loadSettings();
     initFileAssociation();
   });

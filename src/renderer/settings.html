@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'">
-  <title>DocuLight 설정</title>
+  <title>DocuLight Settings</title>
   <link rel="stylesheet" href="./settings.css">
 </head>
 <body>
   <div id="settings-container">
-    <h1>설정</h1>
+    <h1 data-i18n="settings.heading">Settings</h1>
 
     <form id="settings-form">
       <div class="form-group">
-        <label for="theme-select">테마</label>
+        <label for="theme-select" data-i18n="settings.theme">Theme</label>
         <select id="theme-select">
           <option value="light">Light</option>
           <option value="dark">Dark</option>
@@ -22,17 +22,17 @@
       </div>
 
       <div class="form-group">
-        <label for="fontSize-input">글꼴 크기 (px)</label>
+        <label for="fontSize-input" data-i18n="settings.fontSize">Font Size (px)</label>
         <input type="number" id="fontSize-input" min="8" max="32" value="16">
       </div>
 
       <div class="form-group">
-        <label for="fontFamily-input">글꼴 패밀리</label>
+        <label for="fontFamily-input" data-i18n="settings.fontFamily">Font Family</label>
         <input type="text" id="fontFamily-input" value="system-ui, -apple-system, sans-serif">
       </div>
 
       <div class="form-group">
-        <label for="codeTheme-select">코드 테마</label>
+        <label for="codeTheme-select" data-i18n="settings.codeTheme">Code Theme</label>
         <select id="codeTheme-select">
           <option value="github">GitHub</option>
           <option value="monokai">Monokai</option>
@@ -41,44 +41,44 @@
       </div>
 
       <div class="form-group">
-        <label for="mcpPort-input">MCP 서버 포트</label>
+        <label for="mcpPort-input" data-i18n="settings.mcpPort">MCP Server Port</label>
         <input type="number" id="mcpPort-input" min="1024" max="65535" value="52580">
-        <small class="hint">변경 시 앱 재시작 필요</small>
+        <small class="hint" data-i18n="settings.mcpPortHint">Requires app restart after change</small>
       </div>
 
       <div class="form-group">
-        <label for="defaultWindowSize-select">기본 창 크기</label>
+        <label for="defaultWindowSize-select" data-i18n="settings.defaultWindowSize">Default Window Size</label>
         <select id="defaultWindowSize-select">
-          <option value="auto">Auto (마지막 크기 기억)</option>
-          <option value="s">Small</option>
-          <option value="m">Medium</option>
-          <option value="l">Large</option>
-          <option value="f">Full Screen</option>
+          <option value="auto" data-i18n="settings.windowSizeAuto">Auto (remember last size)</option>
+          <option value="s" data-i18n="settings.windowSizeSmall">Small</option>
+          <option value="m" data-i18n="settings.windowSizeMedium">Medium</option>
+          <option value="l" data-i18n="settings.windowSizeLarge">Large</option>
+          <option value="f" data-i18n="settings.windowSizeFull">Full Screen</option>
         </select>
       </div>
 
       <div class="section-divider"></div>
       <div class="form-group">
-        <label class="section-label">파일 연결</label>
+        <label class="section-label" data-i18n="settings.fileAssociation">File Association</label>
         <div class="checkbox-group">
           <label class="checkbox-label">
             <input type="checkbox" id="fileAssociation-checkbox">
-            <span>.md 파일의 기본 앱으로 등록</span>
+            <span data-i18n="settings.fileAssocCheckbox">Register as default app for .md files</span>
           </label>
           <small class="hint" id="file-assoc-hint"></small>
           <div id="file-assoc-status" class="status-indicator hidden"></div>
         </div>
-        <button type="button" id="open-default-apps-btn" class="link-button hidden">
-          시스템 기본 앱 설정 열기
+        <button type="button" id="open-default-apps-btn" class="link-button hidden" data-i18n="settings.openDefaultApps">
+          Open system default apps settings
         </button>
       </div>
 
       <div class="button-group">
-        <button type="button" id="reset-button">기본값으로 초기화</button>
-        <button type="button" id="save-button">저장</button>
+        <button type="button" id="reset-button" data-i18n="settings.resetButton">Reset to Defaults</button>
+        <button type="button" id="save-button" data-i18n="settings.saveButton">Save</button>
       </div>
 
-      <div id="save-message" class="hidden">설정이 저장되었습니다</div>
+      <div id="save-message" class="hidden" data-i18n="settings.savedMessage">Settings saved</div>
     </form>
   </div>
 

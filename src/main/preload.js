@@ -90,6 +90,9 @@ contextBridge.exposeInMainWorld('doclight', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
+  // i18n
+  getStrings: () => ipcRenderer.invoke('get-strings'),
+
   // File association
   registerFileAssociation: () => ipcRenderer.invoke('register-file-association'),
   unregisterFileAssociation: () => ipcRenderer.invoke('unregister-file-association'),
