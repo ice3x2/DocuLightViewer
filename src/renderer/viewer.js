@@ -752,9 +752,11 @@
   function renderTreeNode(node, container, depth) {
     if (!node) return;
 
+    const normalizedNodePath = (node.path || '').replace(/\\/g, '/');
+    const normalizedCurrent = (currentFilePath || '').replace(/\\/g, '/');
     const item = document.createElement('div');
-    item.className = 'tree-item' + (node.path === currentFilePath ? ' active' : '') + (!node.exists ? ' not-exists' : '');
-    item.dataset.path = node.path || '';
+    item.className = 'tree-item' + (normalizedNodePath === normalizedCurrent ? ' active' : '') + (!node.exists ? ' not-exists' : '');
+    item.dataset.path = normalizedNodePath;
     item.style.paddingLeft = (16 + depth * 16) + 'px';
 
     // Toggle arrow for nodes with children
@@ -826,12 +828,14 @@
     const container = document.getElementById('sidebar-tree');
     if (!container) return;
 
+    const normalizedPath = (currentPath || '').replace(/\\/g, '/');
+
     container.querySelectorAll('.tree-item.active').forEach(el => {
       el.classList.remove('active');
     });
 
     container.querySelectorAll('.tree-item').forEach(el => {
-      if (el.dataset.path === currentPath) {
+      if (el.dataset.path === normalizedPath) {
         el.classList.add('active');
         el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         // Expand parent tree-children
@@ -847,7 +851,7 @@
       }
     });
 
-    currentFilePath = currentPath;
+    currentFilePath = normalizedPath;
   }
 
   // === TOC Functions ===

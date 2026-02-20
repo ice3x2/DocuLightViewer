@@ -200,6 +200,8 @@ html, body {
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
   margin: 1em 0;
 }
 
@@ -207,6 +209,8 @@ html, body {
   border: 1px solid var(--border-color);
   padding: 8px 12px;
   text-align: left;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-body th {

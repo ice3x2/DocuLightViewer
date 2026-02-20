@@ -208,6 +208,11 @@
       var renderSidebar = window.DocuLight.fn && window.DocuLight.fn.renderSidebarTree;
       if (renderSidebar) renderSidebar(data.sidebarTree);
     }
+    // Highlight current file in sidebar after tree render
+    if (window.DocuLight && window.DocuLight.fn) {
+      var updateHighlight = window.DocuLight.fn.updateSidebarHighlight;
+      if (updateHighlight) updateHighlight(tab.filePath);
+    }
 
     renderTabBar();
     updateTabBarVisibility();
@@ -246,6 +251,8 @@
                   var renderSb = window.DocuLight.fn && window.DocuLight.fn.renderSidebarTree;
                   if (renderSb) renderSb(data.sidebarTree);
                 }
+                var updateHl = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.updateSidebarHighlight;
+                if (updateHl) updateHl(data.filePath);
                 renderTabBar();
               }
             });
