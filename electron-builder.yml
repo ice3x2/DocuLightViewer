@@ -2,6 +2,10 @@ appId: com.doculight.app
 productName: DocuLight
 copyright: Copyright (c) 2026
 
+# Disable electron-builder's built-in publish — release is handled by the
+# GitHub Actions release job using softprops/action-gh-release.
+publish: null
+
 directories:
   buildResources: assets
   output: dist
@@ -63,3 +67,6 @@ linux:
   mimeTypes:
     - text/markdown
     - text/x-markdown
+
+deb:
+  maintainer: ice3x2 <ice3x2@gmail.com>
