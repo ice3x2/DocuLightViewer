@@ -138,12 +138,132 @@
     });
   }
 
-  // === Configure marked ===
-  if (typeof marked !== 'undefined') {
-    marked.setOptions({
-      gfm: true,
-      breaks: true
+  // === Search Scroll Helper ===
+  /**
+   * Find the first occurrence of query text in the rendered content,
+   * scroll to it, and temporarily highlight the match with a yellow background.
+   * @param {string} query - The search text to find
+   */
+  function scrollToTextMatch(query, occurrenceIndex) {
+    const contentEl = document.getElementById('content');
+    const viewerContainerEl = document.getElementById('viewer-container');
+    if (!contentEl || !viewerContainerEl || !query) return;
+
+    // Remove any previous search highlights
+    contentEl.querySelectorAll('.search-highlight-temp').forEach(el => {
+      const parent = el.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize();
+      }
     });
+
+    occurrenceIndex = occurrenceIndex || 0;
+    let matchCount = 0;
+    const lowerQuery = query.toLowerCase();
+    const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, null);
+
+    let node;
+    while ((node = walker.nextNode())) {
+      const text = node.textContent;
+      if (!text) continue;
+      const matchIdx = text.toLowerCase().indexOf(lowerQuery);
+      if (matchIdx < 0) continue;
+
+      if (matchCount < occurrenceIndex) {
+        matchCount++;
+        continue;
+      }
+
+      // Split the text node and wrap the matched portion in a highlight <mark>
+      const before = text.substring(0, matchIdx);
+      const match = text.substring(matchIdx, matchIdx + query.length);
+      const after = text.substring(matchIdx + query.length);
+      const parent = node.parentNode;
+      if (!parent) return;
+
+      const highlightEl = document.createElement('mark');
+      highlightEl.className = 'search-highlight-temp';
+      highlightEl.textContent = match;
+
+      const frag = document.createDocumentFragment();
+      if (before) frag.appendChild(document.createTextNode(before));
+      frag.appendChild(highlightEl);
+      if (after) frag.appendChild(document.createTextNode(after));
+      parent.replaceChild(frag, node);
+
+      // Scroll to the highlight element
+      requestAnimationFrame(() => {
+        const containerRect = viewerContainerEl.getBoundingClientRect();
+        const targetRect = highlightEl.getBoundingClientRect();
+        const targetMiddle = targetRect.top - containerRect.top + viewerContainerEl.scrollTop;
+        const centeredScroll = targetMiddle - (containerRect.height / 2);
+        viewerContainerEl.scrollTo({
+          top: Math.max(0, centeredScroll),
+          behavior: 'smooth'
+        });
+      });
+
+      // Fade out after 5 seconds
+      setTimeout(() => {
+        highlightEl.classList.add('search-highlight-fade');
+        // Remove the element after the fade animation completes
+        highlightEl.addEventListener('transitionend', () => {
+          const p = highlightEl.parentNode;
+          if (p) {
+            p.replaceChild(document.createTextNode(highlightEl.textContent), highlightEl);
+            p.normalize();
+          }
+        }, { once: true });
+      }, 5000);
+
+      return;
+    }
+  }
+
+  // === Local Image Resolution ===
+  // After DOMPurify inserts HTML, any <img> whose src is a file:// URL or a
+  // relative path won't load in a sandboxed Electron renderer.  We ask the
+  // main process to read each such file and hand back a data URI instead.
+  async function resolveLocalImages(container) {
+    const imgs = Array.from(container.querySelectorAll('img[src]'));
+    if (imgs.length === 0) return;
+
+    const state = window.DocuLight && window.DocuLight.state;
+    const imageBasePath = state ? (state.imageBasePath || '') : '';
+
+    await Promise.all(imgs.map(async (img) => {
+      const src = img.getAttribute('src') || '';
+
+      // Skip data URIs and web URLs — they load fine without help
+      if (!src ||
+          src.startsWith('data:') ||
+          src.startsWith('http://') ||
+          src.startsWith('https://')) return;
+
+      let filePath;
+
+      if (src.startsWith('file:///')) {
+        // Strip scheme to get the raw filesystem path
+        let p = src.slice(8); // remove 'file:///'
+        try { p = decodeURIComponent(p); } catch (e) { /* keep as-is */ }
+        filePath = p;
+      } else if (!src.startsWith('/') && imageBasePath) {
+        // Relative path (e.g. ./img.png or ../img.png) — join with basePath
+        // Main process path.normalize() will resolve any .. segments.
+        const clean = src.replace(/^\.\//, '');
+        filePath = imageBasePath + '/' + clean;
+      }
+
+      if (!filePath) return;
+
+      try {
+        const result = await window.doclight.readImageAsDataUrl(filePath);
+        if (result && result.dataUrl) {
+          img.setAttribute('src', result.dataUrl);
+        }
+      } catch (e) { /* silently ignore unreadable images */ }
+    }));
   }
 
   // === Rendering Pipeline ===
@@ -161,14 +281,24 @@
     const rawHtml = marked.parse(markdown);
 
     // Step 2: Sanitize with DOMPurify
+    // ALLOWED_URI_REGEXP is extended to permit file:// URLs so that local images
+    // resolved by image-resolver.js are not stripped by DOMPurify's default policy.
     const cleanHtml = DOMPurify.sanitize(rawHtml, {
       USE_PROFILES: { html: true },
       ADD_TAGS: ['details', 'summary'],
-      ADD_ATTR: ['open']
+      ADD_ATTR: ['open'],
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|file):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
     });
 
     // Step 3: Insert into DOM
     contentEl.innerHTML = cleanHtml;
+
+    // Step 3b: Convert local file:// image URLs to data URIs.
+    // Electron's sandbox prevents the renderer from loading file:// resources
+    // that reside outside the app directory (Chromium same-origin policy).
+    // We resolve each image via IPC so the main process reads and returns
+    // the binary as a base64 data URL, which Chromium accepts unconditionally.
+    await resolveLocalImages(contentEl);
 
     // Step 4: Render Mermaid diagrams
     await renderMermaidDiagrams(contentEl);
@@ -230,8 +360,81 @@
 
   // render-markdown: initial content when window opens
   cleanups.push(window.doclight.onRenderMarkdown((data) => {
+    const isSameFile = currentFilePath && data.filePath && currentFilePath === data.filePath;
+    const viewerContainerEl = document.getElementById('viewer-container');
+    const savedScrollTop = isSameFile && viewerContainerEl ? viewerContainerEl.scrollTop : 0;
+
     currentFilePath = data.filePath || null;
+    if (window.DocuLight) {
+      window.DocuLight.state.currentFilePath = data.filePath || null;
+      window.DocuLight.state.imageBasePath = data.imageBasePath || null;
+      if (data.platform) window.DocuLight.state.platform = data.platform;
+    }
     renderMarkdown(data.markdown);
+
+    // PDF mode: hide UI elements and signal completion
+    if (data.pdfMode) {
+      document.body.classList.add('pdf-mode');
+      // Hide non-content UI
+      const floatingBtns = document.getElementById('floating-buttons');
+      const sidebarContainer = document.getElementById('sidebar-container');
+      const tocContainer = document.getElementById('toc-container');
+      const resizeHandle = document.getElementById('resize-handle');
+      const tabBar = document.getElementById('tab-bar');
+      if (floatingBtns) floatingBtns.style.display = 'none';
+      if (sidebarContainer) sidebarContainer.style.display = 'none';
+      if (tocContainer) tocContainer.style.display = 'none';
+      if (resizeHandle) resizeHandle.style.display = 'none';
+      if (tabBar) tabBar.style.display = 'none';
+
+      // Wait for Mermaid rendering then signal completion
+      setTimeout(() => {
+        if (window.doclight && window.doclight.pdfRenderComplete) {
+          window.doclight.pdfRenderComplete();
+        }
+      }, 500);
+    }
+
+    // Restore scroll position for same-file refresh (auto-refresh)
+    if (isSameFile && viewerContainerEl) {
+      viewerContainerEl.scrollTop = savedScrollTop;
+    }
+
+    // Scroll to search match if pending from sidebar content search
+    if (window.DocuLight && window.DocuLight.state && window.DocuLight.state.pendingSearchScroll) {
+      const scrollInfo = window.DocuLight.state.pendingSearchScroll;
+      window.DocuLight.state.pendingSearchScroll = null;
+      // Delay to ensure rendering is fully complete (Mermaid, highlight, layout)
+      setTimeout(() => {
+        scrollToTextMatch(scrollInfo.query, scrollInfo.occurrenceIndex);
+      }, 300);
+    }
+
+    // Update active tab state if tabs enabled
+    if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager &&
+        window.DocuLight.modules.tabManager.isEnabled() &&
+        !data.pdfMode) {
+      var tabIndex = window.DocuLight.modules.tabManager.getActiveTabIndex();
+      if (tabIndex >= 0 && window.DocuLight.state.tabs && window.DocuLight.state.tabs[tabIndex]) {
+        var activeTab = window.DocuLight.state.tabs[tabIndex];
+        var cEl = document.getElementById('content');
+        if (cEl) activeTab.renderedHtml = cEl.innerHTML;
+        activeTab.filePath = data.filePath || activeTab.filePath;
+        if (data.filePath) {
+          var h1El = cEl && cEl.querySelector('h1');
+          if (h1El) {
+            activeTab.title = h1El.textContent;
+          } else {
+            var fp = data.filePath;
+            activeTab.title = fp.substring(fp.replace(/\\/g, '/').lastIndexOf('/') + 1);
+          }
+        }
+        activeTab.cachedAt = Date.now();
+        // Re-render tab bar to reflect updated title
+        var tabMod = window.DocuLight.modules.tabManager;
+        if (tabMod && tabMod.renderTabBar) tabMod.renderTabBar();
+      }
+    }
   }));
 
   // update-markdown: content update for existing window
@@ -248,6 +451,9 @@
   cleanups.push(window.doclight.onSidebarTree((data) => {
     if (data.tree && data.tree.children && data.tree.children.length > 0) {
       renderSidebarTree(data.tree);
+      if (window.DocuLight) {
+        window.DocuLight.state.sidebarTree = data.tree;
+      }
       if (!savedPrefs || savedPrefs.sidebarVisible !== false) {
         showSidebar();
       }
@@ -297,6 +503,149 @@
     `;
   }));
 
+  // === Context Menu ===
+  function showContextMenu(e) {
+    // Remove any existing context menu
+    const old = document.querySelector('.ctx-menu');
+    if (old) old.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu';
+
+    const tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
+    const tabsEnabled = tabMod && tabMod.isEnabled();
+
+    // Empty page: no file loaded in current context
+    const isEmpty = !currentFilePath;
+
+    // Check if right-click target is inside a code block
+    const codeBlock = !isEmpty && e.target.closest('pre');
+
+    // New Tab (only if tabs enabled)
+    if (tabsEnabled) {
+      const newTabItem = document.createElement('div');
+      newTabItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
+      newTabItem.innerHTML = t('viewer.newTab').replace(/\s*\(.*\)$/, '') + '<span class="ctx-menu-shortcut">Ctrl+T</span>';
+      if (!isEmpty) {
+        newTabItem.addEventListener('click', () => {
+          menu.remove();
+          if (tabMod.createBlankTab) tabMod.createBlankTab();
+        });
+      }
+      menu.appendChild(newTabItem);
+    }
+
+    // Select All
+    const selectAllItem = document.createElement('div');
+    selectAllItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
+    selectAllItem.innerHTML = t('viewer.selectAll') + '<span class="ctx-menu-shortcut">Ctrl+A</span>';
+    if (!isEmpty) {
+      selectAllItem.addEventListener('click', () => {
+        menu.remove();
+        const contentEl = document.getElementById('content');
+        if (contentEl) {
+          const range = document.createRange();
+          range.selectNodeContents(contentEl);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      });
+    }
+    menu.appendChild(selectAllItem);
+
+    // Select Block Text (only if inside code block)
+    if (codeBlock) {
+      const selectBlockItem = document.createElement('div');
+      selectBlockItem.className = 'ctx-menu-item';
+      selectBlockItem.textContent = t('viewer.selectBlock');
+      selectBlockItem.addEventListener('click', () => {
+        menu.remove();
+        const range = document.createRange();
+        const codeEl = codeBlock.querySelector('code') || codeBlock;
+        range.selectNodeContents(codeEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      menu.appendChild(selectBlockItem);
+    }
+
+    // Separator
+    const sep = document.createElement('div');
+    sep.className = 'ctx-menu-sep';
+    menu.appendChild(sep);
+
+    // Print (PDF export)
+    const printItem = document.createElement('div');
+    printItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
+    printItem.innerHTML = t('viewer.exportPdf') + '<span class="ctx-menu-shortcut">Ctrl+P</span>';
+    if (!isEmpty) {
+      printItem.addEventListener('click', () => {
+        menu.remove();
+        if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.pdfExportUi &&
+            window.DocuLight.modules.pdfExportUi.openModal) {
+          window.DocuLight.modules.pdfExportUi.openModal();
+        }
+      });
+    }
+    menu.appendChild(printItem);
+
+    // Close
+    const closeItem = document.createElement('div');
+    closeItem.className = 'ctx-menu-item';
+    closeItem.innerHTML = t('viewer.closeWindow') + '<span class="ctx-menu-shortcut">Ctrl+W</span>';
+    closeItem.addEventListener('click', () => {
+      menu.remove();
+      if (tabsEnabled) {
+        tabMod.closeTab();
+      } else {
+        window.close();
+      }
+    });
+    menu.appendChild(closeItem);
+
+    document.body.appendChild(menu);
+
+    // Position: ensure menu stays within viewport
+    const rect = menu.getBoundingClientRect();
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+
+    // Close on click outside or Escape
+    function closeMenu(ev) {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener('mousedown', closeMenu);
+        document.removeEventListener('keydown', escHandler);
+      }
+    }
+    function escHandler(ev) {
+      if (ev.key === 'Escape') {
+        menu.remove();
+        document.removeEventListener('mousedown', closeMenu);
+        document.removeEventListener('keydown', escHandler);
+      }
+    }
+    setTimeout(() => {
+      document.addEventListener('mousedown', closeMenu);
+      document.addEventListener('keydown', escHandler);
+    }, 0);
+  }
+
+  // Attach context menu to viewer area
+  document.addEventListener('contextmenu', (e) => {
+    const viewerContainer = document.getElementById('viewer-container');
+    if (viewerContainer && viewerContainer.contains(e.target)) {
+      e.preventDefault();
+      showContextMenu(e);
+    }
+  });
+
   // === Drag & Drop ===
   let dragCounter = 0;
 
@@ -332,11 +681,30 @@
     const files = [...e.dataTransfer.files];
     const mdFile = files.find(f => f.name.endsWith('.md'));
     if (mdFile) {
-      // Use webUtils.getPathForFile via preload (sandbox-safe)
       const filePath = window.doclight.getFilePath(mdFile);
-      if (filePath) {
-        window.doclight.fileDropped(filePath);
+      if (!filePath) return;
+
+      // If tabs enabled and current tab has content, open in new tab
+      const tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
+      if (tabMod && tabMod.isEnabled() && currentFilePath) {
+        if (window.doclight.readFileForTab) {
+          window.doclight.readFileForTab(filePath).then((data) => {
+            if (!data.error && tabMod.createTab) {
+              tabMod.createTab(data);
+              // Notify main for watcher + recent tracking
+              if (window.doclight.fileOpenedInTab) {
+                window.doclight.fileOpenedInTab(filePath);
+              }
+            } else {
+              // Fallback to replacing current content
+              window.doclight.fileDropped(filePath);
+            }
+          });
+          return;
+        }
       }
+
+      window.doclight.fileDropped(filePath);
     }
   });
 
@@ -433,7 +801,11 @@
       });
     } else if (node.exists !== false && node.path) {
       item.addEventListener('click', () => {
-        window.doclight.navigateTo(node.path);
+        if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+          window.DocuLight.fn.navigateToForTab(node.path);
+        } else {
+          window.doclight.navigateTo(node.path);
+        }
       });
     }
 
@@ -620,8 +992,11 @@
 
     // Local .md links - navigate
     if (href.endsWith('.md') || (!href.startsWith('#') && !href.includes('://'))) {
-      // Resolve relative path (basic handling - full resolution happens in main process)
-      window.doclight.navigateTo(href);
+      if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+        window.DocuLight.fn.navigateToForTab(href);
+      } else {
+        window.doclight.navigateTo(href);
+      }
       return;
     }
 
@@ -642,10 +1017,26 @@
   document.addEventListener('keydown', (e) => {
     const mod = e.metaKey || e.ctrlKey;
 
-    // Ctrl+W / Cmd+W: Close window
+    // Ctrl+W / Cmd+W: Close tab or window
     if (mod && e.key === 'w') {
       e.preventDefault();
-      window.close();
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager &&
+          window.DocuLight.modules.tabManager.isEnabled()) {
+        window.DocuLight.modules.tabManager.closeTab();
+      } else {
+        window.close();
+      }
+      return;
+    }
+
+    // Ctrl+T / Cmd+T: New blank tab
+    if (mod && e.key === 't') {
+      e.preventDefault();
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager &&
+          window.DocuLight.modules.tabManager.isEnabled() &&
+          window.DocuLight.modules.tabManager.createBlankTab) {
+        window.DocuLight.modules.tabManager.createBlankTab();
+      }
       return;
     }
 
@@ -691,8 +1082,46 @@
       return;
     }
 
-    // Escape: Release always-on-top
+    // Ctrl+P / Cmd+P: Print (PDF export)
+    if (mod && e.key === 'p') {
+      e.preventDefault();
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.pdfExportUi &&
+          window.DocuLight.modules.pdfExportUi.openModal) {
+        window.DocuLight.modules.pdfExportUi.openModal();
+      }
+      return;
+    }
+
+    // Ctrl+Shift+F: sidebar search
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+      e.preventDefault();
+      // Show sidebar if hidden
+      const sidebar = document.getElementById('sidebar-container');
+      if (sidebar && sidebar.classList.contains('hidden')) {
+        showSidebar();
+      }
+      // Enter search mode
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.sidebarSearch) {
+        window.DocuLight.modules.sidebarSearch.enterSearchMode();
+      }
+      return;
+    }
+
+    // Escape key priority chain
     if (e.key === 'Escape') {
+      // Priority 1: PDF modal
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.pdfExportUi &&
+          window.DocuLight.modules.pdfExportUi.isActive()) {
+        window.DocuLight.modules.pdfExportUi.closeModal();
+        return;
+      }
+      // Priority 2: Sidebar search
+      if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.sidebarSearch &&
+          window.DocuLight.modules.sidebarSearch.isActive()) {
+        window.DocuLight.modules.sidebarSearch.exitSearchMode();
+        return;
+      }
+      // Priority 3: Always-on-top release
       userToggledPin = true;
       window.doclight.releaseAlwaysOnTop();
       return;
@@ -758,6 +1187,43 @@
 
   // === Window Ready ===
   document.addEventListener('DOMContentLoaded', async () => {
+    // === Module System Initialization ===
+    window.DocuLight = {
+      state: {
+        currentFilePath: null,
+        imageBasePath: null,
+        sidebarTree: null,
+        tabs: [],
+        activeTabIndex: 0,
+        settings: {},
+        platform: null
+      },
+      dom: {
+        content: document.getElementById('content'),
+        sidebarTree: document.getElementById('sidebar-tree'),
+        viewerContainer: document.getElementById('viewer-container'),
+        tabBar: document.getElementById('tab-bar')
+      },
+      fn: {
+        renderMarkdown: renderMarkdown,
+        renderSidebarTree: renderSidebarTree,
+        updateSidebarHighlight: updateSidebarHighlight,
+        scrollToTextMatch: scrollToTextMatch,
+        navigateTo: function(href) { window.doclight.navigateTo(href); },
+        t: t
+      },
+      modules: {}
+    };
+
+    // Register and initialize modules
+    if (window.__docuLightModules) {
+      for (var i = 0; i < window.__docuLightModules.length; i++) {
+        var mod = window.__docuLightModules[i];
+        window.DocuLight.modules[mod.name] = mod;
+        mod.init();
+      }
+    }
+
     await initI18n();
     const prefs = await loadPanelPrefs();
     if (prefs) {

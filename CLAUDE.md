@@ -96,8 +96,9 @@ npm run build:linux  # Linux AppImage
 
 **Preload: src/main/preload.js**
 - contextBridge API (`window.doclight`) between main and renderer processes
-- Listeners (Main→Renderer): `onRenderMarkdown`, `onUpdateMarkdown`, `onSidebarTree`, `onSidebarHighlight`, `onThemeChanged`, `onSettingsChanged`, `onEmptyWindow`, `onAlwaysOnTopChanged`, `onPanelVisibility`
-- Senders (Renderer→Main): `navigateTo`, `navigateBack`, `navigateForward`, `openExternal`, `notifyReady`, `zoomIn`, `zoomOut`, `zoomReset`, `releaseAlwaysOnTop`, `toggleAlwaysOnTop`, `setAlwaysOnTop`, `fileDropped`, `getFilePath`
+- Listeners (Main→Renderer): `onRenderMarkdown`, `onUpdateMarkdown`, `onSidebarTree`, `onSidebarHighlight`, `onThemeChanged`, `onSettingsChanged`, `onEmptyWindow`, `onAlwaysOnTopChanged`, `onPanelVisibility`, `onExportProgress`
+- Senders (Renderer→Main): `navigateTo`, `navigateBack`, `navigateForward`, `openExternal`, `notifyReady`, `zoomIn`, `zoomOut`, `zoomReset`, `releaseAlwaysOnTop`, `toggleAlwaysOnTop`, `setAlwaysOnTop`, `fileDropped`, `getFilePath`, `cancelExport`, `pdfRenderComplete`
+- Invoke (Renderer→Main, async): `exportPdf`, `readFileForTab`, `checkFileMtime`, `openFileDialog`
 - Settings: `getSettings`, `saveSettings`, `registerFileAssociation`, `unregisterFileAssociation`, `getFileAssociationStatus`, `openDefaultAppsSettings`
 
 ### Renderer Process (src/renderer/)
@@ -194,6 +195,14 @@ Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_deskt
 
 Replace path with actual absolute path to `mcp-server.mjs`.
 
+### MCP Port Discovery
+
+The HTTP MCP server writes its bound port to a plain text file at `{userData}/mcp-port` on startup. External tools can read this file to discover the port. The file is deleted on app quit.
+
+### Note on Tabs
+
+MCP tools operate at the **window level**. Tab management is renderer-side only. `open_markdown` always creates a new window, not a new tab. The `windowId` in `update_markdown` and `close_viewer` refers to a BrowserWindow ID.
+
 ## Directory Structure
 
 ```
@@ -210,6 +219,10 @@ DocuLightViewer/
 │   └── renderer/
 │       ├── viewer.html/js/css    # Markdown viewer page
 │       ├── settings.html/js/css  # Settings page
+│       ├── image-resolver.js     # Relative image path resolution module
+│       ├── sidebar-search.js     # Sidebar file search/filter module
+│       ├── pdf-export-ui.js      # PDF export modal UI module
+│       ├── tab-manager.js        # Tab-based multi-document view module
 │       └── lib/                  # Vendored libraries
 ├── test/
 │   ├── doclight.e2e.js           # Playwright E2E tests
@@ -249,6 +262,9 @@ Stored in JSON format at OS-specific locations:
 | `codeTheme` | `github` | `github`, `monokai`, `dracula` | Code syntax highlighting theme |
 | `mcpPort` | `52580` | 1024-65535 | HTTP MCP server port |
 | `fileAssociation` | `false` | boolean | Whether .md file association is registered |
+| `autoRefresh` | `true` | boolean | Auto-refresh when file changes on disk |
+| `enableTabs` | `false` | boolean | Enable tab-based multi-document view |
+| `recentFiles` | `[]` | string[] | Recently opened file paths (max 7) |
 
 Settings can be modified via:
 1. Settings UI (accessible from system tray → Settings)
@@ -259,13 +275,15 @@ Settings can be modified via:
 ### Window Management
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+W` / `Cmd+W` | Close current viewer window |
-| `Escape` | Release always-on-top mode |
+| `Ctrl+W` / `Cmd+W` | Close current tab (if tabs enabled) or viewer window |
+| `Ctrl+T` / `Cmd+T` | Open new tab via file dialog (if tabs enabled) |
+| `Escape` | Close PDF modal → Exit sidebar search → Release always-on-top |
 
 ### Sidebar & View
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+B` / `Cmd+B` | Toggle sidebar visibility |
+| `Ctrl+Shift+F` / `Cmd+Shift+F` | Toggle sidebar file search |
 
 ### Zoom
 | Shortcut | Action |
@@ -418,10 +436,7 @@ App continues running in system tray when all windows closed.
 
 ### Known Limitations
 
-1. **File Watching**: No auto-refresh when markdown files change on disk
-2. **Search**: Basic browser find-in-page, no full-text search across documents
-3. **Export**: No PDF export yet (puppeteer dependency removed)
-4. **Collaborative Editing**: Single-user desktop app, no sync
+1. **Collaborative Editing**: Single-user desktop app, no sync
 
 ## References and Documentation
 
@@ -449,9 +464,6 @@ To customize build:
 
 ## Future Enhancements (Not Implemented)
 
-- PDF export (via headless Chromium)
-- File watching and auto-refresh
-- Search across all documents
 - Tag-based organization
 - Graph view of document links
 - Collaborative editing with sync

@@ -11,14 +11,26 @@
 </head>
 <body>
   <div id="app-container">
+    <div id="tab-bar" class="tab-bar hidden" role="tablist" aria-label="Open document tabs">
+      <button class="tab-add" aria-label="New tab (Ctrl+T)">+</button>
+    </div>
     <div id="sidebar-container" class="hidden">
       <div id="sidebar-header">
         <span data-i18n="viewer.navigation">Navigation</span>
+        <button id="btn-sidebar-search" aria-label="Search files" data-i18n-title="viewer.sidebarSearch"
+                aria-expanded="false" aria-controls="sidebar-search-container">🔍</button>
+      </div>
+      <div id="sidebar-search-container" class="sidebar-search-container hidden">
+        <input type="text" class="sidebar-search-input"
+               data-i18n-placeholder="viewer.sidebarSearch"
+               aria-label="Search files" data-i18n-aria-label="viewer.sidebarSearchAriaLabel"
+               autocomplete="off" maxlength="100">
+        <button class="sidebar-search-clear" aria-label="Clear search">✕</button>
       </div>
       <div id="sidebar-tree"></div>
     </div>
     <div id="resize-handle" class="hidden"></div>
-    <div id="viewer-container">
+    <div id="viewer-container" role="tabpanel">
       <div id="content" class="markdown-body"></div>
     </div>
     <div id="toc-container" class="hidden">
@@ -45,11 +57,51 @@
     </button>
   </div>
 
+  <!-- PDF Export Modal -->
+  <div class="pdf-modal-overlay hidden" id="pdf-modal"
+       role="dialog" aria-modal="true" aria-labelledby="pdf-modal-title">
+    <div class="pdf-modal">
+      <h2 id="pdf-modal-title" data-i18n="viewer.exportTitle">PDF Export</h2>
+      <div class="pdf-form-group">
+        <label class="pdf-radio-label">
+          <input type="radio" name="pdf-scope" id="pdf-scope-current" value="current" checked>
+          <span data-i18n="viewer.exportCurrent">Current file</span>
+        </label>
+        <label class="pdf-radio-label">
+          <input type="radio" name="pdf-scope" id="pdf-scope-all" value="all">
+          <span data-i18n="viewer.exportAll">All sidebar files</span>
+        </label>
+      </div>
+      <div class="pdf-form-group">
+        <label for="pdf-page-size" data-i18n="viewer.exportPageSize">Page Size</label>
+        <select id="pdf-page-size">
+          <option value="A4">A4</option>
+          <option value="Letter">Letter</option>
+        </select>
+      </div>
+      <div class="pdf-progress-container hidden">
+        <div class="pdf-progress-bar">
+          <div class="pdf-progress-fill"></div>
+        </div>
+        <div class="pdf-progress-text"></div>
+      </div>
+      <div class="pdf-modal-buttons">
+        <button class="pdf-cancel-btn" data-i18n="viewer.exportCancel">Cancel</button>
+        <button class="pdf-save-btn" data-i18n="viewer.exportSave">Export</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Libraries (order matters) -->
   <script src="./lib/marked.min.js"></script>
   <script src="./lib/purify.min.js"></script>
   <script src="./lib/highlight.min.js"></script>
   <script src="./lib/mermaid.min.js"></script>
+  <!-- Modules -->
+  <script src="./image-resolver.js"></script>
+  <script src="./sidebar-search.js"></script>
+  <script src="./pdf-export-ui.js"></script>
+  <script src="./tab-manager.js"></script>
   <!-- App -->
   <script src="./viewer.js"></script>
 </body>

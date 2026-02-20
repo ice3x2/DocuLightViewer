@@ -83,6 +83,9 @@ contextBridge.exposeInMainWorld('doclight', {
   // Drag & drop: notify main process that a file was dropped
   fileDropped: (filePath) => ipcRenderer.send('file-dropped', filePath),
 
+  // Notify main that a file was opened in a new tab (for watcher + recent tracking)
+  fileOpenedInTab: (filePath) => ipcRenderer.send('file-opened-in-tab', filePath),
+
   // Resolve real file path from a dropped File object (sandbox-safe)
   getFilePath: (file) => webUtils.getPathForFile(file),
 
@@ -97,5 +100,24 @@ contextBridge.exposeInMainWorld('doclight', {
   registerFileAssociation: () => ipcRenderer.invoke('register-file-association'),
   unregisterFileAssociation: () => ipcRenderer.invoke('unregister-file-association'),
   getFileAssociationStatus: () => ipcRenderer.invoke('get-file-association-status'),
-  openDefaultAppsSettings: () => ipcRenderer.send('open-default-apps-settings')
+  openDefaultAppsSettings: () => ipcRenderer.send('open-default-apps-settings'),
+
+  // PDF Export
+  exportPdf: (opts) => ipcRenderer.invoke('export-pdf', opts),
+  cancelExport: () => ipcRenderer.send('cancel-export'),
+  pdfRenderComplete: () => ipcRenderer.send('pdf-render-complete'),
+  onExportProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('export-progress', handler);
+    return () => ipcRenderer.removeListener('export-progress', handler);
+  },
+
+  // Tab management
+  readFileForTab: (filePath) => ipcRenderer.invoke('read-file-for-tab', filePath),
+  checkFileMtime: (filePath) => ipcRenderer.invoke('check-file-mtime', filePath),
+  openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
+  searchContent: (query, rootDir) => ipcRenderer.invoke('search-sidebar-content', query, rootDir),
+
+  // Read a local image file as a base64 data URL (bypasses file:// sandbox restriction)
+  readImageAsDataUrl: (filePath) => ipcRenderer.invoke('read-image-as-data-url', filePath),
 });

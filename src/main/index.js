@@ -1,7 +1,7 @@
 // src/main/index.js — Electron App Entry Point + IPC Socket Server
 // CommonJS module for Electron main process
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog } = require('electron');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
@@ -40,6 +40,7 @@ let ipcServer = null;
 let mcpHttpServer = null;
 let settingsWin = null;
 let pendingOpenFile = null; // macOS: buffers open-file events before app.isReady()
+let isExporting = false;
 const windowManager = new WindowManager();
 
 // =============================================================================
@@ -80,6 +81,7 @@ function openFileFromPath(filePath) {
     return;
   }
   windowManager.createWindow({ filePath: resolved });
+  addRecentFile(resolved);
 }
 
 const store = new Store({
@@ -105,7 +107,10 @@ const store = new Store({
       default: {}
     },
     fileAssociation: { type: 'boolean', default: false },
-    fileAssociationPrevProgId: { type: 'string', default: '' }
+    fileAssociationPrevProgId: { type: 'string', default: '' },
+    autoRefresh: { type: 'boolean', default: true },
+    enableTabs: { type: 'boolean', default: false },
+    recentFiles: { type: 'array', items: { type: 'string' }, default: [] }
   }
 });
 
@@ -136,7 +141,7 @@ if (!gotTheLock) {
         openFileFromPath(mdPath);
       }
     } else {
-      // No .md files — focus first available viewer window
+      // No .md files — focus first available viewer window, or open empty viewer
       const windows = windowManager.listWindows();
       if (windows.length > 0) {
         const entry = windowManager.getWindowEntry(windows[0].windowId);
@@ -144,6 +149,8 @@ if (!gotTheLock) {
           if (entry.win.isMinimized()) entry.win.restore();
           entry.win.focus();
         }
+      } else {
+        windowManager.createEmptyWindow();
       }
     }
   });
@@ -167,6 +174,9 @@ app.on('ready', async () => {
   // Wire up tray menu updates whenever windows change
   windowManager.onTrayUpdate = updateTrayMenu;
 
+  // Wire up recent file tracking
+  windowManager.onRecentFile = addRecentFile;
+
   // Re-register file association on startup (fixes path changes after app updates)
   const fileAssoc = require('./file-association');
   if (store.get('fileAssociation', false) && fileAssoc.isSupported()) {
@@ -178,7 +188,7 @@ app.on('ready', async () => {
   // Start HTTP-based MCP server (ESM module loaded via dynamic import)
   try {
     const { startMcpHttpServer } = await import('./mcp-http.mjs');
-    mcpHttpServer = await startMcpHttpServer(windowManager, store);
+    mcpHttpServer = await startMcpHttpServer(windowManager, store, app.getPath('userData'));
   } catch (err) {
     console.error('[doculight] Failed to start MCP HTTP server:', err.message);
   }
@@ -194,6 +204,11 @@ app.on('ready', async () => {
     openFileFromPath(pendingOpenFile);
     pendingOpenFile = null;
   }
+
+  // If no viewer window was opened (no .md args, no pending file), show an empty viewer
+  if (windowManager.listWindows().length === 0) {
+    windowManager.createEmptyWindow();
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -203,6 +218,15 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  // Stop all file watchers
+  windowManager.stopAllFileWatchers();
+
+  // Delete port discovery file
+  try {
+    const portFilePath = path.join(app.getPath('userData'), 'mcp-port');
+    fs.unlinkSync(portFilePath);
+  } catch { /* ignore — file may not exist */ }
+
   // Close every viewer window
   windowManager.closeWindow();
 
@@ -240,6 +264,28 @@ function createTray() {
   } catch (err) {
     console.error('[doculight] createTray ERROR:', err);
   }
+}
+
+/**
+ * Add a file path to the recent files list.
+ * Deduplicates, moves to front, and caps at 7 entries.
+ * @param {string} filePath - Absolute path to a .md file.
+ */
+function addRecentFile(filePath) {
+  if (!filePath || typeof filePath !== 'string') return;
+  if (!path.isAbsolute(filePath)) return;
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== '.md' && ext !== '.markdown') return;
+
+  let recent = store.get('recentFiles', []);
+  // Remove existing entry (dedup)
+  recent = recent.filter(p => p !== filePath);
+  // Add to front
+  recent.unshift(filePath);
+  // Cap at 7
+  if (recent.length > 7) recent = recent.slice(0, 7);
+  store.set('recentFiles', recent);
+  updateTrayMenu();
 }
 
 /**
@@ -286,6 +332,50 @@ function updateTrayMenu() {
     click: () => {
       windowManager.createEmptyWindow();
     },
+  });
+
+  // Recent Documents submenu
+  const recentFiles = store.get('recentFiles', []);
+  const recentSubmenu = [];
+
+  if (recentFiles.length > 0) {
+    for (const fp of recentFiles) {
+      const fileName = path.basename(fp);
+      const parentDir = path.basename(path.dirname(fp));
+      recentSubmenu.push({
+        label: `${fileName} (${parentDir})`,
+        click: () => {
+          if (fs.existsSync(fp)) {
+            windowManager.createWindow({ filePath: fp });
+          } else {
+            console.log(`[doculight] recent file not found: ${fp}`);
+            // Remove from list
+            let updated = store.get('recentFiles', []);
+            updated = updated.filter(p => p !== fp);
+            store.set('recentFiles', updated);
+            updateTrayMenu();
+          }
+        }
+      });
+    }
+    recentSubmenu.push({ type: 'separator' });
+    recentSubmenu.push({
+      label: t('tray.clearRecent'),
+      click: () => {
+        store.set('recentFiles', []);
+        updateTrayMenu();
+      }
+    });
+  } else {
+    recentSubmenu.push({
+      label: t('tray.recentEmpty'),
+      enabled: false
+    });
+  }
+
+  menuItems.push({
+    label: t('tray.recentDocs'),
+    submenu: recentSubmenu
   });
 
   menuItems.push({
@@ -492,6 +582,91 @@ function sendResponse(socket, id, result, errorMessage) {
 }
 
 // =============================================================================
+// PDF Export Helpers
+// =============================================================================
+
+/**
+ * Recursively collect .md/.markdown file paths from a sidebar tree.
+ * @param {object} tree - Sidebar tree node
+ * @param {number} depth - Current recursion depth
+ * @returns {string[]} Array of absolute file paths
+ */
+function collectMdPaths(tree, depth = 0) {
+  if (depth > 20) {
+    console.warn('[doculight] collectMdPaths: max depth exceeded');
+    return [];
+  }
+  const result = [];
+  if (!tree || !tree.children) return result;
+  for (const child of tree.children) {
+    if (child.children && child.children.length > 0) {
+      result.push(...collectMdPaths(child, depth + 1));
+    } else if (child.path) {
+      const ext = path.extname(child.path).toLowerCase();
+      if (ext === '.md' || ext === '.markdown') {
+        result.push(child.path);
+      }
+    }
+  }
+  return result;
+}
+
+// =============================================================================
+// Content Search Helper
+// =============================================================================
+
+/**
+ * Find content matches in a markdown file for sidebar search.
+ * Priority: 0 = filename, 1 = title/H1, 2 = content line.
+ * @param {string} content - File content
+ * @param {string} fileName - File name without extension
+ * @param {string} lowerQuery - Lowercased query string
+ * @param {RegExp} queryRegex - Regex for the query (global, case-insensitive)
+ * @param {number} maxMatches - Maximum matches per file
+ * @param {number} maxSnippetLen - Maximum snippet length
+ * @returns {Array<{line: number, snippet: string, priority: number}>}
+ */
+function findContentMatches(content, fileName, lowerQuery, queryRegex, maxMatches, maxSnippetLen) {
+  const matches = [];
+
+  // Priority 0: filename match
+  if (fileName.toLowerCase().includes(lowerQuery)) {
+    matches.push({ line: 0, snippet: fileName, priority: 0 });
+  }
+
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
+    const line = lines[i];
+    const lowerLine = line.toLowerCase();
+    if (!lowerLine.includes(lowerQuery)) continue;
+
+    // Priority 1: title (H1 heading)
+    const isTitle = /^#{1,2}\s+/.test(line);
+    const priority = isTitle ? 1 : 2;
+
+    // Build snippet around the match
+    const matchIdx = lowerLine.indexOf(lowerQuery);
+    let snippetStart = Math.max(0, matchIdx - 30);
+    let snippetEnd = Math.min(line.length, matchIdx + lowerQuery.length + 30);
+
+    // Expand to maxSnippetLen if possible
+    if (snippetEnd - snippetStart < maxSnippetLen) {
+      const remaining = maxSnippetLen - (snippetEnd - snippetStart);
+      snippetStart = Math.max(0, snippetStart - Math.floor(remaining / 2));
+      snippetEnd = Math.min(line.length, snippetEnd + Math.ceil(remaining / 2));
+    }
+
+    let snippet = line.substring(snippetStart, snippetEnd).trim();
+    if (snippetStart > 0) snippet = '...' + snippet;
+    if (snippetEnd < line.length) snippet = snippet + '...';
+
+    matches.push({ line: i + 1, snippet, priority });
+  }
+
+  return matches;
+}
+
+// =============================================================================
 // IPC Handlers — Renderer ↔ Main Process Communication
 // =============================================================================
 
@@ -602,6 +777,7 @@ function registerIpcHandlers() {
     const oldFontSize = store.get('fontSize');
     const oldFontFamily = store.get('fontFamily');
     const oldCodeTheme = store.get('codeTheme');
+    const oldAutoRefresh = store.get('autoRefresh', true);
 
     // Save to store
     for (const [key, value] of Object.entries(settings)) {
@@ -623,6 +799,21 @@ function registerIpcHandlers() {
           fontFamily: settings.fontFamily,
           codeTheme: settings.codeTheme
         });
+      }
+    }
+
+    // Handle autoRefresh setting change
+    if ('autoRefresh' in settings) {
+      if (settings.autoRefresh && !oldAutoRefresh) {
+        // Turned ON: start watchers for all open windows with file paths
+        for (const [wid, wEntry] of windowManager.windows) {
+          if (wEntry.meta.filePath) {
+            windowManager.startFileWatcher(wid);
+          }
+        }
+      } else if (!settings.autoRefresh && oldAutoRefresh) {
+        // Turned OFF: stop all watchers
+        windowManager.stopAllFileWatchers();
       }
     }
 
@@ -686,8 +877,10 @@ function registerIpcHandlers() {
       // Send content to renderer
       entry.win.webContents.send('render-markdown', {
         markdown: content,
-        filePath,
-        windowId
+        filePath: filePath.replace(/\\/g, '/'),
+        windowId,
+        imageBasePath: path.dirname(filePath).replace(/\\/g, '/'),
+        platform: process.platform
       });
 
       // Build sidebar tree
@@ -705,8 +898,38 @@ function registerIpcHandlers() {
       if (typeof windowManager.onTrayUpdate === 'function') {
         windowManager.onTrayUpdate();
       }
+
+      // Start file watcher for dropped file
+      windowManager.startFileWatcher(windowId);
+
+      // Track in recent files
+      addRecentFile(filePath);
     } catch (err) {
       console.error(`[doculight] file-dropped error: ${err.message}`);
+    }
+  });
+
+  // File opened in a new tab (track recent + start watcher, no render-markdown sent)
+  ipcMain.on('file-opened-in-tab', async (event, filePath) => {
+    try {
+      if (path.extname(filePath).toLowerCase() !== '.md') return;
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const windowId = windowManager.findWindowId(win);
+      if (!windowId) return;
+      const entry = windowManager.getWindowEntry(windowId);
+      if (!entry) return;
+
+      // Update meta for the window (root stays the same)
+      entry.meta.filePath = filePath;
+      if (!entry.meta.rootFilePath) entry.meta.rootFilePath = filePath;
+
+      // Start file watcher
+      windowManager.startFileWatcher(windowId);
+
+      // Track in recent files
+      addRecentFile(filePath);
+    } catch (err) {
+      console.error(`[doculight] file-opened-in-tab error: ${err.message}`);
     }
   });
 
@@ -748,6 +971,501 @@ function registerIpcHandlers() {
         if (entry) entry.meta.alwaysOnTop = false;
       }
       event.sender.send('always-on-top-changed', { alwaysOnTop: false });
+    }
+  });
+
+  // PDF Export
+  ipcMain.handle('export-pdf', async (event, opts) => {
+    if (isExporting) {
+      return { error: 'Export already in progress' };
+    }
+
+    const { scope, pageSize } = opts || {};
+    if (!scope || !['current', 'all'].includes(scope)) {
+      return { error: 'Invalid scope' };
+    }
+    if (!pageSize || !['A4', 'Letter'].includes(pageSize)) {
+      return { error: 'Invalid pageSize' };
+    }
+
+    const senderWin = BrowserWindow.fromWebContents(event.sender);
+    const senderWindowId = windowManager.findWindowId(senderWin);
+    if (!senderWindowId) {
+      return { error: 'Window not found' };
+    }
+    const senderEntry = windowManager.getWindowEntry(senderWindowId);
+
+    isExporting = true;
+    let cancelled = false;
+    let cancelHandler = null;
+
+    try {
+      if (scope === 'current') {
+        // Single file export
+        const currentFilePath = senderEntry.meta.filePath;
+        const defaultName = currentFilePath
+          ? path.basename(currentFilePath, path.extname(currentFilePath)) + '.pdf'
+          : 'document.pdf';
+
+        const saveResult = await dialog.showSaveDialog(senderWin, {
+          defaultPath: defaultName,
+          filters: [{ name: 'PDF', extensions: ['pdf'] }]
+        });
+
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { cancelled: true };
+        }
+
+        const savePath = saveResult.filePath;
+
+        // Get the markdown content from the active window
+        const filePath = senderEntry.meta.filePath;
+        let markdown;
+        if (filePath) {
+          markdown = await fs.promises.readFile(filePath, 'utf-8');
+        } else {
+          return { error: 'No file to export' };
+        }
+
+        // Create hidden BrowserWindow for PDF rendering
+        const pdfWin = new BrowserWindow({
+          show: false,
+          width: 800,
+          height: 600,
+          webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+          }
+        });
+
+        try {
+          await pdfWin.loadFile(path.join(__dirname, '../renderer/viewer.html'));
+
+          // Wait for window-ready
+          await new Promise((resolve) => {
+            const readyHandler = (readyEvent) => {
+              const readyWin = BrowserWindow.fromWebContents(readyEvent.sender);
+              if (readyWin === pdfWin) {
+                ipcMain.removeListener('window-ready', readyHandler);
+                resolve();
+              }
+            };
+            ipcMain.on('window-ready', readyHandler);
+          });
+
+          // Send settings
+          const theme = store.get('theme');
+          const codeTheme = store.get('codeTheme');
+          const fontSize = store.get('fontSize');
+          const fontFamily = store.get('fontFamily');
+          if (theme !== 'light') {
+            pdfWin.webContents.send('theme-changed', { theme });
+          }
+          pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme });
+
+          // Send markdown with pdfMode flag
+          const imageBasePath = senderEntry.meta.tree
+            ? path.dirname(senderEntry.meta.tree.path).replace(/\\/g, '/')
+            : (filePath ? path.dirname(filePath).replace(/\\/g, '/') : null);
+          pdfWin.webContents.send('render-markdown', {
+            markdown,
+            filePath: filePath ? filePath.replace(/\\/g, '/') : null,
+            imageBasePath,
+            platform: process.platform,
+            pdfMode: true
+          });
+
+          // Wait for pdf-render-complete with 30s timeout
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              ipcMain.removeListener('pdf-render-complete', completeHandler);
+              reject(new Error('PDF render timeout'));
+            }, 30000);
+
+            const completeHandler = (completeEvent) => {
+              const completeWin = BrowserWindow.fromWebContents(completeEvent.sender);
+              if (completeWin === pdfWin) {
+                clearTimeout(timer);
+                ipcMain.removeListener('pdf-render-complete', completeHandler);
+                resolve();
+              }
+            };
+            ipcMain.on('pdf-render-complete', completeHandler);
+          });
+
+          // Print to PDF
+          const buffer = await pdfWin.webContents.printToPDF({
+            pageSize,
+            printBackground: true,
+            margins: { marginType: 'default' }
+          });
+
+          await fs.promises.writeFile(savePath, buffer);
+          return { success: true, path: savePath };
+        } finally {
+          if (!pdfWin.isDestroyed()) pdfWin.close();
+        }
+
+      } else {
+        // Batch export (scope === 'all') — merge into single PDF
+        const tree = senderEntry.meta.tree;
+        if (!tree) {
+          return { error: 'No sidebar tree available' };
+        }
+
+        const mdPaths = collectMdPaths(tree);
+        if (mdPaths.length === 0) {
+          return { error: 'No markdown files found' };
+        }
+
+        const saveResult = await dialog.showSaveDialog(senderWin, {
+          defaultPath: 'all-documents.pdf',
+          filters: [{ name: 'PDF', extensions: ['pdf'] }]
+        });
+
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { cancelled: true };
+        }
+
+        const savePath = saveResult.filePath;
+
+        // Register cancel handler
+        cancelHandler = () => { cancelled = true; };
+        ipcMain.once('cancel-export', cancelHandler);
+
+        // Collect PDF buffers from each file
+        const pdfBuffers = [];
+        let completed = 0;
+        for (const mdPath of mdPaths) {
+          if (cancelled) break;
+
+          const fileName = path.basename(mdPath);
+          completed++;
+          event.sender.send('export-progress', {
+            current: completed,
+            total: mdPaths.length,
+            fileName
+          });
+
+          try {
+            const markdown = await fs.promises.readFile(mdPath, 'utf-8');
+
+            const pdfWin = new BrowserWindow({
+              show: false,
+              width: 800,
+              height: 600,
+              webPreferences: {
+                preload: path.join(__dirname, 'preload.js'),
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: true
+              }
+            });
+
+            try {
+              await pdfWin.loadFile(path.join(__dirname, '../renderer/viewer.html'));
+
+              await new Promise((resolve) => {
+                const readyHandler = (readyEvent) => {
+                  const readyWin = BrowserWindow.fromWebContents(readyEvent.sender);
+                  if (readyWin === pdfWin) {
+                    ipcMain.removeListener('window-ready', readyHandler);
+                    resolve();
+                  }
+                };
+                ipcMain.on('window-ready', readyHandler);
+              });
+
+              const theme = store.get('theme');
+              const codeTheme = store.get('codeTheme');
+              const fontSize = store.get('fontSize');
+              const fontFamily = store.get('fontFamily');
+              if (theme !== 'light') {
+                pdfWin.webContents.send('theme-changed', { theme });
+              }
+              pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme });
+
+              const batchImageBasePath = tree
+                ? path.dirname(tree.path).replace(/\\/g, '/')
+                : path.dirname(mdPath).replace(/\\/g, '/');
+              pdfWin.webContents.send('render-markdown', {
+                markdown,
+                filePath: mdPath.replace(/\\/g, '/'),
+                imageBasePath: batchImageBasePath,
+                platform: process.platform,
+                pdfMode: true
+              });
+
+              await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                  ipcMain.removeListener('pdf-render-complete', completeHandler);
+                  reject(new Error('PDF render timeout'));
+                }, 30000);
+
+                const completeHandler = (completeEvent) => {
+                  const completeWin = BrowserWindow.fromWebContents(completeEvent.sender);
+                  if (completeWin === pdfWin) {
+                    clearTimeout(timer);
+                    ipcMain.removeListener('pdf-render-complete', completeHandler);
+                    resolve();
+                  }
+                };
+                ipcMain.on('pdf-render-complete', completeHandler);
+              });
+
+              const buffer = await pdfWin.webContents.printToPDF({
+                pageSize,
+                printBackground: true,
+                margins: { marginType: 'default' }
+              });
+
+              pdfBuffers.push(buffer);
+            } finally {
+              if (!pdfWin.isDestroyed()) pdfWin.close();
+            }
+          } catch (fileErr) {
+            console.error(`[doculight] PDF export error for ${mdPath}: ${fileErr.message}`);
+          }
+        }
+
+        if (cancelled) {
+          return { cancelled: true };
+        }
+
+        // Merge all PDF buffers into a single PDF using pdf-lib
+        const { PDFDocument } = await import('pdf-lib');
+        const mergedPdf = await PDFDocument.create();
+
+        for (const buf of pdfBuffers) {
+          const srcDoc = await PDFDocument.load(buf);
+          const pages = await mergedPdf.copyPages(srcDoc, srcDoc.getPageIndices());
+          for (const page of pages) {
+            mergedPdf.addPage(page);
+          }
+        }
+
+        const mergedBytes = await mergedPdf.save();
+        await fs.promises.writeFile(savePath, Buffer.from(mergedBytes));
+
+        return { success: true, path: savePath, count: pdfBuffers.length };
+      }
+    } catch (err) {
+      console.error(`[doculight] export-pdf error: ${err.message}`);
+      return { error: err.message };
+    } finally {
+      isExporting = false;
+      if (cancelHandler) {
+        ipcMain.removeListener('cancel-export', cancelHandler);
+      }
+    }
+  });
+
+  // Tab: read a file for opening in a new tab
+  ipcMain.handle('read-file-for-tab', async (_event, filePath) => {
+    try {
+      // Input validation
+      if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) {
+        return { error: 'Invalid file path' };
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext !== '.md' && ext !== '.markdown') {
+        return { error: 'Invalid file path' };
+      }
+      // Check file exists
+      try {
+        await fs.promises.access(filePath, fs.constants.R_OK);
+      } catch {
+        return { error: 'File not found' };
+      }
+
+      const markdown = await fs.promises.readFile(filePath, 'utf-8');
+
+      // Build sidebar tree from file's directory
+      let sidebarTree = null;
+      try {
+        const { buildDirectoryTree } = require('./link-parser');
+        sidebarTree = buildDirectoryTree(path.dirname(filePath));
+      } catch (err) {
+        console.error(`[doculight] Failed to build tree for tab: ${err.message}`);
+      }
+
+      // Extract title (first H1)
+      const titleMatch = markdown.match(/^#\s+(.+)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : path.basename(filePath, ext);
+
+      return {
+        markdown,
+        filePath: filePath.replace(/\\/g, '/'),
+        title,
+        sidebarTree,
+        imageBasePath: path.dirname(filePath).replace(/\\/g, '/'),
+        platform: process.platform
+      };
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+
+  // Tab: check file modification time
+  ipcMain.handle('check-file-mtime', async (_event, filePath) => {
+    try {
+      if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) {
+        return { mtime: 0, exists: false };
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext !== '.md' && ext !== '.markdown') {
+        return { mtime: 0, exists: false };
+      }
+      const stat = await fs.promises.stat(filePath);
+      return { mtime: stat.mtimeMs, exists: true };
+    } catch {
+      return { mtime: 0, exists: false };
+    }
+  });
+
+  // Sidebar content search
+  ipcMain.handle('search-sidebar-content', async (_event, query, rootDir) => {
+    // Validate inputs
+    if (typeof query !== 'string' || query.trim().length < 2) {
+      return { results: [] };
+    }
+    if (typeof rootDir !== 'string' || !path.isAbsolute(rootDir)) {
+      return { results: [] };
+    }
+    try {
+      const stat = await fs.promises.stat(rootDir);
+      if (!stat.isDirectory()) return { results: [] };
+    } catch {
+      return { results: [] };
+    }
+
+    const trimmedQuery = query.trim();
+    const lowerQuery = trimmedQuery.toLowerCase();
+    const escapedQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const queryRegex = new RegExp(escapedQuery, 'gi');
+
+    const MAX_RESULTS = 20;
+    const MAX_MATCHES_PER_FILE = 3;
+    const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+    const MAX_SNIPPET_LEN = 120;
+    const TIMEOUT_MS = 5000;
+
+    const results = [];
+    const startTime = Date.now();
+
+    async function walkDir(dir) {
+      if (Date.now() - startTime > TIMEOUT_MS) return;
+      if (results.length >= MAX_RESULTS) return;
+
+      let entries;
+      try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        if (Date.now() - startTime > TIMEOUT_MS) return;
+        if (results.length >= MAX_RESULTS) return;
+        if (entry.name.startsWith('.')) continue;
+
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          await walkDir(fullPath);
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (ext !== '.md' && ext !== '.markdown') continue;
+
+          try {
+            const fileStat = await fs.promises.stat(fullPath);
+            if (fileStat.size > MAX_FILE_SIZE) continue;
+
+            const content = await fs.promises.readFile(fullPath, 'utf-8');
+            const fileName = path.basename(fullPath, ext);
+            const matches = findContentMatches(content, fileName, lowerQuery, queryRegex, MAX_MATCHES_PER_FILE, MAX_SNIPPET_LEN);
+
+            if (matches.length > 0) {
+              // Extract title (first H1)
+              const titleMatch = content.match(/^#\s+(.+)$/m);
+              const title = titleMatch ? titleMatch[1].trim() : fileName;
+              results.push({
+                filePath: fullPath,
+                fileName: entry.name,
+                title,
+                matches
+              });
+            }
+          } catch {
+            // Skip unreadable files
+          }
+        }
+      }
+    }
+
+    await walkDir(rootDir);
+
+    // Sort: filename matches first, then title, then content
+    results.sort((a, b) => {
+      const aPriority = Math.min(...a.matches.map(m => m.priority));
+      const bPriority = Math.min(...b.matches.map(m => m.priority));
+      return aPriority - bPriority;
+    });
+
+    return { results: results.slice(0, MAX_RESULTS) };
+  });
+
+  // Tab: open file dialog for new tab
+  ipcMain.handle('open-file-dialog', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+      properties: ['openFile']
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { filePath: null };
+    }
+    return { filePath: result.filePaths[0] };
+  });
+
+  // Read a local image file and return it as a base64 data URL.
+  // This is needed because Electron's sandbox prevents file:// image loading
+  // across directories from a file:// page (Chromium same-origin policy).
+  ipcMain.handle('read-image-as-data-url', async (_event, rawPath) => {
+    try {
+      if (typeof rawPath !== 'string' || !rawPath) return { error: 'Invalid path' };
+
+      // Normalize forward slashes to OS path separator and resolve
+      const normalized = path.normalize(rawPath.replace(/\//g, path.sep));
+
+      // Must be absolute
+      if (!path.isAbsolute(normalized)) return { error: 'Not an absolute path' };
+
+      // Only allow known image extensions
+      const ext = path.extname(normalized).toLowerCase();
+      const MIME_MAP = {
+        '.svg':  'image/svg+xml',
+        '.png':  'image/png',
+        '.jpg':  'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif':  'image/gif',
+        '.webp': 'image/webp',
+        '.bmp':  'image/bmp',
+        '.ico':  'image/x-icon',
+        '.tiff': 'image/tiff',
+        '.avif': 'image/avif',
+      };
+      const mime = MIME_MAP[ext];
+      if (!mime) return { error: 'Not an allowed image type' };
+
+      // Check the file is readable
+      await fs.promises.access(normalized, fs.constants.R_OK);
+
+      const data = await fs.promises.readFile(normalized);
+      return { dataUrl: `data:${mime};base64,${data.toString('base64')}` };
+    } catch (err) {
+      return { error: err.message };
     }
   });
 }

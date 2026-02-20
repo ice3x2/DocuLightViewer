@@ -5,6 +5,8 @@
 // No SDK transport, no SSE, no session management — just request/response.
 
 import http from 'node:http';
+import path from 'node:path';
+import fs from 'node:fs';
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const PROTOCOL_VERSION = '2025-03-26';
@@ -241,8 +243,8 @@ async function handleJsonRpc(msg, handlers) {
  * @param {import('electron-store')} store
  * @returns {Promise<http.Server>}
  */
-export async function startMcpHttpServer(windowManager, store) {
-  const port = store.get('mcpPort') || 52580;
+export async function startMcpHttpServer(windowManager, store, userDataPath) {
+  const basePort = store.get('mcpPort') || 52580;
   const handlers = createToolHandlers(windowManager);
 
   const httpServer = http.createServer(async (req, res) => {
@@ -305,15 +307,55 @@ export async function startMcpHttpServer(windowManager, store) {
     }
   });
 
-  return new Promise((resolve, reject) => {
-    httpServer.on('error', (err) => {
-      console.error('[doculight] MCP HTTP server error:', err.message);
-      reject(err);
+  // Port binding helper
+  function tryListen(port) {
+    return new Promise((resolve, reject) => {
+      httpServer.once('error', reject);
+      httpServer.listen(port, '127.0.0.1', () => {
+        httpServer.removeListener('error', reject);
+        resolve(port);
+      });
     });
+  }
 
-    httpServer.listen(port, '127.0.0.1', () => {
-      console.log(`[doculight] MCP HTTP server listening on http://127.0.0.1:${port}/mcp`);
-      resolve(httpServer);
-    });
-  });
+  // Port discovery: basePort → up to 65535, then basePort-1 → down to 1024
+  let boundPort;
+
+  // Phase 1: basePort upward
+  for (let p = basePort; p <= 65535; p++) {
+    try {
+      boundPort = await tryListen(p);
+      break;
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+    }
+  }
+
+  // Phase 2: below basePort if still not bound
+  if (!boundPort) {
+    for (let p = basePort - 1; p >= 1024; p--) {
+      try {
+        boundPort = await tryListen(p);
+        break;
+      } catch (err) {
+        if (err.code !== 'EADDRINUSE') throw err;
+      }
+    }
+  }
+
+  if (!boundPort) throw new Error('No available port found (1024-65535)');
+
+  // Write port discovery file
+  if (userDataPath) {
+    try {
+      const portFilePath = path.join(userDataPath, 'mcp-port');
+      fs.writeFileSync(portFilePath, String(boundPort), 'utf-8');
+      console.log(`[doculight] Port discovery file written: ${portFilePath}`);
+    } catch (err) {
+      console.error('[doculight] Failed to write port file:', err.message);
+    }
+  }
+
+  console.log(`[doculight] MCP HTTP server listening on http://127.0.0.1:${boundPort}/mcp`);
+  return httpServer;
 }

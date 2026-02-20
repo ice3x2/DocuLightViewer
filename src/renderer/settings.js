@@ -51,7 +51,9 @@
     fontFamily: 'system-ui, -apple-system, sans-serif',
     codeTheme: 'github',
     mcpPort: 52580,
-    defaultWindowSize: 'auto'
+    defaultWindowSize: 'auto',
+    autoRefresh: true,
+    enableTabs: false
   };
 
   const VALIDATION = {
@@ -91,6 +93,10 @@
         element.value = settings[key] !== undefined ? settings[key] : DEFAULTS[key];
       }
     }
+    const autoRefreshEl = document.getElementById('autoRefresh-checkbox');
+    if (autoRefreshEl) autoRefreshEl.checked = settings.autoRefresh !== undefined ? settings.autoRefresh : DEFAULTS.autoRefresh;
+    const enableTabsEl = document.getElementById('enableTabs-checkbox');
+    if (enableTabsEl) enableTabsEl.checked = settings.enableTabs !== undefined ? settings.enableTabs : DEFAULTS.enableTabs;
   }
 
   // Collect and validate form values
@@ -131,6 +137,11 @@
       values.defaultWindowSize = DEFAULTS.defaultWindowSize;
       fields.defaultWindowSize.value = DEFAULTS.defaultWindowSize;
     }
+
+    const autoRefreshEl = document.getElementById('autoRefresh-checkbox');
+    values.autoRefresh = autoRefreshEl ? autoRefreshEl.checked : DEFAULTS.autoRefresh;
+    const enableTabsEl = document.getElementById('enableTabs-checkbox');
+    values.enableTabs = enableTabsEl ? enableTabsEl.checked : DEFAULTS.enableTabs;
 
     return values;
   }

@@ -91,6 +91,12 @@ class WindowManager {
 
     /** @type {import('electron-store')|null} */
     this.store = null;
+
+    /** @type {Map<string, { watcher: fs.FSWatcher|null, debounceTimer: NodeJS.Timeout|null }>} */
+    this.fileWatchers = new Map();
+
+    /** Callback invoked when a file is opened (for recent files tracking) */
+    this.onRecentFile = null;
   }
 
   /**
@@ -99,6 +105,113 @@ class WindowManager {
    */
   setStore(store) {
     this.store = store;
+  }
+
+  // -----------------------------------------------------------------------
+  // File Watcher — auto-refresh on disk changes
+  // -----------------------------------------------------------------------
+
+  /**
+   * Start watching the file associated with a window for changes.
+   * @param {string} windowId
+   */
+  startFileWatcher(windowId) {
+    const entry = this.windows.get(windowId);
+    if (!entry) return;
+
+    const filePath = entry.meta.filePath;
+    if (!filePath) return; // content-only mode
+
+    // Check autoRefresh setting
+    if (this.store && !this.store.get('autoRefresh', true)) return;
+
+    // Stop existing watcher first
+    this.stopFileWatcher(windowId);
+
+    try {
+      const watcher = fs.watch(filePath, { persistent: false }, (eventType, filename) => {
+        // macOS may pass filename=null, use original filePath as fallback
+        const changedFile = filename || path.basename(filePath);
+
+        // Debounce 300ms
+        const existing = this.fileWatchers.get(windowId);
+        if (existing && existing.debounceTimer) {
+          clearTimeout(existing.debounceTimer);
+        }
+
+        const timer = setTimeout(async () => {
+          try {
+            // For rename events (atomic save), check if file still exists
+            if (eventType === 'rename' && !fs.existsSync(filePath)) {
+              console.log(`[doculight] file-deleted: ${filePath}`);
+              this.stopFileWatcher(windowId);
+              return;
+            }
+
+            console.log(`[doculight] file-changed: ${filePath}`);
+            const markdown = await fs.promises.readFile(filePath, 'utf-8');
+
+            const currentEntry = this.windows.get(windowId);
+            if (!currentEntry || currentEntry.win.isDestroyed()) return;
+
+            const imageBasePath = currentEntry.meta.tree
+              ? path.dirname(currentEntry.meta.tree.path).replace(/\\/g, '/')
+              : path.dirname(filePath).replace(/\\/g, '/');
+
+            currentEntry.win.webContents.send('render-markdown', {
+              markdown,
+              filePath: filePath.replace(/\\/g, '/'),
+              windowId,
+              imageBasePath,
+              platform: process.platform
+            });
+          } catch (err) {
+            console.error(`[doculight] file-watch read error: ${err.message}`);
+          }
+        }, 300);
+
+        const watcherEntry = this.fileWatchers.get(windowId);
+        if (watcherEntry) {
+          watcherEntry.debounceTimer = timer;
+        }
+      });
+
+      watcher.on('error', (err) => {
+        console.error(`[doculight] file-watch error: ${err.message}`);
+        this.stopFileWatcher(windowId);
+      });
+
+      this.fileWatchers.set(windowId, { watcher, debounceTimer: null });
+    } catch (err) {
+      console.error(`[doculight] file-watch start error: ${err.message}`);
+      this.fileWatchers.set(windowId, { watcher: null, debounceTimer: null });
+    }
+  }
+
+  /**
+   * Stop watching the file associated with a window.
+   * @param {string} windowId
+   */
+  stopFileWatcher(windowId) {
+    const entry = this.fileWatchers.get(windowId);
+    if (!entry) return;
+
+    if (entry.debounceTimer) {
+      clearTimeout(entry.debounceTimer);
+    }
+    if (entry.watcher) {
+      try { entry.watcher.close(); } catch { /* ignore */ }
+    }
+    this.fileWatchers.delete(windowId);
+  }
+
+  /**
+   * Stop all file watchers (called on quit or when autoRefresh is disabled).
+   */
+  stopAllFileWatchers() {
+    for (const windowId of this.fileWatchers.keys()) {
+      this.stopFileWatcher(windowId);
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -224,6 +337,7 @@ class WindowManager {
     });
 
     win.on('closed', () => {
+      this.stopFileWatcher(windowId);
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);
       if (typeof this.onTrayUpdate === 'function') {
@@ -246,6 +360,11 @@ class WindowManager {
     // Notify tray / listeners that window list changed
     if (typeof this.onTrayUpdate === 'function') {
       this.onTrayUpdate();
+    }
+
+    // Track in recent files
+    if (filePath && typeof this.onRecentFile === 'function') {
+      this.onRecentFile(filePath);
     }
 
     // --- Return promise that resolves on window-ready IPC ------------------
@@ -280,10 +399,17 @@ class WindowManager {
 
     if (content != null) {
       // Normal window: send initial content to the renderer
+      const imageBasePath = filePath
+        ? (entry.meta.tree
+          ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
+          : path.dirname(filePath).replace(/\\/g, '/'))
+        : null;
       entry.win.webContents.send('render-markdown', {
         markdown: content,
-        filePath: filePath,
-        windowId: windowId
+        filePath: filePath ? filePath.replace(/\\/g, '/') : null,
+        windowId: windowId,
+        imageBasePath,
+        platform: process.platform
       });
 
       // Build sidebar tree for filePath-based windows
@@ -304,6 +430,11 @@ class WindowManager {
 
     // Clean up pending state
     this.pendingReady.delete(windowId);
+
+    // Start file watcher if filePath exists
+    if (pending.filePath) {
+      this.startFileWatcher(windowId);
+    }
 
     // Ensure the window is visible
     if (!entry.win.isVisible()) {
@@ -328,6 +459,7 @@ class WindowManager {
    */
   closeWindow(windowId) {
     if (!windowId) {
+      this.stopAllFileWatchers();
       const count = this.windows.size;
       for (const [, entry] of this.windows) {
         entry.win.close();
@@ -339,6 +471,7 @@ class WindowManager {
     if (!entry) {
       throw new Error(t('error.windowNotFound', { windowId }));
     }
+    this.stopFileWatcher(windowId);
     entry.win.close();
     return { closed: 1 };
   }
@@ -488,10 +621,15 @@ class WindowManager {
     entry.meta.history.push(filePath);
 
     // Send content to renderer
+    const imageBasePath = entry.meta.tree
+      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
+      : path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
-      filePath,
-      windowId
+      filePath: filePath.replace(/\\/g, '/'),
+      windowId,
+      imageBasePath,
+      platform: process.platform
     });
 
     // Highlight current file in sidebar (Root-Preserving: tree structure doesn't change)
@@ -501,6 +639,14 @@ class WindowManager {
 
     // Update metadata
     entry.meta.filePath = filePath;
+
+    // Track in recent files
+    if (typeof this.onRecentFile === 'function') {
+      this.onRecentFile(filePath);
+    }
+
+    // Restart file watcher for new file
+    this.startFileWatcher(windowId);
 
     // Update window title
     const title = this.extractTitle(content) || path.basename(filePath, '.md');
@@ -524,10 +670,15 @@ class WindowManager {
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
 
+    const imageBasePath = entry.meta.tree
+      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
+      : path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
-      filePath,
-      windowId
+      filePath: filePath.replace(/\\/g, '/'),
+      windowId,
+      imageBasePath,
+      platform: process.platform
     });
 
     entry.win.webContents.send('sidebar-highlight', {
@@ -553,10 +704,15 @@ class WindowManager {
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
 
+    const imageBasePath = entry.meta.tree
+      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
+      : path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
-      filePath,
-      windowId
+      filePath: filePath.replace(/\\/g, '/'),
+      windowId,
+      imageBasePath,
+      platform: process.platform
     });
 
     entry.win.webContents.send('sidebar-highlight', {
@@ -650,6 +806,7 @@ class WindowManager {
     });
 
     win.on('closed', () => {
+      this.stopFileWatcher(windowId);
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);
       if (typeof this.onTrayUpdate === 'function') {
