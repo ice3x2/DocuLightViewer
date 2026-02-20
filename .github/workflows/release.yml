@@ -1,0 +1,135 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── 버전/태그 결정, workflow_dispatch 시 태그 자동 생성 ─────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.info.outputs.version }}
+      tag: ${{ steps.info.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version and tag from package.json
+        id: info
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION"    >> $GITHUB_OUTPUT
+
+      - name: Create and push tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="v$(node -p "require('./package.json').version")"
+          git tag "$TAG" || echo "Tag $TAG already exists, skipping"
+          git push origin "$TAG" || echo "Tag $TAG already pushed, skipping"
+
+  # ── Windows 빌드 (NSIS 설치 파일 + Portable) ────────────────────────────
+  build-windows:
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows
+        run: npm run build:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            dist/DocuLight-Setup-*.exe
+            dist/DocuLight-Portable-*.exe
+          if-no-files-found: error
+
+  # ── macOS 빌드 (DMG — Intel x64 + Apple Silicon arm64) ──────────────────
+  build-macos:
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS
+        run: npm run build:mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: dist/DocuLight-*.dmg
+          if-no-files-found: error
+
+  # ── Linux 빌드 (AppImage + .deb — Ubuntu/Debian) ────────────────────────
+  build-linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux
+        run: npm run build:linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/DocuLight-*.AppImage
+            dist/DocuLight-*.deb
+          if-no-files-found: error
+
+  # ── GitHub Release 생성 및 아티팩트 업로드 ──────────────────────────────
+  release:
+    needs: [prepare, build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "DocuLight ${{ needs.prepare.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            artifacts/windows-artifacts/*.exe
+            artifacts/macos-artifacts/*.dmg
+            artifacts/linux-artifacts/*.AppImage
+            artifacts/linux-artifacts/*.deb

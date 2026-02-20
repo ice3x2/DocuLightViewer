@@ -54,9 +54,12 @@ linux:
     - target: AppImage
       arch:
         - x64
+    - target: deb
+      arch:
+        - x64
   icon: assets/icon.png
   category: Development
-  artifactName: DocuLight-${version}.AppImage
+  artifactName: DocuLight-${version}.${ext}
   mimeTypes:
     - text/markdown
     - text/x-markdown

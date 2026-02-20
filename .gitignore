@@ -46,7 +46,6 @@ trash/
 test-source/
 playwright-report/
 nul
-.github/
 
 tmpclaude-*-cwd
 
@@ -58,3 +57,4 @@ tmpclaude-*-cwd
 
 # Build output
 dist/
+
