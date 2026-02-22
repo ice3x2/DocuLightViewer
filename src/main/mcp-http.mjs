@@ -252,18 +252,37 @@ export async function startMcpHttpServer(windowManager, store, userDataPath) {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Accept'
       });
       res.end();
       return;
     }
 
-    // Only POST /mcp
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+    // GET /mcp — SSE stream for server-to-client notifications (MCP Streamable HTTP spec)
+    // Claude Code HTTP transport requires this endpoint to be available.
+    // DocuLight has no server-initiated messages, so the stream stays open silently.
+    if (url.pathname === '/mcp' && req.method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+      });
+      // Send a comment every 15 s to prevent proxies from closing the connection
+      const keepAlive = setInterval(() => {
+        if (!res.writableEnded) res.write(': keep-alive\n\n');
+      }, 15000);
+      req.on('close', () => clearInterval(keepAlive));
+      return;
+    }
+
+    // Only POST /mcp for JSON-RPC
     if (url.pathname !== '/mcp' || req.method !== 'POST') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'POST /mcp only' }));
+      res.end(JSON.stringify({ error: 'GET or POST /mcp only' }));
       return;
     }
 

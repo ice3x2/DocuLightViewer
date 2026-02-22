@@ -515,8 +515,10 @@
     const tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
     const tabsEnabled = tabMod && tabMod.isEnabled();
 
-    // Empty page: no file loaded in current context
-    const isEmpty = !currentFilePath;
+    // Empty page: no content rendered yet (drop zone state).
+    // Content-string windows have no filePath but are not empty.
+    const contentEl = document.getElementById('content');
+    const isEmpty = !currentFilePath && !(contentEl && contentEl.hasChildNodes());
 
     // Check if right-click target is inside a code block
     const codeBlock = !isEmpty && e.target.closest('pre');
