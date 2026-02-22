@@ -1,6 +1,6 @@
 {
   "name": "doculight",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Lightweight Markdown Document Viewer & Manager — Electron + MCP",
   "main": "src/main/index.js",
   "bin": {
