@@ -558,11 +558,12 @@ async function saveMcpFile({ content, filePath, title }) {
   if (!enabled || !savePath) return;
 
   const now = new Date();
-  const ts = [
+  const dateFolder = [
     String(now.getFullYear()),
     String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    '_',
+    String(now.getDate()).padStart(2, '0')
+  ].join('-');
+  const ts = [
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
     String(now.getSeconds()).padStart(2, '0')
@@ -584,9 +585,10 @@ async function saveMcpFile({ content, filePath, title }) {
     fileName = nameCore ? `${ts}_${nameCore}.md` : `${ts}.md`;
   }
 
-  const destPath = path.join(savePath, fileName);
+  const dateFolderPath = path.join(savePath, dateFolder);
+  const destPath = path.join(dateFolderPath, fileName);
   try {
-    await fs.promises.mkdir(savePath, { recursive: true });
+    await fs.promises.mkdir(dateFolderPath, { recursive: true });
     if (filePath) {
       await fs.promises.copyFile(filePath, destPath);
     } else {
