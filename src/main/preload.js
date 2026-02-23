@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('doclight', {
   unregisterFileAssociation: () => ipcRenderer.invoke('unregister-file-association'),
   getFileAssociationStatus: () => ipcRenderer.invoke('get-file-association-status'),
   openDefaultAppsSettings: () => ipcRenderer.send('open-default-apps-settings'),
+  showFileInExplorer: (filePath) => ipcRenderer.send('show-in-explorer', filePath),
+  pickDirectory: () => ipcRenderer.invoke('pick-directory'),
 
   // PDF Export
   exportPdf: (opts) => ipcRenderer.invoke('export-pdf', opts),

@@ -110,7 +110,9 @@ const store = new Store({
     fileAssociationPrevProgId: { type: 'string', default: '' },
     autoRefresh: { type: 'boolean', default: true },
     enableTabs: { type: 'boolean', default: false },
-    recentFiles: { type: 'array', items: { type: 'string' }, default: [] }
+    recentFiles: { type: 'array', items: { type: 'string' }, default: [] },
+    mcpAutoSave: { type: 'boolean', default: false },
+    mcpAutoSavePath: { type: 'string', default: '' }
   }
 });
 
@@ -524,6 +526,78 @@ function startIpcServer() {
   });
 }
 
+// =============================================================================
+// MCP Auto-Save Helpers
+// =============================================================================
+
+function sanitizeFilenameWithUrlEncode(str) {
+  const ENCODE_MAP = {
+    '<': '%3C', '>': '%3E', ':': '%3A', '"': '%22',
+    '/': '%2F', '\\': '%5C', '|': '%7C', '?': '%3F', '*': '%2A'
+  };
+  return str.replace(/[<>:"/\\|?*\x00-\x1f]/g, c => ENCODE_MAP[c] || encodeURIComponent(c));
+}
+
+function extractTitleFromContent(content) {
+  if (!content) return null;
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^#{1,6}\s+(.+)/);
+    if (m) return m[1].trim();
+  }
+  for (const line of lines) {
+    const t = line.trim();
+    if (t) return t.slice(0, 50);
+  }
+  return null;
+}
+
+async function saveMcpFile({ content, filePath, title }) {
+  const enabled = store.get('mcpAutoSave', false);
+  const savePath = store.get('mcpAutoSavePath', '');
+  if (!enabled || !savePath) return;
+
+  const now = new Date();
+  const ts = [
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+    '_',
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0')
+  ].join('');
+
+  let fileName;
+  if (filePath) {
+    fileName = `${ts}_${path.basename(filePath)}`;
+  } else {
+    let nameCore = null;
+    if (title) {
+      nameCore = sanitizeFilenameWithUrlEncode(title.trim());
+    } else {
+      const extracted = extractTitleFromContent(content);
+      if (extracted) {
+        nameCore = sanitizeFilenameWithUrlEncode(extracted);
+      }
+    }
+    fileName = nameCore ? `${ts}_${nameCore}.md` : `${ts}.md`;
+  }
+
+  const destPath = path.join(savePath, fileName);
+  try {
+    await fs.promises.mkdir(savePath, { recursive: true });
+    if (filePath) {
+      await fs.promises.copyFile(filePath, destPath);
+    } else {
+      await fs.promises.writeFile(destPath, content || '', 'utf-8');
+    }
+    console.log(`[doculight] MCP auto-save: ${destPath}`);
+  } catch (err) {
+    console.error(`[doculight] MCP auto-save failed: ${err.message}`);
+  }
+}
+
 /**
  * Route an incoming IPC message to the appropriate WindowManager method.
  *
@@ -539,6 +613,8 @@ async function handleIpcMessage(socket, msg) {
     switch (action) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
+        saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title })
+          .catch(err => console.error('[doculight] saveMcpFile error:', err.message));
         break;
 
       case 'update_markdown':
@@ -706,6 +782,19 @@ function registerIpcHandlers() {
 
   ipcMain.on('open-default-apps-settings', () => {
     fileAssoc.openSystemSettings();
+  });
+
+  ipcMain.on('show-in-explorer', (event, filePath) => {
+    if (filePath) shell.showItemInFolder(filePath);
+  });
+
+  ipcMain.handle('pick-directory', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
   });
 
   // Navigate to a linked document within the same viewer window
