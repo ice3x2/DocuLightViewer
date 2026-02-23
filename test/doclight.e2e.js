@@ -83,6 +83,37 @@ test.describe('DocuLight E2E Tests', () => {
 
     // Wait for IPC server
     await waitForIpcServer();
+
+    // Clear persisted panel prefs (sidebarVisible etc.) from IndexedDB to ensure
+    // consistent sidebar state across test runs. Without this, a previous run that
+    // saved sidebarVisible:false would break TC-3, TC-10, TC-15.
+    try {
+      const tempResult = await sendIpcRequest('open_markdown', {
+        content: '# Test Init', title: 'Init',
+      });
+      await new Promise(r => setTimeout(r, 800));
+      const initViewer = app.windows().find(w => w.url().includes('viewer.html'));
+      if (initViewer) {
+        await initViewer.evaluate(async () => {
+          await new Promise((resolve) => {
+            const req = indexedDB.open('doculight', 1);
+            req.onsuccess = (e) => {
+              const db = e.target.result;
+              try {
+                const tx = db.transaction('ui-prefs', 'readwrite');
+                const store = tx.objectStore('ui-prefs');
+                store.delete('panel-state');
+                tx.oncomplete = resolve;
+                tx.onerror = resolve;
+              } catch { resolve(); }
+            };
+            req.onerror = resolve;
+          });
+        });
+      }
+      await sendIpcRequest('close_viewer', { windowId: tempResult.windowId });
+      await new Promise(r => setTimeout(r, 300));
+    } catch { /* ignore */ }
   });
 
   test.afterAll(async () => {
