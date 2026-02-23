@@ -503,6 +503,23 @@
     `;
   }));
 
+  // === Viewer Toast ===
+  function showViewerToast(message) {
+    var existing = document.querySelector('.viewer-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'viewer-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(function () {
+      toast.classList.add('visible');
+    });
+    setTimeout(function () {
+      toast.classList.remove('visible');
+      setTimeout(function () { toast.remove(); }, 200);
+    }, 2500);
+  }
+
   // === Context Menu ===
   function showContextMenu(e) {
     // Remove any existing context menu
@@ -577,6 +594,39 @@
     const sep = document.createElement('div');
     sep.className = 'ctx-menu-sep';
     menu.appendChild(sep);
+
+    // Copy Path
+    const copyPathItem = document.createElement('div');
+    copyPathItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
+    copyPathItem.textContent = t('viewer.copyPath');
+    if (currentFilePath) {
+      copyPathItem.addEventListener('click', () => {
+        menu.remove();
+        navigator.clipboard.writeText(currentFilePath).then(() => {
+          showViewerToast(currentFilePath);
+        }).catch(function(err) {
+          console.error('Failed to copy path:', err);
+        });
+      });
+    }
+    menu.appendChild(copyPathItem);
+
+    // Show in Explorer
+    const showExplorerItem = document.createElement('div');
+    showExplorerItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
+    showExplorerItem.textContent = t('viewer.showInExplorer');
+    if (currentFilePath) {
+      showExplorerItem.addEventListener('click', () => {
+        menu.remove();
+        window.doclight.showFileInExplorer(currentFilePath);
+      });
+    }
+    menu.appendChild(showExplorerItem);
+
+    // Separator before PDF
+    const sep2 = document.createElement('div');
+    sep2.className = 'ctx-menu-sep';
+    menu.appendChild(sep2);
 
     // Print (PDF export)
     const printItem = document.createElement('div');

@@ -44,6 +44,7 @@
         <label for="mcpPort-input" data-i18n="settings.mcpPort">MCP Server Port</label>
         <input type="number" id="mcpPort-input" min="1024" max="65535" value="52580">
         <small class="hint" data-i18n="settings.mcpPortHint">Requires app restart after change</small>
+        <small id="mcp-address" class="hint mcp-address-link">http://localhost:52580/mcp</small>
       </div>
 
       <div class="form-group">
@@ -94,6 +95,23 @@
         </div>
       </div>
 
+      <div class="section-divider"></div>
+      <div class="form-group">
+        <label class="section-label" data-i18n="settings.mcpAutoSave">MCP Auto Save</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="mcpAutoSave-checkbox">
+            <span data-i18n="settings.mcpAutoSaveHint">Auto-save files opened via MCP</span>
+          </label>
+        </div>
+        <div class="path-input-group" id="mcpAutoSavePath-group">
+          <input type="text" id="mcpAutoSavePath-input"
+                 data-i18n-placeholder="settings.mcpAutoSavePathPlaceholder">
+          <button type="button" id="mcpAutoSavePath-browse-btn"
+                  data-i18n="settings.mcpAutoSavePathBrowse">Browse</button>
+        </div>
+      </div>
+
       <div class="button-group">
         <button type="button" id="reset-button" data-i18n="settings.resetButton">Reset to Defaults</button>
         <button type="button" id="save-button" data-i18n="settings.saveButton">Save</button>
@@ -103,6 +121,7 @@
     </form>
   </div>
 
+  <div id="mcp-copy-toast" class="mcp-toast"></div>
   <script src="./settings.js"></script>
 </body>
 </html>

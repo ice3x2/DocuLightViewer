@@ -53,7 +53,9 @@
     mcpPort: 52580,
     defaultWindowSize: 'auto',
     autoRefresh: true,
-    enableTabs: false
+    enableTabs: false,
+    mcpAutoSave: false,
+    mcpAutoSavePath: ''
   };
 
   const VALIDATION = {
@@ -65,6 +67,8 @@
   const saveBtn = document.getElementById('save-button');
   const resetBtn = document.getElementById('reset-button');
   const saveMessage = document.getElementById('save-message');
+  const mcpAddressEl = document.getElementById('mcp-address');
+  const mcpCopyToast = document.getElementById('mcp-copy-toast');
 
   const fields = {
     theme: document.getElementById('theme-select'),
@@ -86,6 +90,20 @@
     }
   }
 
+  function updateMcpAddress(port) {
+    if (mcpAddressEl) {
+      mcpAddressEl.textContent = 'http://localhost:' + port + '/mcp';
+    }
+  }
+
+  function showMcpCopyToast() {
+    mcpCopyToast.textContent = t('settings.mcpCopied');
+    mcpCopyToast.classList.add('show');
+    setTimeout(() => {
+      mcpCopyToast.classList.remove('show');
+    }, 2000);
+  }
+
   // Populate form fields
   function populateForm(settings) {
     for (const [key, element] of Object.entries(fields)) {
@@ -97,6 +115,12 @@
     if (autoRefreshEl) autoRefreshEl.checked = settings.autoRefresh !== undefined ? settings.autoRefresh : DEFAULTS.autoRefresh;
     const enableTabsEl = document.getElementById('enableTabs-checkbox');
     if (enableTabsEl) enableTabsEl.checked = settings.enableTabs !== undefined ? settings.enableTabs : DEFAULTS.enableTabs;
+    const mcpAutoSaveEl = document.getElementById('mcpAutoSave-checkbox');
+    if (mcpAutoSaveEl) mcpAutoSaveEl.checked = settings.mcpAutoSave !== undefined ? settings.mcpAutoSave : DEFAULTS.mcpAutoSave;
+    const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
+    if (mcpAutoSavePathEl) mcpAutoSavePathEl.value = settings.mcpAutoSavePath || '';
+    updateAutoSavePathState();
+    updateMcpAddress(settings.mcpPort !== undefined ? settings.mcpPort : DEFAULTS.mcpPort);
   }
 
   // Collect and validate form values
@@ -142,8 +166,32 @@
     values.autoRefresh = autoRefreshEl ? autoRefreshEl.checked : DEFAULTS.autoRefresh;
     const enableTabsEl = document.getElementById('enableTabs-checkbox');
     values.enableTabs = enableTabsEl ? enableTabsEl.checked : DEFAULTS.enableTabs;
+    const mcpAutoSaveEl = document.getElementById('mcpAutoSave-checkbox');
+    values.mcpAutoSave = mcpAutoSaveEl ? mcpAutoSaveEl.checked : DEFAULTS.mcpAutoSave;
+    const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
+    values.mcpAutoSavePath = mcpAutoSavePathEl ? mcpAutoSavePathEl.value.trim() : DEFAULTS.mcpAutoSavePath;
 
     return values;
+  }
+
+  // MCP port input → update address live
+  fields.mcpPort.addEventListener('input', () => {
+    const port = parseInt(fields.mcpPort.value, 10);
+    if (!isNaN(port) && port >= 1024 && port <= 65535) {
+      updateMcpAddress(port);
+    }
+  });
+
+  // MCP address click → copy to clipboard
+  if (mcpAddressEl) {
+    mcpAddressEl.addEventListener('click', () => {
+      const addr = mcpAddressEl.textContent;
+      navigator.clipboard.writeText(addr).then(() => {
+        showMcpCopyToast();
+      }).catch(err => {
+        console.error('Failed to copy MCP address:', err);
+      });
+    });
   }
 
   // Show save message
@@ -250,6 +298,34 @@
   openDefaultAppsBtn.addEventListener('click', () => {
     window.doclight.openDefaultAppsSettings();
   });
+
+  // === MCP Auto Save ===
+  const mcpAutoSaveCheckbox = document.getElementById('mcpAutoSave-checkbox');
+  const mcpAutoSavePathInput = document.getElementById('mcpAutoSavePath-input');
+  const mcpAutoSavePathBrowseBtn = document.getElementById('mcpAutoSavePath-browse-btn');
+
+  function updateAutoSavePathState() {
+    const enabled = mcpAutoSaveCheckbox && mcpAutoSaveCheckbox.checked;
+    const group = document.getElementById('mcpAutoSavePath-group');
+    if (group) group.style.opacity = enabled ? '1' : '0.5';
+    if (mcpAutoSavePathInput) mcpAutoSavePathInput.disabled = !enabled;
+    if (mcpAutoSavePathBrowseBtn) mcpAutoSavePathBrowseBtn.disabled = !enabled;
+  }
+
+  if (mcpAutoSaveCheckbox) {
+    mcpAutoSaveCheckbox.addEventListener('change', updateAutoSavePathState);
+  }
+
+  if (mcpAutoSavePathBrowseBtn) {
+    mcpAutoSavePathBrowseBtn.addEventListener('click', async () => {
+      try {
+        const dir = await window.doclight.pickDirectory();
+        if (dir && mcpAutoSavePathInput) mcpAutoSavePathInput.value = dir;
+      } catch (err) {
+        console.error('Failed to pick directory:', err);
+      }
+    });
+  }
 
   // Load on startup
   document.addEventListener('DOMContentLoaded', async () => {

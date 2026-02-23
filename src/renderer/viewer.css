@@ -946,6 +946,31 @@ mark {
   opacity: 1;
 }
 
+.viewer-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  white-space: nowrap;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 9999;
+}
+
+.viewer-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* Dark theme tab overrides */
 [data-theme="dark"] .tab-bar {
   background: var(--tab-bar-bg, #1c2128);

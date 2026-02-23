@@ -75,6 +75,18 @@ h1 {
   color: #6a737d;
 }
 
+.mcp-address-link {
+  cursor: pointer;
+  color: #0366d6;
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.mcp-address-link:hover {
+  text-decoration-style: solid;
+}
+
 .button-group {
   display: flex;
   gap: 12px;
@@ -212,6 +224,34 @@ h1 {
   display: none;
 }
 
+/* MCP auto-save path input group */
+.path-input-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.path-input-group input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.path-input-group button {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.path-input-group button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Scrollbar styling (same as viewer) */
 ::-webkit-scrollbar {
   width: 8px;
@@ -229,4 +269,26 @@ h1 {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #959da5;
+}
+
+.mcp-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  font-size: 13px;
+  padding: 10px 20px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 9999;
+}
+
+.mcp-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
