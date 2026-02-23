@@ -38,7 +38,8 @@ function extractTitleFromContent(content) {
   return null;
 }
 
-async function saveMcpFile({ content, filePath, title }, store) {
+async function saveMcpFile({ content, filePath, title, noSave }, store) {
+  if (noSave === true) return;
   const enabled = store.get('mcpAutoSave', false);
   const savePath = store.get('mcpAutoSavePath', '');
   if (!enabled || !savePath) return;
@@ -97,12 +98,19 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        content:    { type: 'string', description: 'Raw Markdown content to display' },
-        filePath:   { type: 'string', description: 'Absolute path to a .md file to open' },
-        title:      { type: 'string', description: 'Custom window title' },
-        foreground:  { type: 'boolean', description: 'Bring window to foreground (default: true)' },
-        alwaysOnTop: { type: 'boolean', description: 'Keep window above others (default: true)' },
-        size:        { type: 'string', enum: ['s', 'm', 'l', 'f'], description: 'Window size preset' }
+        content:          { type: 'string', description: 'Raw Markdown content to display' },
+        filePath:         { type: 'string', description: 'Absolute path to a .md file to open' },
+        title:            { type: 'string', description: 'Custom window title' },
+        foreground:       { type: 'boolean', description: 'Bring window to foreground (default: true)' },
+        alwaysOnTop:      { type: 'boolean', description: 'Keep window above others (default: true)' },
+        size:             { type: 'string', enum: ['s', 'm', 'l', 'f'], description: 'Window size preset' },
+        windowName:       { type: 'string', description: 'Named window key — reuses existing window if name matches (upsert)' },
+        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Severity color bar at window top' },
+        tags:             { type: 'array', items: { type: 'string' }, description: 'Tags for grouping windows' },
+        flash:            { type: 'boolean', description: 'Flash taskbar button to notify user' },
+        progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Taskbar progress bar value (-1 to remove, 0.0–1.0)' },
+        autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Auto-close window after N seconds' },
+        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
       }
     }
   },
@@ -112,21 +120,30 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        windowId: { type: 'string', description: 'ID of the window to update' },
-        content:  { type: 'string', description: 'New Markdown content' },
-        filePath: { type: 'string', description: 'Absolute path to a .md file' },
-        title:    { type: 'string', description: 'New window title' }
+        windowId:         { type: 'string', description: 'ID of the window to update' },
+        content:          { type: 'string', description: 'New Markdown content' },
+        filePath:         { type: 'string', description: 'Absolute path to a .md file' },
+        title:            { type: 'string', description: 'New window title' },
+        appendMode:       { type: 'boolean', description: 'Append content to existing window content instead of replacing' },
+        separator:        { type: 'string', description: 'Separator between existing and new content (default: \\n\\n)' },
+        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error', ''], description: 'Update severity color bar (empty string to clear)' },
+        tags:             { type: 'array', items: { type: 'string' }, description: 'Replace window tags' },
+        flash:            { type: 'boolean', description: 'Flash taskbar button' },
+        progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Update taskbar progress bar' },
+        autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Reset/set auto-close timer' },
+        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
       },
       required: ['windowId']
     }
   },
   {
     name: 'close_viewer',
-    description: 'Close DocuLight viewer window(s). If windowId is provided, closes that specific window. Otherwise, closes all.',
+    description: 'Close DocuLight viewer window(s). If windowId is provided, closes that specific window. If tag is provided, closes all matching windows. Otherwise, closes all.',
     inputSchema: {
       type: 'object',
       properties: {
-        windowId: { type: 'string', description: 'ID of a specific window to close (omit to close all)' }
+        windowId: { type: 'string', description: 'ID of a specific window to close (omit to close all)' },
+        tag:      { type: 'string', description: 'Close all windows with this tag' }
       }
     }
   },
@@ -135,7 +152,9 @@ const TOOLS = [
     description: 'List all currently open DocuLight viewer windows.',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        tag: { type: 'string', description: 'Filter windows by tag' }
+      }
     }
   }
 ];
@@ -146,7 +165,8 @@ const TOOLS = [
 
 function createToolHandlers(windowManager, store) {
   return {
-    async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size }) {
+    async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
+                          windowName, severity, tags, flash, progress, autoCloseSeconds, noSave }) {
       if (!content && !filePath) {
         return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
       }
@@ -157,10 +177,11 @@ function createToolHandlers(windowManager, store) {
       const result = await windowManager.createWindow({
         content, filePath, title,
         foreground: foreground ?? true,
-        size: size ?? 'm'
+        size: size ?? 'm',
+        windowName, severity, tags, flash, progress, autoCloseSeconds
       });
 
-      saveMcpFile({ content, filePath, title }, store)
+      saveMcpFile({ content, filePath, title, noSave }, store)
         .catch(err => console.error('[doculight] MCP auto-save error:', err.message));
 
       const entry = windowManager.getWindowEntry(result.windowId);
@@ -171,48 +192,67 @@ function createToolHandlers(windowManager, store) {
         entry.meta.alwaysOnTop = pinned;
         entry.win.webContents.send('always-on-top-changed', { alwaysOnTop: pinned });
 
-        // Hide sidebar & TOC for size m or smaller
-        const resolvedSize = size ?? 'm';
-        if (resolvedSize === 's' || resolvedSize === 'm') {
-          entry.win.webContents.send('panel-visibility', { sidebar: false, toc: false });
+        // Hide sidebar & TOC for size m or smaller (only for newly created windows)
+        if (!result.upserted) {
+          const resolvedSize = size ?? 'm';
+          if (resolvedSize === 's' || resolvedSize === 'm') {
+            entry.win.webContents.send('panel-visibility', { sidebar: false, toc: false });
+          }
         }
       }
 
+      if (result.upserted) {
+        return {
+          content: [{ type: 'text', text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}` }]
+        };
+      }
       return {
-        content: [{ type: 'text', text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}` }]
+        content: [{ type: 'text', text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}` }]
       };
     },
 
-    async update_markdown({ windowId, content, filePath, title }) {
+    async update_markdown({ windowId, content, filePath, title, appendMode, separator,
+                            severity, tags, flash, progress, autoCloseSeconds }) {
       if (!windowId) {
         return { isError: true, content: [{ type: 'text', text: 'windowId is required.' }] };
       }
-      if (!content && !filePath) {
-        return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
-      }
 
-      const result = await windowManager.updateWindow(windowId, { content, filePath, title });
+      const result = await windowManager.updateWindow(windowId, {
+        content, filePath, title, appendMode, separator,
+        severity, tags, flash, progress, autoCloseSeconds
+      });
+
+      const action = appendMode ? 'Appended to' : 'Updated';
       return {
-        content: [{ type: 'text', text: `Updated window ${windowId}.\n  title: ${result.title}` }]
+        content: [{ type: 'text', text: `${action} window ${windowId}.\n  title: ${result.title}` }]
       };
     },
 
-    async close_viewer({ windowId }) {
-      const result = windowManager.closeWindow(windowId || undefined);
-      const target = windowId ? `window ${windowId}` : 'all windows';
+    async close_viewer({ windowId, tag }) {
+      const result = windowManager.closeWindow(windowId || undefined, { tag });
+      let target;
+      if (windowId) target = `window ${windowId}`;
+      else if (tag) target = `windows with tag "${tag}"`;
+      else target = 'all windows';
       return {
         content: [{ type: 'text', text: `Closed ${target}. (${result.closed} window(s) closed)` }]
       };
     },
 
-    async list_viewers() {
-      const windows = windowManager.listWindows();
+    async list_viewers({ tag } = {}) {
+      const windows = windowManager.listWindows({ tag });
       if (windows.length === 0) {
         return { content: [{ type: 'text', text: 'No viewer windows are currently open.' }] };
       }
-      const lines = windows.map((w, i) =>
-        `  ${i + 1}. [${w.windowId}] "${w.title}"${w.alwaysOnTop ? ' (pinned)' : ''}`
-      );
+      const lines = windows.map((w, i) => {
+        let line = `  ${i + 1}. [${w.windowId}] "${w.title}"`;
+        if (w.alwaysOnTop) line += ' (pinned)';
+        if (w.windowName) line += ` (named: ${w.windowName})`;
+        if (w.severity) line += ` (severity: ${w.severity})`;
+        if (w.tags && w.tags.length > 0) line += ` [tags: ${w.tags.join(', ')}]`;
+        if (w.progress !== undefined) line += ` (progress: ${Math.round(w.progress * 100)}%)`;
+        return line;
+      });
       return {
         content: [{ type: 'text', text: `Open viewer windows (${windows.length}):\n${lines.join('\n')}` }]
       };

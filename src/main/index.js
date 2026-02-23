@@ -552,7 +552,8 @@ function extractTitleFromContent(content) {
   return null;
 }
 
-async function saveMcpFile({ content, filePath, title }) {
+async function saveMcpFile({ content, filePath, title, noSave }) {
+  if (noSave === true) return;
   const enabled = store.get('mcpAutoSave', false);
   const savePath = store.get('mcpAutoSavePath', '');
   if (!enabled || !savePath) return;
@@ -615,7 +616,7 @@ async function handleIpcMessage(socket, msg) {
     switch (action) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
-        saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title })
+        saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave })
           .catch(err => console.error('[doculight] saveMcpFile error:', err.message));
         break;
 
@@ -624,11 +625,11 @@ async function handleIpcMessage(socket, msg) {
         break;
 
       case 'close_viewer':
-        result = windowManager.closeWindow(params?.windowId);
+        result = windowManager.closeWindow(params?.windowId, { tag: params?.tag });
         break;
 
       case 'list_viewers':
-        result = { windows: windowManager.listWindows() };
+        result = { windows: windowManager.listWindows({ tag: params?.tag }) };
         break;
 
       default:

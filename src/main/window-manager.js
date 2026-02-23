@@ -97,6 +97,9 @@ class WindowManager {
 
     /** Callback invoked when a file is opened (for recent files tracking) */
     this.onRecentFile = null;
+
+    /** Named window map: windowName → windowId (FR-19-001) */
+    this.nameToId = new Map();
   }
 
   /**
@@ -215,6 +218,28 @@ class WindowManager {
   }
 
   // -----------------------------------------------------------------------
+  // getWindowByName (FR-19-001)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Find a window entry by its windowName.
+   * Returns null if not found or window has been destroyed.
+   *
+   * @param {string} windowName
+   * @returns {{ win: BrowserWindow, meta: object }|null}
+   */
+  getWindowByName(windowName) {
+    const id = this.nameToId.get(windowName);
+    if (id === undefined) return null;
+    const entry = this.windows.get(id);
+    if (!entry || entry.win.isDestroyed()) {
+      this.nameToId.delete(windowName);
+      return null;
+    }
+    return entry;
+  }
+
+  // -----------------------------------------------------------------------
   // createWindow
   // -----------------------------------------------------------------------
 
@@ -222,16 +247,33 @@ class WindowManager {
    * Create a new viewer window.
    *
    * @param {object}  opts
-   * @param {string}  [opts.content]    - Raw markdown string to render.
-   * @param {string}  [opts.filePath]   - Path to a .md file on disk.
-   * @param {boolean} [opts.foreground] - If false the window will not steal focus (default true).
-   * @param {string}  [opts.title]      - Explicit window title override.
-   * @param {string}  [opts.size]       - One of 's', 'm', 'l', 'f' (default 'm').
-   * @returns {Promise<{ windowId: string, title: string }>}
+   * @param {string}  [opts.content]          - Raw markdown string to render.
+   * @param {string}  [opts.filePath]         - Path to a .md file on disk.
+   * @param {boolean} [opts.foreground]       - If false the window will not steal focus (default true).
+   * @param {string}  [opts.title]            - Explicit window title override.
+   * @param {string}  [opts.size]             - One of 's', 'm', 'l', 'f' (default 'm').
+   * @param {string}  [opts.windowName]       - Named window key for upsert (FR-19-001).
+   * @param {string}  [opts.severity]         - Severity theme: 'info'|'success'|'warning'|'error' (FR-19-003).
+   * @param {string[]}[opts.tags]             - Window tags for grouping (FR-19-005).
+   * @param {boolean} [opts.flash]            - Flash taskbar button (FR-19-006).
+   * @param {number}  [opts.progress]         - Progress bar value 0.0–1.0 (FR-19-007).
+   * @param {number}  [opts.autoCloseSeconds] - Auto-close after N seconds (FR-19-004).
+   * @returns {Promise<{ windowId: string, title: string, windowName?: string, upserted?: boolean }>}
    */
   async createWindow(opts = {}) {
-    const { foreground, title: explicitTitle, size } = opts;
+    const { foreground, title: explicitTitle, size, windowName,
+            severity, tags, flash, progress, autoCloseSeconds } = opts;
     let { content, filePath } = opts;
+
+    // --- Named window upsert (FR-19-001) -----------------------------------
+    if (windowName) {
+      const existing = this.getWindowByName(windowName);
+      if (existing) {
+        // Update the existing window and return its id
+        const updateResult = await this.updateWindow(existing.meta.windowId, opts);
+        return { windowId: existing.meta.windowId, title: updateResult.title, upserted: true, windowName };
+      }
+    }
 
     // --- Validate inputs ---------------------------------------------------
     if (!content && !filePath) {
@@ -321,10 +363,22 @@ class WindowManager {
         title: resolvedTitle,
         alwaysOnTop: false,
         rootFilePath: filePath || null,
-        tree: null, // populated in Phase 5
-        history
+        tree: null,
+        history,
+        // Step 19 new fields
+        windowName: windowName || null,
+        tags: Array.isArray(tags) ? [...tags] : [],
+        severity: severity || null,
+        autoCloseTimer: undefined,
+        progress: (progress !== undefined && progress !== null) ? progress : undefined,
+        lastRenderedContent: filePath ? undefined : (content || '')
       }
     });
+
+    // Register named window
+    if (windowName) {
+      this.nameToId.set(windowName, windowId);
+    }
 
     // --- Lifecycle events --------------------------------------------------
     // Save window bounds when closing (for 'auto' default size mode)
@@ -337,6 +391,16 @@ class WindowManager {
     });
 
     win.on('closed', () => {
+      const entry = this.windows.get(windowId);
+      if (entry) {
+        if (entry.meta.windowName) {
+          this.nameToId.delete(entry.meta.windowName);
+        }
+        if (entry.meta.autoCloseTimer) {
+          clearTimeout(entry.meta.autoCloseTimer);
+          entry.meta.autoCloseTimer = undefined;
+        }
+      }
       this.stopFileWatcher(windowId);
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);
@@ -373,7 +437,12 @@ class WindowManager {
         resolve,
         content,
         filePath: filePath || null,
-        title: resolvedTitle
+        title: resolvedTitle,
+        // Step 19 pending fields
+        severity: severity || null,
+        flash: flash || false,
+        progress: (progress !== undefined && progress !== null) ? progress : undefined,
+        autoCloseSeconds: autoCloseSeconds || null
       });
     });
   }
@@ -395,7 +464,8 @@ class WindowManager {
     const entry = this.windows.get(windowId);
     if (!entry) return;
 
-    const { resolve, content, filePath, title } = pending;
+    const { resolve, content, filePath, title,
+            severity, flash, progress, autoCloseSeconds } = pending;
 
     if (content != null) {
       // Normal window: send initial content to the renderer
@@ -422,6 +492,34 @@ class WindowManager {
         } catch (err) {
           console.error(`[doculight] Failed to build link tree: ${err.message}`);
         }
+      }
+
+      // Severity theme (FR-19-003)
+      if (severity) {
+        entry.win.webContents.send('set-severity', { severity });
+      }
+
+      // Auto-close timer (FR-19-004)
+      if (autoCloseSeconds) {
+        const seconds = Math.floor(autoCloseSeconds);
+        entry.meta.autoCloseTimer = setTimeout(() => {
+          const e = this.windows.get(windowId);
+          if (e && !e.win.isDestroyed()) {
+            this.closeWindow(windowId);
+          }
+        }, seconds * 1000);
+        entry.meta.autoCloseSeconds = seconds;
+        entry.win.webContents.send('auto-close-start', { seconds });
+      }
+
+      // Taskbar flash (FR-19-006)
+      if (flash && !entry.win.isFocused()) {
+        entry.win.flashFrame(true);
+      }
+
+      // Progress bar (FR-19-007)
+      if (progress !== undefined && progress !== null) {
+        entry.win.setProgressBar(progress);
       }
     } else {
       // Empty window: notify renderer to show drop zone
@@ -454,10 +552,34 @@ class WindowManager {
   /**
    * Close one or all windows.
    *
-   * @param {string} [windowId] - Specific window to close. Omit to close all.
+   * @param {string} [windowId]  - Specific window to close. Omit to close all (or use tag).
+   * @param {object} [opts]      - Options for tag-based close (FR-19-005).
+   * @param {string} [opts.tag]  - Close all windows with this tag.
    * @returns {{ closed: number }}
    */
-  closeWindow(windowId) {
+  closeWindow(windowId, opts = {}) {
+    // Tag-based bulk close (FR-19-005)
+    if (!windowId && opts.tag) {
+      const tag = opts.tag;
+      const toClose = [];
+      for (const [id, entry] of this.windows) {
+        if (entry.meta.tags && entry.meta.tags.includes(tag)) {
+          toClose.push(id);
+        }
+      }
+      let count = 0;
+      for (const id of toClose) {
+        const entry = this.windows.get(id);
+        if (entry && !entry.win.isDestroyed()) {
+          this.stopFileWatcher(id);
+          entry.win.close();
+          count++;
+        }
+      }
+      return { closed: count };
+    }
+
+    // Close all windows
     if (!windowId) {
       this.stopAllFileWatchers();
       const count = this.windows.size;
@@ -467,6 +589,7 @@ class WindowManager {
       return { closed: count };
     }
 
+    // Close specific window
     const entry = this.windows.get(windowId);
     if (!entry) {
       throw new Error(t('error.windowNotFound', { windowId }));
@@ -481,13 +604,20 @@ class WindowManager {
   // -----------------------------------------------------------------------
 
   /**
-   * Update the content of an existing window.
+   * Update the content and/or metadata of an existing window.
    *
    * @param {string} windowId
    * @param {object} opts
-   * @param {string} [opts.content]  - New markdown content.
-   * @param {string} [opts.filePath] - Path to .md file (overrides content).
-   * @param {string} [opts.title]    - New window title.
+   * @param {string}  [opts.content]          - New markdown content.
+   * @param {string}  [opts.filePath]         - Path to .md file (overrides content).
+   * @param {string}  [opts.title]            - New window title.
+   * @param {boolean} [opts.appendMode]       - Append content to existing (FR-19-002).
+   * @param {string}  [opts.separator]        - Separator for appendMode (default: '\n\n').
+   * @param {string}  [opts.severity]         - Severity theme update (FR-19-003).
+   * @param {boolean} [opts.flash]            - Flash taskbar button (FR-19-006).
+   * @param {number}  [opts.progress]         - Progress bar value 0.0–1.0 (FR-19-007).
+   * @param {string[]}[opts.tags]             - Replace window tags (FR-19-005).
+   * @param {number}  [opts.autoCloseSeconds] - Reset/set auto-close timer (FR-19-004).
    * @returns {Promise<{ title: string }>}
    */
   async updateWindow(windowId, opts = {}) {
@@ -496,9 +626,28 @@ class WindowManager {
       throw new Error(t('error.windowNotFound', { windowId }));
     }
 
-    let { content, filePath, title } = opts;
+    let { content, filePath, title, appendMode, separator,
+          severity, flash, progress, tags, autoCloseSeconds } = opts;
 
-    // Read from disk if filePath provided
+    // --- Append mode (FR-19-002) -------------------------------------------
+    if (appendMode) {
+      if (entry.meta.filePath) {
+        throw new Error('appendMode is not supported for file-based windows.');
+      }
+      if (content == null) {
+        throw new Error('content is required for appendMode.');
+      }
+      const sep = (separator !== undefined) ? separator : '\n\n';
+      const existing = entry.meta.lastRenderedContent || '';
+      const newContent = existing ? existing + sep + content : content;
+      if (Buffer.byteLength(newContent, 'utf8') > 10 * 1024 * 1024) {
+        throw new Error('Accumulated content exceeds 10MB limit.');
+      }
+      content = newContent;
+      appendMode = false;
+    }
+
+    // --- Read from disk if filePath provided -------------------------------
     if (filePath) {
       if (path.extname(filePath).toLowerCase() !== '.md') {
         throw new Error(t('error.mdOnly', { filePath }));
@@ -506,32 +655,78 @@ class WindowManager {
       content = await fs.promises.readFile(filePath, 'utf-8');
     }
 
-    if (content == null) {
-      throw new Error(t('error.contentRequiredUpdate'));
+    // --- Content update ----------------------------------------------------
+    if (content != null) {
+      const resolvedTitle =
+        title ||
+        this.extractTitle(content) ||
+        (filePath ? path.basename(filePath, '.md') : null) ||
+        entry.meta.title;
+
+      entry.win.webContents.send('update-markdown', {
+        markdown: content,
+        filePath: filePath || entry.meta.filePath,
+        windowId
+      });
+
+      entry.meta.title = resolvedTitle;
+      if (filePath) {
+        entry.meta.filePath = filePath;
+        entry.meta.lastRenderedContent = undefined; // becomes file-based
+        this.startFileWatcher(windowId);
+      } else {
+        // Update lastRenderedContent for content-based windows
+        if (!entry.meta.filePath) {
+          entry.meta.lastRenderedContent = content;
+        }
+      }
+      entry.win.setTitle(resolvedTitle);
+    } else if (title) {
+      // Title-only update
+      entry.meta.title = title;
+      entry.win.setTitle(title);
     }
 
-    // Resolve title
-    const resolvedTitle =
-      title ||
-      this.extractTitle(content) ||
-      (filePath ? path.basename(filePath, '.md') : null) ||
-      entry.meta.title;
-
-    // Send updated content to renderer
-    entry.win.webContents.send('update-markdown', {
-      markdown: content,
-      filePath: filePath || entry.meta.filePath,
-      windowId
-    });
-
-    // Update metadata
-    entry.meta.title = resolvedTitle;
-    if (filePath) {
-      entry.meta.filePath = filePath;
+    // --- Severity theme (FR-19-003) ----------------------------------------
+    if (severity !== undefined) {
+      entry.meta.severity = severity || null;
+      entry.win.webContents.send('set-severity', { severity: entry.meta.severity });
     }
-    entry.win.setTitle(resolvedTitle);
 
-    return { title: resolvedTitle };
+    // --- Taskbar flash (FR-19-006) -----------------------------------------
+    if (flash && !entry.win.isFocused()) {
+      entry.win.flashFrame(true);
+    }
+
+    // --- Progress bar (FR-19-007) ------------------------------------------
+    if (progress !== undefined && progress !== null) {
+      entry.meta.progress = progress;
+      entry.win.setProgressBar(progress);
+    }
+
+    // --- Tags (FR-19-005) --------------------------------------------------
+    if (Array.isArray(tags)) {
+      entry.meta.tags = [...tags];
+    }
+
+    // --- Auto-close timer (FR-19-004) -------------------------------------
+    if (autoCloseSeconds !== undefined && autoCloseSeconds !== null) {
+      if (entry.meta.autoCloseTimer) {
+        clearTimeout(entry.meta.autoCloseTimer);
+        entry.meta.autoCloseTimer = undefined;
+      }
+      const seconds = Math.floor(autoCloseSeconds);
+      entry.meta.autoCloseTimer = setTimeout(() => {
+        const e = this.windows.get(windowId);
+        if (e && !e.win.isDestroyed()) {
+          this.closeWindow(windowId);
+        }
+      }, seconds * 1000);
+      entry.meta.autoCloseSeconds = seconds;
+      entry.win.webContents.send('auto-close-start', { seconds });
+    }
+
+    return { title: entry.meta.title };
   }
 
   // -----------------------------------------------------------------------
@@ -541,16 +736,29 @@ class WindowManager {
   /**
    * List all open windows with their metadata.
    *
-   * @returns {Array<{ windowId: string, title: string, alwaysOnTop: boolean }>}
+   * @param {object} [opts]
+   * @param {string} [opts.tag] - Filter by tag (FR-19-005).
+   * @returns {Array<{ windowId: string, title: string, alwaysOnTop: boolean, windowName?: string, tags?: string[], severity?: string, progress?: number }>}
    */
-  listWindows() {
+  listWindows(opts = {}) {
     const result = [];
     for (const [windowId, entry] of this.windows) {
-      result.push({
+      // Tag filter (FR-19-005)
+      if (opts.tag) {
+        if (!entry.meta.tags || !entry.meta.tags.includes(opts.tag)) {
+          continue;
+        }
+      }
+      const item = {
         windowId,
         title: entry.meta.title,
         alwaysOnTop: entry.meta.alwaysOnTop
-      });
+      };
+      if (entry.meta.windowName) item.windowName = entry.meta.windowName;
+      if (entry.meta.tags && entry.meta.tags.length > 0) item.tags = [...entry.meta.tags];
+      if (entry.meta.severity) item.severity = entry.meta.severity;
+      if (entry.meta.progress !== undefined && entry.meta.progress !== null) item.progress = entry.meta.progress;
+      result.push(item);
     }
     return result;
   }

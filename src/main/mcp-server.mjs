@@ -325,13 +325,21 @@ server.tool(
   'open_markdown',
   'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference.',
   {
-    content: z.string().optional().describe('Raw Markdown content to display'),
-    filePath: z.string().optional().describe('Absolute path to a .md file to open'),
-    title: z.string().optional().describe('Custom window title'),
-    foreground: z.boolean().optional().describe('Bring window to foreground (default: true)'),
-    size: z.enum(['s', 'm', 'l', 'f']).optional().describe('Window size preset: s(mall), m(edium), l(arge), f(ullscreen)')
+    content:          z.string().optional().describe('Raw Markdown content to display'),
+    filePath:         z.string().optional().describe('Absolute path to a .md file to open'),
+    title:            z.string().optional().describe('Custom window title'),
+    foreground:       z.boolean().optional().describe('Bring window to foreground (default: true)'),
+    size:             z.enum(['s', 'm', 'l', 'f']).optional().describe('Window size preset: s(mall), m(edium), l(arge), f(ullscreen)'),
+    windowName:       z.string().optional().describe('Named window key — reuses existing window if name matches (upsert)'),
+    severity:         z.enum(['info', 'success', 'warning', 'error']).optional().describe('Severity color bar at window top'),
+    tags:             z.array(z.string()).optional().describe('Tags for grouping windows'),
+    flash:            z.boolean().optional().describe('Flash taskbar button to notify user'),
+    progress:         z.number().min(-1).max(1).optional().describe('Taskbar progress bar value (-1 to remove, 0.0–1.0)'),
+    autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Auto-close window after N seconds'),
+    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
   },
-  async ({ content, filePath, title, foreground, size }) => {
+  async ({ content, filePath, title, foreground, size,
+           windowName, severity, tags, flash, progress, autoCloseSeconds, noSave }) => {
     try {
       // Validation: at least one of content or filePath is required
       if (!content && !filePath) {
@@ -353,17 +361,24 @@ server.tool(
       }
 
       const result = await sendIpcRequest('open_markdown', {
-        content,
-        filePath,
-        title,
+        content, filePath, title,
         foreground: foreground ?? true,
-        size: size ?? 'm'
+        size: size ?? 'm',
+        windowName, severity, tags, flash, progress, autoCloseSeconds, noSave
       });
 
+      if (result.upserted) {
+        return {
+          content: [{
+            type: 'text',
+            text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}`
+          }]
+        };
+      }
       return {
         content: [{
           type: 'text',
-          text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}`
+          text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}`
         }]
       };
     } catch (err) {
@@ -382,24 +397,25 @@ server.tool(
   'update_markdown',
   'Update the content of an existing DocuLight viewer window.',
   {
-    windowId: z.string().describe('ID of the window to update'),
-    content: z.string().optional().describe('New Markdown content'),
-    filePath: z.string().optional().describe('Absolute path to a .md file'),
-    title: z.string().optional().describe('New window title')
+    windowId:         z.string().describe('ID of the window to update'),
+    content:          z.string().optional().describe('New Markdown content'),
+    filePath:         z.string().optional().describe('Absolute path to a .md file'),
+    title:            z.string().optional().describe('New window title'),
+    appendMode:       z.boolean().default(false).describe('Append content to existing window content instead of replacing'),
+    separator:        z.string().default('\n\n').describe('Separator between existing and new content'),
+    severity:         z.string().optional().describe('Update severity color bar (info/success/warning/error, empty to clear)'),
+    tags:             z.array(z.string()).optional().describe('Replace window tags'),
+    flash:            z.boolean().optional().describe('Flash taskbar button'),
+    progress:         z.number().min(-1).max(1).optional().describe('Update taskbar progress bar'),
+    autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Reset/set auto-close timer'),
+    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
   },
-  async ({ windowId, content, filePath, title }) => {
+  async ({ windowId, content, filePath, title, appendMode, separator,
+           severity, tags, flash, progress, autoCloseSeconds, noSave }) => {
     try {
-      // Validation
       if (!windowId) {
         return {
           content: [{ type: 'text', text: 'windowId is required.' }],
-          isError: true
-        };
-      }
-
-      if (!content && !filePath) {
-        return {
-          content: [{ type: 'text', text: 'content or filePath is required.' }],
           isError: true
         };
       }
@@ -416,16 +432,15 @@ server.tool(
       }
 
       const result = await sendIpcRequest('update_markdown', {
-        windowId,
-        content,
-        filePath,
-        title
+        windowId, content, filePath, title, appendMode, separator,
+        severity, tags, flash, progress, autoCloseSeconds, noSave
       });
 
+      const action = appendMode ? 'Appended to' : 'Updated';
       return {
         content: [{
           type: 'text',
-          text: `Updated window ${windowId}.\n  title: ${result.title}`
+          text: `${action} window ${windowId}.\n  title: ${result.title}`
         }]
       };
     } catch (err) {
@@ -442,17 +457,23 @@ server.tool(
 // ---------------------------------------------------------------------------
 server.tool(
   'close_viewer',
-  'Close DocuLight viewer window(s). If windowId is provided, closes that specific window. Otherwise, closes all.',
+  'Close DocuLight viewer window(s). If windowId is provided, closes that specific window. If tag is provided, closes all matching windows. Otherwise, closes all.',
   {
-    windowId: z.string().optional().describe('ID of a specific window to close (omit to close all)')
+    windowId: z.string().optional().describe('ID of a specific window to close (omit to close all)'),
+    tag:      z.string().optional().describe('Close all windows with this tag')
   },
-  async ({ windowId }) => {
+  async ({ windowId, tag }) => {
     try {
       const result = await sendIpcRequest('close_viewer', {
-        windowId: windowId || undefined
+        windowId: windowId || undefined,
+        tag: tag || undefined
       });
 
-      const target = windowId ? `window ${windowId}` : 'all windows';
+      let target;
+      if (windowId) target = `window ${windowId}`;
+      else if (tag) target = `windows with tag "${tag}"`;
+      else target = 'all windows';
+
       return {
         content: [{
           type: 'text',
@@ -474,10 +495,12 @@ server.tool(
 server.tool(
   'list_viewers',
   'List all currently open DocuLight viewer windows.',
-  {},
-  async () => {
+  {
+    tag: z.string().optional().describe('Filter windows by tag')
+  },
+  async ({ tag } = {}) => {
     try {
-      const result = await sendIpcRequest('list_viewers', {});
+      const result = await sendIpcRequest('list_viewers', { tag });
 
       const windows = result.windows || [];
 
@@ -487,9 +510,15 @@ server.tool(
         };
       }
 
-      const lines = windows.map((w, i) =>
-        `  ${i + 1}. [${w.windowId}] "${w.title}"${w.alwaysOnTop ? ' (pinned)' : ''}`
-      );
+      const lines = windows.map((w, i) => {
+        let line = `  ${i + 1}. [${w.windowId}] "${w.title}"`;
+        if (w.alwaysOnTop) line += ' (pinned)';
+        if (w.windowName) line += ` (named: ${w.windowName})`;
+        if (w.severity) line += ` (severity: ${w.severity})`;
+        if (w.tags && w.tags.length > 0) line += ` [tags: ${w.tags.join(', ')}]`;
+        if (w.progress !== undefined) line += ` (progress: ${Math.round(w.progress * 100)}%)`;
+        return line;
+      });
 
       return {
         content: [{
