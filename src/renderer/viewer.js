@@ -489,6 +489,51 @@
     }
   }));
 
+  // === Severity Bar (FR-19-003) ===
+  cleanups.push(window.doclight.onSetSeverity((data) => {
+    const bar = document.getElementById('severity-bar');
+    if (!bar) return;
+    bar.className = 'severity-bar';
+    if (data.severity) {
+      bar.classList.add('severity-' + data.severity);
+    }
+  }));
+
+  // === Auto-close Countdown (FR-19-004) ===
+  let _autoCloseInterval = null;
+  cleanups.push(window.doclight.onAutoCloseStart((data) => {
+    const bar = document.getElementById('auto-close-bar');
+    if (!bar) return;
+
+    if (_autoCloseInterval) {
+      clearInterval(_autoCloseInterval);
+      _autoCloseInterval = null;
+    }
+
+    let remaining = data.seconds;
+
+    function updateBar() {
+      bar.style.display = 'block';
+      bar.textContent = t('viewer.autoCloseLabel', { seconds: remaining });
+      if (remaining <= 5) {
+        bar.classList.add('urgent');
+      } else {
+        bar.classList.remove('urgent');
+      }
+    }
+
+    updateBar();
+    _autoCloseInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(_autoCloseInterval);
+        _autoCloseInterval = null;
+        return;
+      }
+      updateBar();
+    }, 1000);
+  }));
+
   // === Empty Window Handler ===
   cleanups.push(window.doclight.onEmptyWindow(() => {
     const contentEl = document.getElementById('content');

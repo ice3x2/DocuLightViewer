@@ -1030,6 +1030,44 @@ mark {
   pointer-events: none;
 }
 
+/* === Severity Bar (FR-19-003) === */
+.severity-bar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 9997;
+}
+
+.severity-bar.severity-info    { display: block; background: #3b82f6; }
+.severity-bar.severity-success { display: block; background: #22c55e; }
+.severity-bar.severity-warning { display: block; background: #f59e0b; }
+.severity-bar.severity-error   { display: block; background: #ef4444; }
+
+/* === Auto-close Countdown Bar (FR-19-004) === */
+#auto-close-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  z-index: 9998;
+  transition: background 0.3s;
+}
+
+#auto-close-bar.urgent {
+  background: #f59e0b;
+  color: #000;
+}
+
 /* === PDF Export Mode === */
 body.pdf-mode,
 body.pdf-mode #app-container,

@@ -80,6 +80,20 @@ contextBridge.exposeInMainWorld('doclight', {
     return () => ipcRenderer.removeListener('panel-visibility', handler);
   },
 
+  // Called when main sets severity theme (FR-19-003)
+  onSetSeverity: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('set-severity', handler);
+    return () => ipcRenderer.removeListener('set-severity', handler);
+  },
+
+  // Called when main starts auto-close countdown (FR-19-004)
+  onAutoCloseStart: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('auto-close-start', handler);
+    return () => ipcRenderer.removeListener('auto-close-start', handler);
+  },
+
   // Drag & drop: notify main process that a file was dropped
   fileDropped: (filePath) => ipcRenderer.send('file-dropped', filePath),
 

@@ -97,5 +97,7 @@
   "error.contentRequired": "Either content or filePath must be provided",
   "error.mdOnly": "Only .md files are supported: {filePath}",
   "error.windowNotFound": "Window not found: {windowId}",
-  "error.contentRequiredUpdate": "Either content or filePath must be provided for update"
+  "error.contentRequiredUpdate": "Either content or filePath must be provided for update",
+
+  "viewer.autoCloseLabel": "Auto-close in {seconds}s"
 }
