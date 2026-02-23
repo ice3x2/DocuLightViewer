@@ -86,6 +86,12 @@ and Table of Contents visible.*
 - **Always-on-top pin** — keep a report visible while coding
 - **Foreground mode** — `open_markdown` can steal focus to alert you immediately
 - **System tray** — app stays alive when all windows are closed; agents can open new ones at any time
+- **Named windows** — `windowName` key for upsert (reuses an existing window instead of opening a new one)
+- **Window tags** — `tags` array for grouping; close or list windows by tag
+- **Severity color bar** — 4 px accent bar at the window top (`info` / `success` / `warning` / `error`)
+- **Auto-close timer** — `autoCloseSeconds` closes the window after N seconds with a countdown UI
+- **Taskbar progress bar** — `progress` (0.0 – 1.0) shows task completion on the OS taskbar; `-1` hides it
+- **Taskbar flash** — `flash: true` blinks the taskbar button to request user attention
 
 ### Developer Workflow
 - **MCP server (HTTP)** — embedded in the Electron process, reachable at `http://localhost:52580/mcp`
@@ -95,6 +101,7 @@ and Table of Contents visible.*
 - **PDF export** — render the current document as a PDF
 - **File association** — register `.md` files to open with DocuLight (packaged builds)
 - **Settings UI** — theme, font size, font family, code theme, MCP port, auto-refresh, tabs
+- **MCP auto-save** — MCP-opened files are auto-saved to a configurable path in date-based subdirectories
 
 ### Themes & Appearance
 | Option | Choices |
@@ -128,7 +135,77 @@ DocuLight exposes **four MCP tools** over both HTTP and stdio transports.
 | `title` | string | filename | Window title bar text |
 | `size` | `s`/`m`/`l`/`f` | `m` | Window size preset |
 | `foreground` | boolean | `true` | Bring window to front immediately |
-| `alwaysOnTop` | boolean | `true` | Keep window above all other windows |
+| `alwaysOnTop` | boolean | `true` | Keep window above all other windows *(HTTP MCP only)* |
+| `windowName` | string | — | Named key for upsert — reuses existing window if name matches |
+| `severity` | `info`/`success`/`warning`/`error` | — | Color bar theme at window top |
+| `tags` | string[] | — | Tags for grouping / filtering windows |
+| `flash` | boolean | `false` | Flash taskbar button to request user attention |
+| `progress` | number (-1 – 1.0) | — | Taskbar progress bar value (`-1` = hide) |
+| `autoCloseSeconds` | integer (1 – 3600) | — | Auto-close window after N seconds |
+| `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
+
+### `update_markdown` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `windowId` | string | **required** | Target window ID |
+| `content` | string | — | New Markdown content |
+| `filePath` | string | — | New file path to display |
+| `title` | string | — | New window title |
+| `appendMode` | boolean | `false` | Append to existing content instead of replacing |
+| `separator` | string | `\n\n` | Separator used between existing and new content in append mode |
+| `severity` | string | — | Update color bar theme (empty string to clear) |
+| `tags` | string[] | — | Replace window tags |
+| `flash` | boolean | `false` | Flash taskbar button |
+| `progress` | number (-1 – 1.0) | — | Update taskbar progress bar |
+| `autoCloseSeconds` | integer (1 – 3600) | — | Reset or set auto-close timer |
+| `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
+
+### `close_viewer` parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `windowId` | string *(optional)* | Close a specific window by ID |
+| `tag` | string *(optional)* | Close all windows that have this tag |
+
+If neither `windowId` nor `tag` is provided, all open viewer windows are closed.
+
+### `list_viewers` parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tag` | string *(optional)* | Filter results — return only windows with this tag |
+
+### Code examples
+
+```javascript
+// Open a named window and show a progress bar — no duplicate windows on repeated calls
+await mcpClient.callTool('open_markdown', {
+  windowName: 'build-status',
+  title: '🔨 Build in Progress',
+  content: '# Building…\nStarting compilation.',
+  severity: 'info',
+  progress: 0.0,
+});
+
+// Update the same named window with append mode as the build progresses
+await mcpClient.callTool('update_markdown', {
+  windowId: buildWindowId,
+  appendMode: true,
+  content: '✅ Compilation done. Running tests…',
+  progress: 0.5,
+});
+
+// On completion: update severity, remove progress bar, auto-close after 30 s
+await mcpClient.callTool('update_markdown', {
+  windowId: buildWindowId,
+  severity: 'success',
+  title: '✅ Build Passed',
+  progress: -1,
+  flash: true,
+  autoCloseSeconds: 30,
+});
+```
 
 ### Configure with Claude Code
 
@@ -245,7 +322,7 @@ DocuLight
 ├── src/main/
 │   ├── index.js           Electron main process, IPC hub, app lifecycle
 │   ├── window-manager.js  BrowserWindow lifecycle, cascade positions, history
-│   ├── link-parser.js     Recursive Markdown link parser → sidebar tree
+│   ├── link-parser.js     Directory scanner → sidebar file tree (.md files)
 │   ├── preload.js         contextBridge API (window.doclight)
 │   ├── mcp-server.mjs     MCP stdio server (for Claude Desktop)
 │   └── mcp-http.mjs       MCP HTTP server embedded in Electron (port 52580)
@@ -350,6 +427,12 @@ await mcpClient.callTool('open_markdown', {
 - **항상 위 고정** — 코딩하는 동안 보고서를 항상 보이게 유지
 - **포그라운드 모드** — `open_markdown`이 즉시 포커스를 가져와 알림
 - **시스템 트레이** — 모든 창이 닫혀도 앱이 살아있어 에이전트가 언제든 새 창을 열 수 있음
+- **이름 있는 창(Named Window)** — `windowName` 키로 upsert (기존 창 재사용, 중복 창 방지)
+- **창 태그** — `tags` 배열로 그룹화; 태그 기반 일괄 close/list 지원
+- **Severity 색상 바** — 창 상단 4px 색상 바 (`info` / `success` / `warning` / `error`)
+- **자동 닫힘 타이머** — `autoCloseSeconds`로 N초 후 자동 닫힘, 카운트다운 UI 표시
+- **태스크바 진행률 표시** — `progress` (0.0 – 1.0)로 OS 태스크바에 작업 진행률 표시; `-1`로 숨김
+- **태스크바 플래시** — `flash: true`로 태스크바 버튼 깜빡임, 사용자 주의 요청
 
 ### 개발자 워크플로
 - **MCP 서버 (HTTP)** — Electron 프로세스에 내장, `http://localhost:52580/mcp`로 접근
@@ -359,6 +442,7 @@ await mcpClient.callTool('open_markdown', {
 - **PDF 내보내기** — 현재 문서를 PDF로 렌더링
 - **파일 연결** — `.md` 파일을 DocuLight로 열도록 등록 (패키징 빌드)
 - **설정 UI** — 테마, 폰트 크기, 폰트 패밀리, 코드 테마, MCP 포트, 자동 새로고침, 탭
+- **MCP 자동 저장** — MCP로 열린 파일을 설정 경로에 날짜 기반 폴더 구조로 자동 저장
 
 ### 테마 & 외관
 | 옵션 | 선택지 |
@@ -392,7 +476,77 @@ DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **4개의 MCP 도구**
 | `title` | string | 파일명 | 창 제목 표시줄 텍스트 |
 | `size` | `s`/`m`/`l`/`f` | `m` | 창 크기 프리셋 |
 | `foreground` | boolean | `true` | 즉시 창을 맨 앞으로 가져오기 |
-| `alwaysOnTop` | boolean | `true` | 다른 모든 창 위에 유지 |
+| `alwaysOnTop` | boolean | `true` | 다른 모든 창 위에 유지 *(HTTP MCP 전용)* |
+| `windowName` | string | — | upsert용 이름 키 — 동일 이름의 창이 있으면 재사용 |
+| `severity` | `info`/`success`/`warning`/`error` | — | 창 상단 색상 바 테마 |
+| `tags` | string[] | — | 창 그룹화 / 필터링용 태그 |
+| `flash` | boolean | `false` | 태스크바 버튼 깜빡임으로 사용자 주의 요청 |
+| `progress` | number (-1 – 1.0) | — | 태스크바 진행률 (`-1` = 숨김) |
+| `autoCloseSeconds` | integer (1 – 3600) | — | N초 후 자동 닫힘 |
+| `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
+
+### `update_markdown` 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `windowId` | string | **필수** | 대상 창 ID |
+| `content` | string | — | 새 Markdown 내용 |
+| `filePath` | string | — | 새 파일 경로 |
+| `title` | string | — | 새 창 제목 |
+| `appendMode` | boolean | `false` | 기존 내용에 추가 (replace 대신 append) |
+| `separator` | string | `\n\n` | append 모드에서 기존 내용과 새 내용 사이 구분자 |
+| `severity` | string | — | 색상 바 테마 업데이트 (빈 문자열로 제거) |
+| `tags` | string[] | — | 창 태그 교체 |
+| `flash` | boolean | `false` | 태스크바 버튼 깜빡임 |
+| `progress` | number (-1 – 1.0) | — | 태스크바 진행률 업데이트 |
+| `autoCloseSeconds` | integer (1 – 3600) | — | 자동 닫힘 타이머 재설정 또는 설정 |
+| `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
+
+### `close_viewer` 파라미터
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `windowId` | string *(선택)* | 특정 창 ID로 닫기 |
+| `tag` | string *(선택)* | 해당 태그를 가진 모든 창 닫기 |
+
+`windowId`와 `tag` 모두 생략하면 열려 있는 모든 뷰어 창을 닫습니다.
+
+### `list_viewers` 파라미터
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `tag` | string *(선택)* | 이 태그를 가진 창만 필터링하여 반환 |
+
+### 코드 예제
+
+```javascript
+// 이름 있는 창 열기 — 반복 호출해도 중복 창이 생기지 않음
+await mcpClient.callTool('open_markdown', {
+  windowName: 'build-status',
+  title: '🔨 빌드 진행 중',
+  content: '# 빌드 중…\n컴파일을 시작합니다.',
+  severity: 'info',
+  progress: 0.0,
+});
+
+// 같은 창에 내용 추가(append) + 진행률 업데이트
+await mcpClient.callTool('update_markdown', {
+  windowId: buildWindowId,
+  appendMode: true,
+  content: '✅ 컴파일 완료. 테스트를 실행합니다…',
+  progress: 0.5,
+});
+
+// 완료 시: severity 변경, 진행률 제거, 30초 후 자동 닫힘
+await mcpClient.callTool('update_markdown', {
+  windowId: buildWindowId,
+  severity: 'success',
+  title: '✅ 빌드 성공',
+  progress: -1,
+  flash: true,
+  autoCloseSeconds: 30,
+});
+```
 
 ### Claude Code에서 설정
 
@@ -509,7 +663,7 @@ DocuLight
 ├── src/main/
 │   ├── index.js           Electron 메인 프로세스, IPC 허브, 앱 라이프사이클
 │   ├── window-manager.js  BrowserWindow 라이프사이클, 계단식 위치, 히스토리
-│   ├── link-parser.js     재귀적 Markdown 링크 파서 → 사이드바 트리
+│   ├── link-parser.js     디렉토리 스캐너 → 사이드바 파일 트리 (.md 파일)
 │   ├── preload.js         contextBridge API (window.doclight)
 │   ├── mcp-server.mjs     MCP stdio 서버 (Claude Desktop용)
 │   └── mcp-http.mjs       Electron에 내장된 MCP HTTP 서버 (포트 52580)

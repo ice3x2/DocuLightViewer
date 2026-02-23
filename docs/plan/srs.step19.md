@@ -187,7 +187,7 @@ Step 19 시작 시점의 DocLight 시스템 상태:
 4. CSS에서 `[data-severity]` 선택자로 상단 바 색상 적용:
    - `error` → `#ef4444` (빨강)
    - `warning` → `#f59e0b` (주황)
-   - `info` → `#3b82f6` (파랑)
+   - `info` → `#3b82f6` (파랑)``
    - `success` → `#22c55e` (초록)
 5. `entry.meta.severity` 에 저장
 
@@ -264,6 +264,7 @@ Step 19 시작 시점의 DocLight 시스템 상태:
 4. `close_viewer` 시 `tag` 파라미터 지원:
    - `tag` 있고 `windowId` 없음 → 해당 태그를 가진 모든 창 닫기
    - `windowId` 있음 → 기존 단일 창 닫기 동작 유지
+
 
 #### 2.5.4 출력
 

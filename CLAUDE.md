@@ -95,12 +95,24 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop` | Open new viewer window |
-| `update_markdown` | `windowId`, `content` OR `filePath`, `title` | Update existing window |
-| `close_viewer` | `windowId` (optional) | Close specific window or all windows |
-| `list_viewers` | — | List all open windows with IDs and titles |
+| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop`, `windowName`, `severity` (info/success/warning/error), `tags` (string[]), `flash`, `progress` (-1~1.0), `autoCloseSeconds` (1~3600) | Open or upsert named viewer window |
+| `update_markdown` | `windowId`, `content` OR `filePath`, `title`, `appendMode`, `separator`, `severity`, `tags`, `flash`, `progress`, `autoCloseSeconds` | Update existing window content and/or metadata |
+| `close_viewer` | `windowId` (optional), `tag` (optional) | Close specific window, all windows with tag, or all windows |
+| `list_viewers` | `tag` (optional) | List open windows; filter by tag; shows windowName, severity, tags, progress |
 
-MCP tools operate at the **window level**. `open_markdown` always creates a new window. `windowId` refers to a `BrowserWindow` ID, not a tab.
+MCP tools operate at the **window level**. `open_markdown` upserts if `windowName` already exists; otherwise creates a new window. `windowId` refers to a `BrowserWindow` ID, not a tab.
+
+### WindowEntry.meta New Fields (Step 19)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `windowName` | `string\|null` | Named window key for upsert |
+| `tags` | `string[]` | Window tags for grouping |
+| `severity` | `string\|null` | Severity theme: info/success/warning/error |
+| `autoCloseTimer` | `Timeout\|undefined` | Auto-close timer handle |
+| `autoCloseSeconds` | `number\|undefined` | Auto-close duration in seconds |
+| `progress` | `number\|undefined` | Taskbar progress value (-1~1.0) |
+| `lastRenderedContent` | `string\|undefined` | Last rendered content for append mode |
 
 ### MCP Client Configuration (Claude Desktop)
 
