@@ -39,10 +39,10 @@ function extractTitleFromContent(content) {
 }
 
 async function saveMcpFile({ content, filePath, title, noSave }, store) {
-  if (noSave === true) return;
+  if (noSave === true) return null;
   const enabled = store.get('mcpAutoSave', false);
   const savePath = store.get('mcpAutoSavePath', '');
-  if (!enabled || !savePath) return;
+  if (!enabled || !savePath) return null;
 
   const now = new Date();
   const dateFolder = [
@@ -82,8 +82,10 @@ async function saveMcpFile({ content, filePath, title, noSave }, store) {
       await fs.promises.writeFile(destPath, content || '', 'utf-8');
     }
     console.log(`[doculight] MCP auto-save: ${destPath}`);
+    return destPath;
   } catch (err) {
     console.error(`[doculight] MCP auto-save failed: ${err.message}`);
+    return null;
   }
 }
 
@@ -181,11 +183,23 @@ function createToolHandlers(windowManager, store) {
         windowName, severity, tags, flash, progress, autoCloseSeconds
       });
 
-      saveMcpFile({ content, filePath, title, noSave }, store)
-        .catch(err => console.error('[doculight] MCP auto-save error:', err.message));
+      let savedPath = null;
+      try {
+        savedPath = await saveMcpFile({ content, filePath, title, noSave }, store);
+      } catch (err) {
+        console.error('[doculight] MCP auto-save error:', err.message);
+      }
 
       const entry = windowManager.getWindowEntry(result.windowId);
       if (entry) {
+        // Store savedFilePath in meta and notify renderer (FR-21-001)
+        if (savedPath) {
+          entry.meta.savedFilePath = savedPath;
+          if (!entry.win.isDestroyed()) {
+            entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
+          }
+        }
+
         // alwaysOnTop defaults to true for HTTP MCP
         const pinned = alwaysOnTop ?? true;
         entry.win.setAlwaysOnTop(pinned);

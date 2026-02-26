@@ -321,6 +321,7 @@ class WindowManager {
       this.extractTitle(content) ||
       (filePath ? path.basename(filePath, '.md') : null) ||
       'DocuLight';
+    const displayTitle = this.formatWindowTitle(resolvedTitle, filePath, null);
 
     // --- Create BrowserWindow ----------------------------------------------
     const win = new BrowserWindow({
@@ -328,7 +329,7 @@ class WindowManager {
       height,
       x,
       y,
-      title: resolvedTitle,
+      title: displayTitle,
       icon: path.join(__dirname, '../../assets/icon.png'),
       show: false, // shown after ready-to-show
       autoHideMenuBar: true,
@@ -366,6 +367,7 @@ class WindowManager {
         tree: null,
         history,
         // Step 19 new fields
+        savedFilePath: null,
         windowName: windowName || null,
         tags: Array.isArray(tags) ? [...tags] : [],
         severity: severity || null,
@@ -680,11 +682,11 @@ class WindowManager {
           entry.meta.lastRenderedContent = content;
         }
       }
-      entry.win.setTitle(resolvedTitle);
+      entry.win.setTitle(this.formatWindowTitle(resolvedTitle, entry.meta.filePath, entry.meta.savedFilePath));
     } else if (title) {
       // Title-only update
       entry.meta.title = title;
-      entry.win.setTitle(title);
+      entry.win.setTitle(this.formatWindowTitle(title, entry.meta.filePath, entry.meta.savedFilePath));
     }
 
     // --- Severity theme (FR-19-003) ----------------------------------------
@@ -857,9 +859,9 @@ class WindowManager {
     this.startFileWatcher(windowId);
 
     // Update window title
-    const title = this.extractTitle(content) || path.basename(filePath, '.md');
-    entry.meta.title = title;
-    entry.win.setTitle(title);
+    const navTitle = this.extractTitle(content) || path.basename(filePath, '.md');
+    entry.meta.title = navTitle;
+    entry.win.setTitle(this.formatWindowTitle(navTitle, filePath, entry.meta.savedFilePath));
   }
 
   /**
@@ -1116,6 +1118,21 @@ class WindowManager {
 
     this.lastPosition = { x, y };
     return { x, y };
+  }
+
+  /**
+   * Format the window title with file path information.
+   *
+   * @param {string|null} title - Base title text.
+   * @param {string|null} filePath - Path to file on disk.
+   * @param {string|null} savedFilePath - Auto-saved file path.
+   * @returns {string}
+   */
+  formatWindowTitle(title, filePath, savedFilePath) {
+    if (!title) return 'DocuLight';
+    if (filePath) return `DocuLight - ${path.basename(filePath)} (${path.dirname(filePath)})`;
+    if (savedFilePath) return `DocuLight - ${title} (${savedFilePath})`;
+    return `DocuLight - ${title}`;
   }
 
   /**

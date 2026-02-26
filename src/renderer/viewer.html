@@ -33,6 +33,7 @@
     <div id="viewer-container" role="tabpanel">
       <div id="content" class="markdown-body"></div>
     </div>
+    <div id="toc-resize-handle" class="hidden"></div>
     <div id="toc-container" class="hidden">
       <div id="toc-header">
         <span data-i18n="viewer.tocHeader">Table of Contents</span>
@@ -50,6 +51,19 @@
   <div id="performance-warning">
     <span id="warning-text"></span>
   </div>
+
+  <!-- Find in Page Bar -->
+  <div id="find-bar" class="find-bar hidden">
+    <input type="text" id="find-input" class="find-input"
+           data-i18n-placeholder="viewer.findPlaceholder"
+           autocomplete="off" spellcheck="false">
+    <span id="find-count" class="find-count"></span>
+    <button id="find-prev" class="find-nav-btn" data-i18n-title="viewer.findPrev" disabled>&#9650;</button>
+    <button id="find-next" class="find-nav-btn" data-i18n-title="viewer.findNext" disabled>&#9660;</button>
+    <button id="find-close" class="find-close-btn" aria-label="Close">&times;</button>
+  </div>
+  <!-- Scrollbar Marker Track -->
+  <div id="find-marker-track" class="find-marker-track hidden"></div>
 
   <div id="floating-buttons">
     <button id="btn-toggle-sidebar" class="fab" title="File List (Ctrl+B)" data-i18n-title="viewer.sidebarToggle">

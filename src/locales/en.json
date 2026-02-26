@@ -99,5 +99,20 @@
   "error.windowNotFound": "Window not found: {windowId}",
   "error.contentRequiredUpdate": "Either content or filePath must be provided for update",
 
-  "viewer.autoCloseLabel": "Auto-close in {seconds}s"
+  "tray.about": "About DocuLight",
+  "tray.aboutClose": "Close",
+
+  "viewer.autoCloseLabel": "Auto-close in {seconds}s",
+  "viewer.deleteAutoSaved": "Delete saved file",
+  "viewer.deleteAutoSavedToast": "File deleted",
+  "viewer.deleteFailed": "Delete failed",
+  "viewer.saveAs": "Save As...",
+  "viewer.savedToast": "Saved",
+  "viewer.saveFailed": "Save failed",
+
+  "viewer.findPlaceholder": "Find...",
+  "viewer.findPrev": "Previous match",
+  "viewer.findNext": "Next match",
+  "viewer.findNoResults": "No results",
+  "viewer.copy": "Copy"
 }

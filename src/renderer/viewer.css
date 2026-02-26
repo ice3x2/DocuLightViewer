@@ -46,7 +46,7 @@ html, body {
 #app-container {
   display: grid;
   grid-template-rows: auto 1fr;
-  grid-template-columns: auto auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto auto;
   height: 100vh;
   width: 100%;
 }
@@ -72,8 +72,13 @@ html, body {
   grid-column: 3;
 }
 
-#toc-container {
+#toc-resize-handle {
   grid-column: 4;
+  grid-row: 1 / -1;
+}
+
+#toc-container {
+  grid-column: 5;
   grid-row: 1 / -1;
 }
 
@@ -113,20 +118,25 @@ html, body {
 }
 
 /* === Resize Handle === */
-#resize-handle {
+#resize-handle,
+#toc-resize-handle {
   width: 4px;
   cursor: col-resize;
   background: transparent;
   flex-shrink: 0;
-  transition: background 150ms;
+  transition: background 150ms, width 150ms;
 }
 
 #resize-handle:hover,
-#resize-handle.dragging {
+#resize-handle.dragging,
+#toc-resize-handle:hover,
+#toc-resize-handle.dragging {
   background: var(--link-color);
+  width: 6px;
 }
 
-#resize-handle.hidden {
+#resize-handle.hidden,
+#toc-resize-handle.hidden {
   display: none;
 }
 
@@ -1066,6 +1076,149 @@ mark {
 #auto-close-bar.urgent {
   background: #f59e0b;
   color: #000;
+}
+
+/* === Find in Page Bar === */
+.find-bar {
+  position: fixed;
+  top: 0;
+  right: 16px;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  font-size: 13px;
+}
+
+.find-bar.hidden {
+  display: none;
+}
+
+.find-input {
+  width: 220px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 13px;
+  outline: none;
+}
+
+.find-input:focus {
+  border-color: var(--link-color);
+  box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.2);
+}
+
+.find-count {
+  font-size: 12px;
+  color: var(--muted-text);
+  min-width: 48px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.find-nav-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-color);
+  font-size: 11px;
+  padding: 3px 6px;
+  line-height: 1;
+}
+
+.find-nav-btn:hover:not(:disabled) {
+  background: var(--sidebar-hover);
+}
+
+.find-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.find-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-text);
+  font-size: 18px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.find-close-btn:hover {
+  color: var(--text-color);
+}
+
+/* Find highlight marks */
+.find-highlight {
+  background: #ffe040;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+.find-highlight.find-current {
+  background: #ff9632;
+}
+
+[data-theme="dark"] .find-highlight {
+  background: #6e5c00;
+}
+
+[data-theme="dark"] .find-highlight.find-current {
+  background: #b36b00;
+}
+
+/* Scrollbar marker track */
+.find-marker-track {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 12px;
+  bottom: 0;
+  z-index: 1400;
+  pointer-events: none;
+}
+
+.find-marker-track.hidden {
+  display: none;
+}
+
+.find-marker {
+  position: absolute;
+  right: 2px;
+  width: 8px;
+  min-height: 3px;
+  background: #f5c542;
+  border-radius: 1px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.find-marker.find-marker-current {
+  background: #ff9632;
+}
+
+[data-theme="dark"] .find-marker {
+  background: #a08c30;
+}
+
+[data-theme="dark"] .find-marker.find-marker-current {
+  background: #b36b00;
+}
+
+[data-theme="dark"] .find-input {
+  background: var(--code-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
 }
 
 /* === PDF Export Mode === */

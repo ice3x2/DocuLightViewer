@@ -99,5 +99,20 @@
   "error.windowNotFound": "Ventana no encontrada: {windowId}",
   "error.contentRequiredUpdate": "Se debe proporcionar content o filePath para la actualizaci\u00f3n",
 
-  "viewer.autoCloseLabel": "Cierre autom\u00e1tico: {seconds}s"
+  "tray.about": "Acerca de DocuLight",
+  "tray.aboutClose": "Cerrar",
+
+  "viewer.autoCloseLabel": "Cierre autom\u00e1tico: {seconds}s",
+  "viewer.deleteAutoSaved": "Eliminar archivo guardado",
+  "viewer.deleteAutoSavedToast": "Archivo eliminado",
+  "viewer.deleteFailed": "Error al eliminar",
+  "viewer.saveAs": "Guardar como...",
+  "viewer.savedToast": "Guardado",
+  "viewer.saveFailed": "Error al guardar",
+
+  "viewer.findPlaceholder": "Buscar...",
+  "viewer.findPrev": "Resultado anterior",
+  "viewer.findNext": "Siguiente resultado",
+  "viewer.findNoResults": "Sin resultados",
+  "viewer.copy": "Copiar"
 }

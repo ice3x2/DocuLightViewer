@@ -55,6 +55,15 @@
   let isPinned = false;
   let savedPrefs = null;
   let userToggledPin = false;
+  let savedFilePath = null;
+  let originalContent = null;
+
+  // Find-in-page state
+  let findBarVisible = false;
+  let findMatches = [];
+  let findCurrentIndex = -1;
+  let findQuery = '';
+  let findDebounceTimer = null;
 
   // === Code Theme CSS Mapping ===
   const CODE_THEME_CSS = {
@@ -365,6 +374,12 @@
     const savedScrollTop = isSameFile && viewerContainerEl ? viewerContainerEl.scrollTop : 0;
 
     currentFilePath = data.filePath || null;
+    // Track original content for Save As (FR-21-002)
+    if (!data.filePath) {
+      originalContent = data.markdown || '';
+    } else {
+      originalContent = null;
+    }
     if (window.DocuLight) {
       window.DocuLight.state.currentFilePath = data.filePath || null;
       window.DocuLight.state.imageBasePath = data.imageBasePath || null;
@@ -435,16 +450,30 @@
         if (tabMod && tabMod.renderTabBar) tabMod.renderTabBar();
       }
     }
+
+    // Re-apply find highlights if find bar is open
+    if (findBarVisible && findQuery) {
+      setTimeout(() => performFind(findQuery), 300);
+    }
   }));
 
   // update-markdown: content update for existing window
   cleanups.push(window.doclight.onUpdateMarkdown((data) => {
     currentFilePath = data.filePath || null;
+    // Update originalContent for Save As (FR-21-002)
+    if (!data.filePath && data.markdown != null) {
+      originalContent = data.markdown;
+    }
     const contentEl = document.getElementById('content');
     if (contentEl) contentEl.scrollTop = 0;
     const viewerContainer = document.getElementById('viewer-container');
     if (viewerContainer) viewerContainer.scrollTop = 0;
     renderMarkdown(data.markdown);
+
+    // Re-apply find highlights if find bar is open
+    if (findBarVisible && findQuery) {
+      setTimeout(() => performFind(findQuery), 300);
+    }
   }));
 
   // sidebar-tree: tree data for sidebar
@@ -534,6 +563,11 @@
     }, 1000);
   }));
 
+  // set-saved-file-path: auto-save path from main (FR-21-001)
+  cleanups.push(window.doclight.onSetSavedFilePath((data) => {
+    savedFilePath = data.savedFilePath || null;
+  }));
+
   // === Empty Window Handler ===
   cleanups.push(window.doclight.onEmptyWindow(() => {
     const contentEl = document.getElementById('content');
@@ -565,6 +599,72 @@
     }, 2500);
   }
 
+  // === Save As / Quick Save (FR-21-002, FR-21-003) ===
+  function getDefaultFileName() {
+    if (currentFilePath) {
+      return currentFilePath.split(/[/\\]/).pop();
+    }
+    var title = document.title || '';
+    if (title) {
+      return title.replace(/[\\/:*?"<>|]/g, '_').substring(0, 100) + '.md';
+    }
+    return 'untitled.md';
+  }
+
+  function buildSaveParams() {
+    var contentEl = document.getElementById('content');
+    var isEmpty = !currentFilePath && !(contentEl && contentEl.hasChildNodes());
+    if (isEmpty) return null;
+
+    var params = {};
+    if (currentFilePath) {
+      params.filePath = currentFilePath;
+      params.defaultFileName = currentFilePath.split(/[/\\]/).pop();
+    } else {
+      params.content = originalContent || '';
+      params.defaultFileName = getDefaultFileName();
+    }
+    return params;
+  }
+
+  async function handleSaveAs() {
+    var params = buildSaveParams();
+    if (!params) return;
+
+    var result = await window.doclight.saveAs(params);
+    if (result.success) {
+      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+    } else if (result.error) {
+      showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
+    }
+  }
+
+  async function handleQuickSave() {
+    var params = buildSaveParams();
+    if (!params) return;
+
+    var result = await window.doclight.quickSave(params);
+    if (result.success) {
+      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+    } else if (result.reason === 'no-directory') {
+      handleSaveAs();
+    } else if (result.error) {
+      showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
+    }
+  }
+
+  async function handleDeleteAutoSaved() {
+    if (!savedFilePath) return;
+    var result = await window.doclight.deleteAutoSavedFile();
+    if (result.success) {
+      var fileName = result.deletedPath ? result.deletedPath.split(/[/\\]/).pop() : '';
+      savedFilePath = null;
+      showViewerToast(t('viewer.deleteAutoSavedToast') + ': ' + fileName);
+    } else if (result.error && result.error !== 'no saved file') {
+      showViewerToast(t('viewer.deleteFailed') + ': ' + result.error);
+    }
+  }
+
   // === Context Menu ===
   function showContextMenu(e) {
     // Remove any existing context menu
@@ -577,33 +677,47 @@
     const tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
     const tabsEnabled = tabMod && tabMod.isEnabled();
 
-    // Empty page: no content rendered yet (drop zone state).
+    // Empty page: no content rendered yet, or showing drop zone (empty-state).
     // Content-string windows have no filePath but are not empty.
     const contentEl = document.getElementById('content');
-    const isEmpty = !currentFilePath && !(contentEl && contentEl.hasChildNodes());
+    const isEmpty = !currentFilePath && (!contentEl || !contentEl.hasChildNodes() || !!contentEl.querySelector('.empty-state'));
 
     // Check if right-click target is inside a code block
     const codeBlock = !isEmpty && e.target.closest('pre');
 
-    // New Tab (only if tabs enabled)
-    if (tabsEnabled) {
-      const newTabItem = document.createElement('div');
-      newTabItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
-      newTabItem.innerHTML = t('viewer.newTab').replace(/\s*\(.*\)$/, '') + '<span class="ctx-menu-shortcut">Ctrl+T</span>';
-      if (!isEmpty) {
+    // When empty (drop zone), show only Close
+    if (!isEmpty) {
+      // Copy selected text
+      const selectedText = window.getSelection().toString();
+      if (selectedText.length > 0) {
+        const copyItem = document.createElement('div');
+        copyItem.className = 'ctx-menu-item';
+        copyItem.innerHTML = t('viewer.copy') + '<span class="ctx-menu-shortcut">Ctrl+C</span>';
+        copyItem.addEventListener('click', () => {
+          menu.remove();
+          navigator.clipboard.writeText(selectedText).catch(() => {
+            document.execCommand('copy');
+          });
+        });
+        menu.appendChild(copyItem);
+      }
+
+      // New Tab (only if tabs enabled)
+      if (tabsEnabled) {
+        const newTabItem = document.createElement('div');
+        newTabItem.className = 'ctx-menu-item';
+        newTabItem.innerHTML = t('viewer.newTab').replace(/\s*\(.*\)$/, '') + '<span class="ctx-menu-shortcut">Ctrl+T</span>';
         newTabItem.addEventListener('click', () => {
           menu.remove();
           if (tabMod.createBlankTab) tabMod.createBlankTab();
         });
+        menu.appendChild(newTabItem);
       }
-      menu.appendChild(newTabItem);
-    }
 
-    // Select All
-    const selectAllItem = document.createElement('div');
-    selectAllItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
-    selectAllItem.innerHTML = t('viewer.selectAll') + '<span class="ctx-menu-shortcut">Ctrl+A</span>';
-    if (!isEmpty) {
+      // Select All
+      const selectAllItem = document.createElement('div');
+      selectAllItem.className = 'ctx-menu-item';
+      selectAllItem.innerHTML = t('viewer.selectAll') + '<span class="ctx-menu-shortcut">Ctrl+A</span>';
       selectAllItem.addEventListener('click', () => {
         menu.remove();
         const contentEl = document.getElementById('content');
@@ -615,69 +729,98 @@
           sel.addRange(range);
         }
       });
-    }
-    menu.appendChild(selectAllItem);
+      menu.appendChild(selectAllItem);
 
-    // Select Block Text (only if inside code block)
-    if (codeBlock) {
-      const selectBlockItem = document.createElement('div');
-      selectBlockItem.className = 'ctx-menu-item';
-      selectBlockItem.textContent = t('viewer.selectBlock');
-      selectBlockItem.addEventListener('click', () => {
-        menu.remove();
-        const range = document.createRange();
-        const codeEl = codeBlock.querySelector('code') || codeBlock;
-        range.selectNodeContents(codeEl);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      });
-      menu.appendChild(selectBlockItem);
-    }
-
-    // Separator
-    const sep = document.createElement('div');
-    sep.className = 'ctx-menu-sep';
-    menu.appendChild(sep);
-
-    // Copy Path
-    const copyPathItem = document.createElement('div');
-    copyPathItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
-    copyPathItem.textContent = t('viewer.copyPath');
-    if (currentFilePath) {
-      copyPathItem.addEventListener('click', () => {
-        menu.remove();
-        navigator.clipboard.writeText(currentFilePath).then(() => {
-          showViewerToast(currentFilePath);
-        }).catch(function(err) {
-          console.error('Failed to copy path:', err);
+      // Select Block Text (only if inside code block)
+      if (codeBlock) {
+        const selectBlockItem = document.createElement('div');
+        selectBlockItem.className = 'ctx-menu-item';
+        selectBlockItem.textContent = t('viewer.selectBlock');
+        selectBlockItem.addEventListener('click', () => {
+          menu.remove();
+          const range = document.createRange();
+          const codeEl = codeBlock.querySelector('code') || codeBlock;
+          range.selectNodeContents(codeEl);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
         });
-      });
-    }
-    menu.appendChild(copyPathItem);
+        menu.appendChild(selectBlockItem);
+      }
 
-    // Show in Explorer
-    const showExplorerItem = document.createElement('div');
-    showExplorerItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
-    showExplorerItem.textContent = t('viewer.showInExplorer');
-    if (currentFilePath) {
-      showExplorerItem.addEventListener('click', () => {
+      // Separator
+      const sep = document.createElement('div');
+      sep.className = 'ctx-menu-sep';
+      menu.appendChild(sep);
+
+      // Copy Path
+      const copyPathItem = document.createElement('div');
+      copyPathItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
+      copyPathItem.textContent = t('viewer.copyPath');
+      if (currentFilePath) {
+        copyPathItem.addEventListener('click', () => {
+          menu.remove();
+          navigator.clipboard.writeText(currentFilePath).then(() => {
+            showViewerToast(currentFilePath);
+          }).catch(function(err) {
+            console.error('Failed to copy path:', err);
+          });
+        });
+      }
+      menu.appendChild(copyPathItem);
+
+      // Show in Explorer
+      const showExplorerItem = document.createElement('div');
+      showExplorerItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
+      showExplorerItem.textContent = t('viewer.showInExplorer');
+      if (currentFilePath) {
+        showExplorerItem.addEventListener('click', () => {
+          menu.remove();
+          window.doclight.showFileInExplorer(currentFilePath);
+        });
+      }
+      menu.appendChild(showExplorerItem);
+
+      // Separator before Save As
+      const sep2 = document.createElement('div');
+      sep2.className = 'ctx-menu-sep';
+      menu.appendChild(sep2);
+
+      // Save As (FR-21-002)
+      const saveAsItem = document.createElement('div');
+      saveAsItem.className = 'ctx-menu-item';
+      saveAsItem.innerHTML = t('viewer.saveAs') + '<span class="ctx-menu-shortcut">Ctrl+Shift+S</span>';
+      saveAsItem.addEventListener('click', () => {
         menu.remove();
-        window.doclight.showFileInExplorer(currentFilePath);
+        handleSaveAs();
       });
-    }
-    menu.appendChild(showExplorerItem);
+      menu.appendChild(saveAsItem);
 
-    // Separator before PDF
-    const sep2 = document.createElement('div');
-    sep2.className = 'ctx-menu-sep';
-    menu.appendChild(sep2);
+      // Delete auto-saved file (FR-21-001) — only when savedFilePath exists
+      if (savedFilePath) {
+        const sepDelete = document.createElement('div');
+        sepDelete.className = 'ctx-menu-sep';
+        menu.appendChild(sepDelete);
 
-    // Print (PDF export)
-    const printItem = document.createElement('div');
-    printItem.className = 'ctx-menu-item' + (isEmpty ? ' disabled' : '');
-    printItem.innerHTML = t('viewer.exportPdf') + '<span class="ctx-menu-shortcut">Ctrl+P</span>';
-    if (!isEmpty) {
+        const deleteItem = document.createElement('div');
+        deleteItem.className = 'ctx-menu-item';
+        deleteItem.innerHTML = t('viewer.deleteAutoSaved') + '<span class="ctx-menu-shortcut">Ctrl+Alt+D</span>';
+        deleteItem.addEventListener('click', () => {
+          menu.remove();
+          handleDeleteAutoSaved();
+        });
+        menu.appendChild(deleteItem);
+      }
+
+      // Separator before PDF
+      const sep3 = document.createElement('div');
+      sep3.className = 'ctx-menu-sep';
+      menu.appendChild(sep3);
+
+      // Print (PDF export)
+      const printItem = document.createElement('div');
+      printItem.className = 'ctx-menu-item';
+      printItem.innerHTML = t('viewer.exportPdf') + '<span class="ctx-menu-shortcut">Ctrl+P</span>';
       printItem.addEventListener('click', () => {
         menu.remove();
         if (window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.pdfExportUi &&
@@ -685,8 +828,8 @@
           window.DocuLight.modules.pdfExportUi.openModal();
         }
       });
+      menu.appendChild(printItem);
     }
-    menu.appendChild(printItem);
 
     // Close
     const closeItem = document.createElement('div');
@@ -742,6 +885,301 @@
       showContextMenu(e);
     }
   });
+
+  // === Find in Page ===
+
+  function openFindBar() {
+    const bar = document.getElementById('find-bar');
+    const input = document.getElementById('find-input');
+    if (!bar || !input) return;
+    bar.classList.remove('hidden');
+    findBarVisible = true;
+    input.focus();
+    input.select();
+    updateFindPosition();
+  }
+
+  function closeFindBar() {
+    const bar = document.getElementById('find-bar');
+    if (bar) bar.classList.add('hidden');
+    findBarVisible = false;
+    clearFindHighlights();
+    findMatches = [];
+    findCurrentIndex = -1;
+    findQuery = '';
+    updateFindCount();
+    hideMarkerTrack();
+  }
+
+  function clearFindHighlights() {
+    const contentEl = document.getElementById('content');
+    if (!contentEl) return;
+    const marks = contentEl.querySelectorAll('mark.find-highlight');
+    marks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(mark.textContent), mark);
+        parent.normalize();
+      }
+    });
+  }
+
+  function performFind(query) {
+    clearFindHighlights();
+    findMatches = [];
+    findCurrentIndex = -1;
+    findQuery = query;
+
+    if (!query || query.length === 0) {
+      updateFindCount();
+      hideMarkerTrack();
+      updateFindButtons();
+      return;
+    }
+
+    const contentEl = document.getElementById('content');
+    if (!contentEl) return;
+
+    const lowerQuery = query.toLowerCase();
+    const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.textContent.toLowerCase().includes(lowerQuery)) {
+        textNodes.push(node);
+      }
+    }
+
+    for (const textNode of textNodes) {
+      highlightMatchesInNode(textNode, query);
+    }
+
+    findMatches = Array.from(contentEl.querySelectorAll('mark.find-highlight'));
+
+    if (findMatches.length > 0) {
+      findCurrentIndex = 0;
+      findMatches[0].classList.add('find-current');
+      scrollToFindMatch(findMatches[0]);
+    }
+
+    updateFindCount();
+    updateFindButtons();
+    updateMarkerTrack();
+  }
+
+  function highlightMatchesInNode(textNode, query) {
+    const text = textNode.textContent;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const parent = textNode.parentNode;
+    if (!parent) return;
+
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    let idx = lowerText.indexOf(lowerQuery, lastIndex);
+
+    while (idx !== -1) {
+      if (idx > lastIndex) {
+        frag.appendChild(document.createTextNode(text.substring(lastIndex, idx)));
+      }
+      const mark = document.createElement('mark');
+      mark.className = 'find-highlight';
+      mark.textContent = text.substring(idx, idx + query.length);
+      frag.appendChild(mark);
+      lastIndex = idx + query.length;
+      idx = lowerText.indexOf(lowerQuery, lastIndex);
+    }
+
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.substring(lastIndex)));
+    }
+
+    if (lastIndex > 0) {
+      parent.replaceChild(frag, textNode);
+    }
+  }
+
+  function findNext() {
+    if (findMatches.length === 0) return;
+    findMatches[findCurrentIndex].classList.remove('find-current');
+    findCurrentIndex = (findCurrentIndex + 1) % findMatches.length;
+    findMatches[findCurrentIndex].classList.add('find-current');
+    scrollToFindMatch(findMatches[findCurrentIndex]);
+    updateFindCount();
+    updateMarkerTrack();
+  }
+
+  function findPrev() {
+    if (findMatches.length === 0) return;
+    findMatches[findCurrentIndex].classList.remove('find-current');
+    findCurrentIndex = (findCurrentIndex - 1 + findMatches.length) % findMatches.length;
+    findMatches[findCurrentIndex].classList.add('find-current');
+    scrollToFindMatch(findMatches[findCurrentIndex]);
+    updateFindCount();
+    updateMarkerTrack();
+  }
+
+  function scrollToFindMatch(markEl) {
+    const viewer = document.getElementById('viewer-container');
+    if (!viewer || !markEl) return;
+    const rect = markEl.getBoundingClientRect();
+    const viewerRect = viewer.getBoundingClientRect();
+    const scrollTop = viewer.scrollTop + (rect.top - viewerRect.top) - (viewerRect.height / 2);
+    viewer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+  }
+
+  function updateFindCount() {
+    const countEl = document.getElementById('find-count');
+    if (!countEl) return;
+    if (findMatches.length === 0) {
+      countEl.textContent = findQuery ? t('viewer.findNoResults') : '';
+    } else {
+      countEl.textContent = (findCurrentIndex + 1) + '/' + findMatches.length;
+    }
+  }
+
+  function updateFindButtons() {
+    const prevBtn = document.getElementById('find-prev');
+    const nextBtn = document.getElementById('find-next');
+    const hasMatches = findMatches.length > 0;
+    if (prevBtn) prevBtn.disabled = !hasMatches;
+    if (nextBtn) nextBtn.disabled = !hasMatches;
+  }
+
+  function updateMarkerTrack() {
+    const track = document.getElementById('find-marker-track');
+    const viewer = document.getElementById('viewer-container');
+    if (!track || !viewer) return;
+
+    track.innerHTML = '';
+    if (findMatches.length === 0) {
+      track.classList.add('hidden');
+      return;
+    }
+
+    track.classList.remove('hidden');
+    const scrollHeight = viewer.scrollHeight;
+    if (scrollHeight === 0) return;
+
+    // Limit markers to 500 for performance
+    let markersToShow = findMatches;
+    if (findMatches.length > 500) {
+      const step = findMatches.length / 500;
+      markersToShow = [];
+      for (let i = 0; i < 500; i++) {
+        markersToShow.push(findMatches[Math.floor(i * step)]);
+      }
+      // Always include current match
+      if (findCurrentIndex >= 0 && !markersToShow.includes(findMatches[findCurrentIndex])) {
+        markersToShow.push(findMatches[findCurrentIndex]);
+      }
+    }
+
+    const trackHeight = track.offsetHeight;
+    const frag = document.createDocumentFragment();
+
+    for (let i = 0; i < markersToShow.length; i++) {
+      const mark = markersToShow[i];
+      const top = getElementScrollPosition(mark, viewer);
+      const ratio = top / scrollHeight;
+      const markerDiv = document.createElement('div');
+      markerDiv.className = 'find-marker';
+      if (mark === findMatches[findCurrentIndex]) {
+        markerDiv.classList.add('find-marker-current');
+      }
+      markerDiv.style.top = (ratio * trackHeight) + 'px';
+      const matchIndex = findMatches.indexOf(mark);
+      markerDiv.addEventListener('click', () => {
+        if (findCurrentIndex >= 0 && findCurrentIndex < findMatches.length) {
+          findMatches[findCurrentIndex].classList.remove('find-current');
+        }
+        findCurrentIndex = matchIndex;
+        findMatches[findCurrentIndex].classList.add('find-current');
+        scrollToFindMatch(findMatches[findCurrentIndex]);
+        updateFindCount();
+        updateMarkerTrack();
+      });
+      frag.appendChild(markerDiv);
+    }
+
+    track.appendChild(frag);
+  }
+
+  function getElementScrollPosition(el, container) {
+    let top = 0;
+    let current = el;
+    while (current && current !== container) {
+      top += current.offsetTop;
+      current = current.offsetParent;
+    }
+    return top;
+  }
+
+  function hideMarkerTrack() {
+    const track = document.getElementById('find-marker-track');
+    if (track) {
+      track.classList.add('hidden');
+      track.innerHTML = '';
+    }
+  }
+
+  function updateFindPosition() {
+    const findBar = document.getElementById('find-bar');
+    const markerTrack = document.getElementById('find-marker-track');
+    const tocContainer = document.getElementById('toc-container');
+    const tocHandle = document.getElementById('toc-resize-handle');
+
+    let rightOffset = 0;
+    if (tocVisible && tocContainer && !tocContainer.classList.contains('hidden')) {
+      rightOffset += tocContainer.offsetWidth;
+    }
+    if (tocVisible && tocHandle && !tocHandle.classList.contains('hidden')) {
+      rightOffset += tocHandle.offsetWidth;
+    }
+
+    if (findBar) findBar.style.right = (rightOffset + 16) + 'px';
+    if (markerTrack) markerTrack.style.right = rightOffset + 'px';
+  }
+
+  // Find bar event bindings
+  (function initFindBar() {
+    const input = document.getElementById('find-input');
+    const prevBtn = document.getElementById('find-prev');
+    const nextBtn = document.getElementById('find-next');
+    const closeBtn = document.getElementById('find-close');
+
+    if (input) {
+      input.addEventListener('input', () => {
+        clearTimeout(findDebounceTimer);
+        findDebounceTimer = setTimeout(() => {
+          performFind(input.value);
+        }, 200);
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (e.shiftKey) { findPrev(); } else { findNext(); }
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeFindBar();
+        }
+      });
+    }
+
+    if (prevBtn) prevBtn.addEventListener('click', findPrev);
+    if (nextBtn) nextBtn.addEventListener('click', findNext);
+    if (closeBtn) closeBtn.addEventListener('click', closeFindBar);
+
+    // Recalculate marker track on window resize
+    window.addEventListener('resize', () => {
+      if (findBarVisible && findMatches.length > 0) {
+        requestAnimationFrame(updateMarkerTrack);
+      }
+      updateFindPosition();
+    });
+  })();
 
   // === Drag & Drop ===
   let dragCounter = 0;
@@ -1012,16 +1450,22 @@
 
   function showToc() {
     const toc = document.getElementById('toc-container');
+    const tocHandle = document.getElementById('toc-resize-handle');
     if (toc) toc.classList.remove('hidden');
+    if (tocHandle) tocHandle.classList.remove('hidden');
     tocVisible = true;
     updateFabStates();
+    updateFindPosition();
   }
 
   function hideToc() {
     const toc = document.getElementById('toc-container');
+    const tocHandle = document.getElementById('toc-resize-handle');
     if (toc) toc.classList.add('hidden');
+    if (tocHandle) tocHandle.classList.add('hidden');
     tocVisible = false;
     updateFabStates();
+    updateFindPosition();
   }
 
   function toggleToc() {
@@ -1193,6 +1637,34 @@
       return;
     }
 
+    // Ctrl+Shift+S / Cmd+Shift+S: Save As (FR-21-002)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+      e.preventDefault();
+      handleSaveAs();
+      return;
+    }
+
+    // Ctrl+Alt+S / Cmd+Alt+S: Quick Save (FR-21-003)
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === 's') {
+      e.preventDefault();
+      handleQuickSave();
+      return;
+    }
+
+    // Ctrl+Alt+D / Cmd+Alt+D: Delete auto-saved file (FR-21-001)
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === 'd') {
+      e.preventDefault();
+      handleDeleteAutoSaved();
+      return;
+    }
+
+    // Ctrl+F: Find in page
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      openFindBar();
+      return;
+    }
+
     // Ctrl+Shift+F: sidebar search
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
       e.preventDefault();
@@ -1222,7 +1694,18 @@
         window.DocuLight.modules.sidebarSearch.exitSearchMode();
         return;
       }
-      // Priority 3: Always-on-top release
+      // Priority 3: Find-in-page bar
+      if (findBarVisible) {
+        closeFindBar();
+        return;
+      }
+      // Priority 4: Text selection clear
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) {
+        sel.removeAllRanges();
+        return;
+      }
+      // Priority 5: Always-on-top release
       userToggledPin = true;
       window.doclight.releaseAlwaysOnTop();
       return;
@@ -1265,6 +1748,48 @@
       if (!isDragging) return;
       isDragging = false;
       resizeHandle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+
+  // === Resize Handle (TOC) ===
+  const tocResizeHandle = document.getElementById('toc-resize-handle');
+  if (tocResizeHandle) {
+    let tocDragging = false;
+    let tocStartX = 0;
+    let tocStartWidth = 0;
+
+    tocResizeHandle.addEventListener('mousedown', (e) => {
+      tocDragging = true;
+      tocStartX = e.clientX;
+      const toc = document.getElementById('toc-container');
+      tocStartWidth = toc ? toc.offsetWidth : 220;
+      tocResizeHandle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!tocDragging) return;
+      const toc = document.getElementById('toc-container');
+      if (!toc) return;
+
+      const diff = tocStartX - e.clientX;
+      let newWidth = tocStartWidth + diff;
+      newWidth = Math.max(150, Math.min(newWidth, window.innerWidth * 0.4));
+
+      requestAnimationFrame(() => {
+        toc.style.width = newWidth + 'px';
+        updateFindPosition();
+      });
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!tocDragging) return;
+      tocDragging = false;
+      tocResizeHandle.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     });

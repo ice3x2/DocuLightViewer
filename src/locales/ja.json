@@ -99,5 +99,20 @@
   "error.windowNotFound": "\u30a6\u30a3\u30f3\u30c9\u30a6\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093: {windowId}",
   "error.contentRequiredUpdate": "\u66f4\u65b0\u306b\u306f content \u307e\u305f\u306f filePath \u304c\u5fc5\u8981\u3067\u3059",
 
-  "viewer.autoCloseLabel": "\u81ea\u52d5\u7d42\u4e86: {seconds}\u79d2"
+  "tray.about": "DocuLight \u306b\u3064\u3044\u3066",
+  "tray.aboutClose": "\u9589\u3058\u308b",
+
+  "viewer.autoCloseLabel": "\u81ea\u52d5\u7d42\u4e86: {seconds}\u79d2",
+  "viewer.deleteAutoSaved": "\u4fdd\u5b58\u30d5\u30a1\u30a4\u30eb\u3092\u524a\u9664",
+  "viewer.deleteAutoSavedToast": "\u30d5\u30a1\u30a4\u30eb\u304c\u524a\u9664\u3055\u308c\u307e\u3057\u305f",
+  "viewer.deleteFailed": "\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f",
+  "viewer.saveAs": "\u540d\u524d\u3092\u4ed8\u3051\u3066\u4fdd\u5b58...",
+  "viewer.savedToast": "\u4fdd\u5b58\u3057\u307e\u3057\u305f",
+  "viewer.saveFailed": "\u4fdd\u5b58\u306b\u5931\u6557\u3057\u307e\u3057\u305f",
+
+  "viewer.findPlaceholder": "\u691c\u7d22...",
+  "viewer.findPrev": "\u524d\u306e\u4e00\u81f4",
+  "viewer.findNext": "\u6b21\u306e\u4e00\u81f4",
+  "viewer.findNoResults": "\u7d50\u679c\u306a\u3057",
+  "viewer.copy": "\u30b3\u30d4\u30fc"
 }

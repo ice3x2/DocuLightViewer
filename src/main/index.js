@@ -112,7 +112,8 @@ const store = new Store({
     enableTabs: { type: 'boolean', default: false },
     recentFiles: { type: 'array', items: { type: 'string' }, default: [] },
     mcpAutoSave: { type: 'boolean', default: false },
-    mcpAutoSavePath: { type: 'string', default: '' }
+    mcpAutoSavePath: { type: 'string', default: '' },
+    lastSaveAsDirectory: { type: 'string', default: '' }
   }
 });
 
@@ -398,6 +399,13 @@ function updateTrayMenu() {
   });
 
   menuItems.push({
+    label: t('tray.about'),
+    click: () => {
+      showAboutDialog();
+    },
+  });
+
+  menuItems.push({
     label: t('tray.quit'),
     click: () => {
       app.quit();
@@ -443,6 +451,33 @@ function openSettingsWindow() {
 
   settingsWin.on('closed', () => {
     settingsWin = null;
+  });
+}
+
+// =============================================================================
+// About Dialog
+// =============================================================================
+
+/**
+ * Show About dialog with version info and GitHub link.
+ */
+function showAboutDialog() {
+  const version = require('../../package.json').version;
+  const githubUrl = 'https://github.com/ice3x2/DocuLightViewer';
+
+  dialog.showMessageBox({
+    type: 'info',
+    icon: nativeImage.createFromPath(ICON_PATH),
+    title: t('tray.about'),
+    message: 'DocuLight',
+    detail: `Version ${version}`,
+    buttons: ['GitHub', t('tray.aboutClose')],
+    defaultId: 1,
+    cancelId: 1,
+  }).then(({ response }) => {
+    if (response === 0) {
+      shell.openExternal(githubUrl);
+    }
   });
 }
 
@@ -553,10 +588,10 @@ function extractTitleFromContent(content) {
 }
 
 async function saveMcpFile({ content, filePath, title, noSave }) {
-  if (noSave === true) return;
+  if (noSave === true) return null;
   const enabled = store.get('mcpAutoSave', false);
   const savePath = store.get('mcpAutoSavePath', '');
-  if (!enabled || !savePath) return;
+  if (!enabled || !savePath) return null;
 
   const now = new Date();
   const dateFolder = [
@@ -596,8 +631,10 @@ async function saveMcpFile({ content, filePath, title, noSave }) {
       await fs.promises.writeFile(destPath, content || '', 'utf-8');
     }
     console.log(`[doculight] MCP auto-save: ${destPath}`);
+    return destPath;
   } catch (err) {
     console.error(`[doculight] MCP auto-save failed: ${err.message}`);
+    return null;
   }
 }
 
@@ -616,8 +653,21 @@ async function handleIpcMessage(socket, msg) {
     switch (action) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
-        saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave })
-          .catch(err => console.error('[doculight] saveMcpFile error:', err.message));
+        try {
+          const savedPath = await saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave });
+          if (savedPath) {
+            const entry = windowManager.getWindowEntry(result.windowId);
+            if (entry) {
+              entry.meta.savedFilePath = savedPath;
+              if (!entry.win.isDestroyed()) {
+                entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
+                entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[doculight] saveMcpFile error:', err.message);
+        }
         break;
 
       case 'update_markdown':
@@ -1519,6 +1569,101 @@ function registerIpcHandlers() {
       return { filePath: null };
     }
     return { filePath: result.filePaths[0] };
+  });
+
+  // === Save As (FR-21-002) ===
+  ipcMain.handle('save-as', async (event, params) => {
+    try {
+      const parentWindow = BrowserWindow.fromWebContents(event.sender);
+      const lastDir = store.get('lastSaveAsDirectory', '');
+      const defaultName = params.defaultFileName || 'untitled.md';
+      const defaultPath = lastDir ? path.join(lastDir, defaultName) : defaultName;
+
+      const result = await dialog.showSaveDialog(parentWindow, {
+        defaultPath,
+        filters: [{ name: 'Markdown', extensions: ['md'] }]
+      });
+
+      if (result.canceled) {
+        return { success: false };
+      }
+
+      const savePath = result.filePath;
+      store.set('lastSaveAsDirectory', path.dirname(savePath));
+
+      if (params.filePath) {
+        await fs.promises.copyFile(params.filePath, savePath);
+      } else {
+        await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
+      }
+
+      return { success: true, filePath: savePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // === Quick Save (FR-21-003) ===
+  ipcMain.handle('quick-save', async (_event, params) => {
+    try {
+      const lastDir = store.get('lastSaveAsDirectory', '');
+      if (!lastDir) {
+        return { success: false, reason: 'no-directory' };
+      }
+
+      const defaultName = params.defaultFileName || 'untitled.md';
+      const savePath = path.join(lastDir, defaultName);
+
+      if (params.filePath) {
+        await fs.promises.copyFile(params.filePath, savePath);
+      } else {
+        await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
+      }
+
+      return { success: true, filePath: savePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // === Delete Auto-Saved File (FR-21-001) ===
+  ipcMain.handle('delete-auto-saved-file', async (event) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) {
+        return { success: false, error: 'window not found' };
+      }
+
+      const windowId = windowManager.findWindowId(win);
+      if (!windowId) {
+        return { success: false, error: 'window not found' };
+      }
+
+      const entry = windowManager.getWindowEntry(windowId);
+      if (!entry || !entry.meta.savedFilePath) {
+        return { success: false, error: 'no saved file' };
+      }
+
+      const deletedPath = entry.meta.savedFilePath;
+      try {
+        await fs.promises.unlink(deletedPath);
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          // Already deleted externally — treat as success
+          entry.meta.savedFilePath = null;
+          return { success: true, deletedPath };
+        }
+        return { success: false, error: err.message };
+      }
+
+      entry.meta.savedFilePath = null;
+      if (!entry.win.isDestroyed()) {
+        entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, null));
+      }
+      return { success: true, deletedPath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // Read a local image file and return it as a base64 data URL.

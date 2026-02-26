@@ -136,4 +136,14 @@ contextBridge.exposeInMainWorld('doclight', {
 
   // Read a local image file as a base64 data URL (bypasses file:// sandbox restriction)
   readImageAsDataUrl: (filePath) => ipcRenderer.invoke('read-image-as-data-url', filePath),
+
+  // Save As / Quick Save / Delete auto-saved file (FR-21)
+  saveAs: (params) => ipcRenderer.invoke('save-as', params),
+  quickSave: (params) => ipcRenderer.invoke('quick-save', params),
+  deleteAutoSavedFile: () => ipcRenderer.invoke('delete-auto-saved-file'),
+  onSetSavedFilePath: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('set-saved-file-path', handler);
+    return () => ipcRenderer.removeListener('set-saved-file-path', handler);
+  },
 });
