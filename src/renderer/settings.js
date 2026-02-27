@@ -49,6 +49,8 @@
     theme: 'light',
     fontSize: 16,
     fontFamily: 'system-ui, -apple-system, sans-serif',
+    contentWidth: '900px',
+    contentMaxWidth: '900px',
     codeTheme: 'github',
     mcpPort: 52580,
     defaultWindowSize: 'auto',
@@ -74,10 +76,42 @@
     theme: document.getElementById('theme-select'),
     fontSize: document.getElementById('fontSize-input'),
     fontFamily: document.getElementById('fontFamily-input'),
+    contentWidth: document.getElementById('contentWidth-input'),
+    contentMaxWidth: document.getElementById('contentMaxWidth-input'),
     codeTheme: document.getElementById('codeTheme-select'),
     mcpPort: document.getElementById('mcpPort-input'),
     defaultWindowSize: document.getElementById('defaultWindowSize-select')
   };
+
+  // CSS length validation and normalization
+  function normalizeCssLength(value) {
+    var trimmed = (value || '').trim();
+    if (trimmed === '') return '';
+    if (/^\d+\.?\d*$/.test(trimmed)) {
+      if (parseFloat(trimmed) < 0) return null;
+      return trimmed + 'px';
+    }
+    var match = trimmed.match(/^(\d+\.?\d*)(px|%|em|rem|vw|vh|vmin|vmax|ch|ex|cm|mm|in|pt|pc)$/i);
+    if (!match) return null;
+    if (parseFloat(match[1]) < 0) return null;
+    return match[1] + match[2].toLowerCase();
+  }
+
+  // Blur validation for CSS length fields
+  ['contentWidth', 'contentMaxWidth'].forEach(function(key) {
+    var el = fields[key];
+    if (!el) return;
+    el.setAttribute('data-prev', DEFAULTS[key]);
+    el.addEventListener('blur', function() {
+      var normalized = normalizeCssLength(el.value);
+      if (normalized === null) {
+        el.value = el.getAttribute('data-prev') || DEFAULTS[key];
+      } else {
+        el.value = normalized;
+        el.setAttribute('data-prev', normalized);
+      }
+    });
+  });
 
   // Load settings from main process
   async function loadSettings() {
@@ -109,6 +143,9 @@
     for (const [key, element] of Object.entries(fields)) {
       if (element) {
         element.value = settings[key] !== undefined ? settings[key] : DEFAULTS[key];
+        if (key === 'contentWidth' || key === 'contentMaxWidth') {
+          element.setAttribute('data-prev', element.value);
+        }
       }
     }
     const autoRefreshEl = document.getElementById('autoRefresh-checkbox');
@@ -143,6 +180,19 @@
         values[key] = element.value || DEFAULTS[key];
       }
     }
+
+    // Validate contentWidth / contentMaxWidth
+    ['contentWidth', 'contentMaxWidth'].forEach(function(key) {
+      var el = fields[key];
+      if (!el) return;
+      var normalized = normalizeCssLength(values[key]);
+      if (normalized === null) {
+        normalized = el.getAttribute('data-prev') || DEFAULTS[key];
+        el.value = normalized;
+      }
+      values[key] = normalized;
+      el.setAttribute('data-prev', normalized);
+    });
 
     // Validate theme
     if (!['light', 'dark'].includes(values.theme)) {

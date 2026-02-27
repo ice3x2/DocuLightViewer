@@ -111,6 +111,8 @@ const store = new Store({
     autoRefresh: { type: 'boolean', default: true },
     enableTabs: { type: 'boolean', default: false },
     recentFiles: { type: 'array', items: { type: 'string' }, default: [] },
+    contentWidth: { type: 'string', default: '900px' },
+    contentMaxWidth: { type: 'string', default: '900px' },
     mcpAutoSave: { type: 'boolean', default: false },
     mcpAutoSavePath: { type: 'string', default: '' },
     lastSaveAsDirectory: { type: 'string', default: '' }
@@ -896,10 +898,12 @@ function registerIpcHandlers() {
       const codeTheme = store.get('codeTheme');
       const fontSize = store.get('fontSize');
       const fontFamily = store.get('fontFamily');
+      const contentWidth = store.get('contentWidth');
+      const contentMaxWidth = store.get('contentMaxWidth');
       if (theme !== 'light') {
         event.sender.send('theme-changed', { theme });
       }
-      event.sender.send('settings-changed', { fontSize, fontFamily, codeTheme });
+      event.sender.send('settings-changed', { fontSize, fontFamily, codeTheme, contentWidth, contentMaxWidth });
     }
   });
 
@@ -919,6 +923,8 @@ function registerIpcHandlers() {
     const oldFontSize = store.get('fontSize');
     const oldFontFamily = store.get('fontFamily');
     const oldCodeTheme = store.get('codeTheme');
+    const oldContentWidth = store.get('contentWidth');
+    const oldContentMaxWidth = store.get('contentMaxWidth');
     const oldAutoRefresh = store.get('autoRefresh', true);
 
     // Save to store
@@ -933,13 +939,15 @@ function registerIpcHandlers() {
       }
     }
 
-    // Broadcast font/settings/codeTheme change to all viewer windows
-    if (settings.fontSize !== oldFontSize || settings.fontFamily !== oldFontFamily || settings.codeTheme !== oldCodeTheme) {
+    // Broadcast font/settings/codeTheme/contentWidth change to all viewer windows
+    if (settings.fontSize !== oldFontSize || settings.fontFamily !== oldFontFamily || settings.codeTheme !== oldCodeTheme || settings.contentWidth !== oldContentWidth || settings.contentMaxWidth !== oldContentMaxWidth) {
       for (const [, entry] of windowManager.windows) {
         entry.win.webContents.send('settings-changed', {
           fontSize: settings.fontSize,
           fontFamily: settings.fontFamily,
-          codeTheme: settings.codeTheme
+          codeTheme: settings.codeTheme,
+          contentWidth: settings.contentWidth,
+          contentMaxWidth: settings.contentMaxWidth
         });
       }
     }
@@ -1202,10 +1210,12 @@ function registerIpcHandlers() {
           const codeTheme = store.get('codeTheme');
           const fontSize = store.get('fontSize');
           const fontFamily = store.get('fontFamily');
+          const contentWidth = store.get('contentWidth');
+          const contentMaxWidth = store.get('contentMaxWidth');
           if (theme !== 'light') {
             pdfWin.webContents.send('theme-changed', { theme });
           }
-          pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme });
+          pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme, contentWidth, contentMaxWidth });
 
           // Send markdown with pdfMode flag
           const imageBasePath = senderEntry.meta.tree
@@ -1324,10 +1334,12 @@ function registerIpcHandlers() {
               const codeTheme = store.get('codeTheme');
               const fontSize = store.get('fontSize');
               const fontFamily = store.get('fontFamily');
+              const contentWidth = store.get('contentWidth');
+              const contentMaxWidth = store.get('contentMaxWidth');
               if (theme !== 'light') {
                 pdfWin.webContents.send('theme-changed', { theme });
               }
-              pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme });
+              pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme, contentWidth, contentMaxWidth });
 
               const batchImageBasePath = tree
                 ? path.dirname(tree.path).replace(/\\/g, '/')

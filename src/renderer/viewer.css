@@ -11,6 +11,8 @@
   --sidebar-bg: #f6f8fa;
   --sidebar-hover: #e1e4e8;
   --highlight-bg: #e8f0fe;
+  --content-width: auto;
+  --content-max-width: 900px;
 }
 
 /* === Dark Theme === */
@@ -149,7 +151,8 @@ html, body {
 
 /* === Markdown Body (GitHub-flavored) === */
 .markdown-body {
-  max-width: 900px;
+  width: var(--content-width);
+  max-width: var(--content-max-width);
   margin: 0 auto;
   padding: 0.75rem 2rem 2rem;
   line-height: 1.6;

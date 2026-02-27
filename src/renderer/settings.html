@@ -32,19 +32,24 @@
       </div>
 
       <div class="form-group">
+        <label for="contentWidth-input" data-i18n="settings.contentWidth">Content Width</label>
+        <input type="text" id="contentWidth-input" value="900px">
+        <small class="hint" data-i18n="settings.contentWidthHint">e.g. 800px, 90% (empty = auto)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="contentMaxWidth-input" data-i18n="settings.contentMaxWidth">Max Content Width</label>
+        <input type="text" id="contentMaxWidth-input" value="900px">
+        <small class="hint" data-i18n="settings.contentMaxWidthHint">e.g. 900px, 100% (empty = no limit)</small>
+      </div>
+
+      <div class="form-group">
         <label for="codeTheme-select" data-i18n="settings.codeTheme">Code Theme</label>
         <select id="codeTheme-select">
           <option value="github">GitHub</option>
           <option value="monokai">Monokai</option>
           <option value="dracula">Dracula</option>
         </select>
-      </div>
-
-      <div class="form-group">
-        <label for="mcpPort-input" data-i18n="settings.mcpPort">MCP Server Port</label>
-        <input type="number" id="mcpPort-input" min="1024" max="65535" value="52580">
-        <small class="hint" data-i18n="settings.mcpPortHint">Requires app restart after change</small>
-        <small id="mcp-address" class="hint mcp-address-link">http://localhost:52580/mcp</small>
       </div>
 
       <div class="form-group">
@@ -96,6 +101,13 @@
       </div>
 
       <div class="section-divider"></div>
+      <div class="form-group">
+        <label for="mcpPort-input" data-i18n="settings.mcpPort">MCP Server Port</label>
+        <input type="number" id="mcpPort-input" min="1024" max="65535" value="52580">
+        <small class="hint" data-i18n="settings.mcpPortHint">Requires app restart after change</small>
+        <small id="mcp-address" class="hint mcp-address-link">http://localhost:52580/mcp</small>
+      </div>
+
       <div class="form-group">
         <label class="section-label" data-i18n="settings.mcpAutoSave">MCP Auto Save</label>
         <div class="checkbox-group">
