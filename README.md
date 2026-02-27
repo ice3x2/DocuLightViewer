@@ -211,7 +211,7 @@ await mcpClient.callTool('update_markdown', {
 
 ```bash
 # Register the HTTP MCP server (one-time setup)
-claude mcp add --transport http doclight http://localhost:52580
+claude mcp add --transport http doclight http://localhost:52580/mcp
 ```
 
 ### Configure with Claude Desktop
@@ -552,7 +552,7 @@ await mcpClient.callTool('update_markdown', {
 
 ```bash
 # HTTP MCP 서버 등록 (최초 1회)
-claude mcp add --transport http doclight http://localhost:52580
+claude mcp add --transport http doclight http://localhost:52580/mcp
 ```
 
 ### Claude Desktop에서 설정
