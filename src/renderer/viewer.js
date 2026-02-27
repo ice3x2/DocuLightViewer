@@ -138,6 +138,18 @@
     }).catch(() => {});
   }
 
+  function getCurrentPanelPrefs() {
+    const sidebar = document.getElementById('sidebar-container');
+    const toc = document.getElementById('toc-container');
+    return {
+      sidebarVisible,
+      tocVisible,
+      alwaysOnTop: isPinned,
+      sidebarWidth: sidebar ? sidebar.offsetWidth : undefined,
+      tocWidth: toc ? toc.offsetWidth : undefined
+    };
+  }
+
   // === Initialize Mermaid ===
   if (typeof mermaid !== 'undefined') {
     mermaid.initialize({
@@ -515,6 +527,12 @@
     }
     if (data.codeTheme) {
       applyCodeTheme(data.codeTheme, currentAppTheme);
+    }
+    if (data.contentWidth !== undefined) {
+      document.documentElement.style.setProperty('--content-width', data.contentWidth || 'auto');
+    }
+    if (data.contentMaxWidth !== undefined) {
+      document.documentElement.style.setProperty('--content-max-width', data.contentMaxWidth || 'none');
     }
   }));
 
@@ -1269,7 +1287,7 @@
     } else {
       showSidebar();
     }
-    savePanelPrefs({ sidebarVisible, tocVisible, alwaysOnTop: isPinned });
+    savePanelPrefs(getCurrentPanelPrefs());
   }
 
   function renderSidebarTree(tree) {
@@ -1474,7 +1492,7 @@
     } else {
       showToc();
     }
-    savePanelPrefs({ sidebarVisible, tocVisible, alwaysOnTop: isPinned });
+    savePanelPrefs(getCurrentPanelPrefs());
   }
 
   // === Floating Button State Sync ===
@@ -1492,7 +1510,7 @@
     updateFabStates();
     if (userToggledPin) {
       userToggledPin = false;
-      savePanelPrefs({ sidebarVisible, tocVisible, alwaysOnTop: isPinned });
+      savePanelPrefs(getCurrentPanelPrefs());
     }
   }));
 
@@ -1750,6 +1768,7 @@
       resizeHandle.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      savePanelPrefs(getCurrentPanelPrefs());
     });
   }
 
@@ -1792,6 +1811,7 @@
       tocResizeHandle.classList.remove('dragging');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      savePanelPrefs(getCurrentPanelPrefs());
     });
   }
 
@@ -1854,6 +1874,14 @@
     const prefs = await loadPanelPrefs();
     if (prefs) {
       savedPrefs = prefs;
+      if (prefs.sidebarWidth) {
+        const sidebar = document.getElementById('sidebar-container');
+        if (sidebar) sidebar.style.width = prefs.sidebarWidth + 'px';
+      }
+      if (prefs.tocWidth) {
+        const toc = document.getElementById('toc-container');
+        if (toc) toc.style.width = prefs.tocWidth + 'px';
+      }
       if (prefs.tocVisible) showToc();
       if (prefs.alwaysOnTop) window.doclight.setAlwaysOnTop(true);
     }
