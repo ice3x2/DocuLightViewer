@@ -118,5 +118,11 @@
   "viewer.findPrev": "Previous match",
   "viewer.findNext": "Next match",
   "viewer.findNoResults": "No results",
-  "viewer.copy": "Copy"
+  "viewer.copy": "Copy",
+
+  "viewer.metaboxTitle": "Document Info",
+  "viewer.metaProject": "Project",
+  "viewer.metaDocName": "Document Name",
+  "viewer.metaDescription": "Description",
+  "viewer.metaDate": "Date"
 }

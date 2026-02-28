@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { buildDirectoryTree } = require('./link-parser');
 const { t } = require('./strings');
+const { injectFrontmatter } = require('./frontmatter');
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -262,7 +263,8 @@ class WindowManager {
    */
   async createWindow(opts = {}) {
     const { foreground, title: explicitTitle, size, windowName,
-            severity, tags, flash, progress, autoCloseSeconds } = opts;
+            severity, tags, flash, progress, autoCloseSeconds,
+            project, docName, description } = opts;
     let { content, filePath } = opts;
 
     // --- Named window upsert (FR-19-001) -----------------------------------
@@ -286,6 +288,11 @@ class WindowManager {
         throw new Error(t('error.mdOnly', { filePath }));
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
+
+      // Inject frontmatter if metadata params provided (filePath mode)
+      if (project || docName || description) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
     }
 
     // Enforce window cap
@@ -629,7 +636,8 @@ class WindowManager {
     }
 
     let { content, filePath, title, appendMode, separator,
-          severity, flash, progress, tags, autoCloseSeconds } = opts;
+          severity, flash, progress, tags, autoCloseSeconds,
+          project, docName, description } = opts;
 
     // --- Append mode (FR-19-002) -------------------------------------------
     if (appendMode) {
@@ -655,6 +663,10 @@ class WindowManager {
         throw new Error(t('error.mdOnly', { filePath }));
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
+      // Inject frontmatter metadata for filePath mode (Step 20)
+      if (project || docName || description) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
     }
 
     // --- Content update ----------------------------------------------------

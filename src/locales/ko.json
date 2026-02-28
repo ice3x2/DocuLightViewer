@@ -118,5 +118,11 @@
   "viewer.findPrev": "이전 결과",
   "viewer.findNext": "다음 결과",
   "viewer.findNoResults": "결과 없음",
-  "viewer.copy": "복사"
+  "viewer.copy": "복사",
+
+  "viewer.metaboxTitle": "문서 정보",
+  "viewer.metaProject": "프로젝트",
+  "viewer.metaDocName": "문서 이름",
+  "viewer.metaDescription": "설명",
+  "viewer.metaDate": "날짜"
 }

@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Navigation history (back/forward buttons)
 - Tab-based multi-document view (optional, disabled by default)
 - PDF export via pdf-lib
+- BM25 full-text search across saved documents (Korean + English, wink-bm25-text-search)
 - MCP server for external tool integration (stdio + HTTP JSON-RPC)
 
 ## Development Commands
@@ -56,6 +57,12 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 **`mcp-http.mjs`** (ESM) — HTTP JSON-RPC 2.0 MCP server embedded in Electron main process. No external SDK. Loaded via dynamic `import()` from `index.js` (CJS→ESM bridge). Writes bound port to `{userData}/mcp-port` on startup.
 
+**`frontmatter.js`** — YAML frontmatter injection utility (CJS). Shared by MCP servers and window-manager. Includes `parseFrontmatter()` for extracting frontmatter from content.
+
+**`search-engine.js`** — BM25 full-text search engine (CJS). Uses `wink-bm25-text-search` with Korean composite tokenizer (word-level + suffix stripping + character bi-gram). Indexes saved markdown documents with frontmatter metadata. Supports index serialization to JSON.
+
+**`tokenizer.js`** — Korean + English composite tokenizer (CJS). Three-layer approach: word split, Korean suffix removal, character bi-gram. Used by search-engine.js.
+
 **`file-association.js`** — Windows `.md` ProgID registration (`DocuLight.Markdown`). Packaged apps only.
 
 **`preload.js`** — `contextBridge` API (`window.doclight`) between main and renderer.
@@ -95,12 +102,35 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop`, `windowName`, `severity` (info/success/warning/error), `tags` (string[]), `flash`, `progress` (-1~1.0), `autoCloseSeconds` (1~3600) | Open or upsert named viewer window |
-| `update_markdown` | `windowId`, `content` OR `filePath`, `title`, `appendMode`, `separator`, `severity`, `tags`, `flash`, `progress`, `autoCloseSeconds` | Update existing window content and/or metadata |
+| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop`, `windowName`, `severity` (info/success/warning/error), `tags` (string[]), `flash`, `progress` (-1~1.0), `autoCloseSeconds` (1~3600), `project`, `docName`, `description` | Open or upsert named viewer window |
+| `update_markdown` | `windowId`, `content` OR `filePath`, `title`, `appendMode`, `separator`, `severity`, `tags`, `flash`, `progress`, `autoCloseSeconds`, `project`, `docName`, `description` | Update existing window content and/or metadata |
 | `close_viewer` | `windowId` (optional), `tag` (optional) | Close specific window, all windows with tag, or all windows |
 | `list_viewers` | `tag` (optional) | List open windows; filter by tag; shows windowName, severity, tags, progress |
+| `search_documents` | `query` (required), `limit` (optional, default 20), `project` (optional) | BM25 full-text search across saved documents (body + frontmatter). Requires mcpAutoSave enabled. |
+| `search_projects` | `query` (optional), `limit` (optional, default 20) | Search or list projects from saved document frontmatter metadata. Requires mcpAutoSave enabled. |
 
 MCP tools operate at the **window level**. `open_markdown` upserts if `windowName` already exists; otherwise creates a new window. `windowId` refers to a `BrowserWindow` ID, not a tab.
+
+### Frontmatter Metadata Parameters (Step 20)
+
+`open_markdown` and `update_markdown` accept optional frontmatter metadata:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `project` | `string` (optional) | Project name this document belongs to |
+| `docName` | `string` (optional) | Document name/identifier |
+| `description` | `string` (optional) | Brief description of the document |
+
+When any of these parameters are provided, the MCP server auto-assembles a YAML frontmatter block and prepends it to the content. A `date` field (ISO 8601) is automatically added. If the content already has frontmatter, existing fields are merged (new values override).
+
+The viewer parses frontmatter and displays it in a collapsible metabox above the content. Frontmatter is stripped before markdown rendering.
+
+**IMPORTANT — open_markdown call guidelines:**
+- Always provide `project`, `docName`, and `description` when the context is known.
+- `project`: The project or repository name (e.g., "DocuLightViewer").
+- `docName`: A short document identifier (e.g., "API Reference", "Error Log").
+- `description`: A one-sentence summary of the document's purpose.
+- These are optional for backward compatibility, but strongly recommended for all new calls.
 
 ### WindowEntry.meta New Fields (Step 19)
 
@@ -137,6 +167,9 @@ src/
 │   ├── window-manager.js # Window lifecycle + cascading
 │   ├── link-parser.js    # Markdown link parser + sidebar tree
 │   ├── strings.js        # i18n loader
+│   ├── frontmatter.js    # YAML frontmatter injection utility (CJS)
+│   ├── search-engine.js  # BM25 full-text search engine (CJS)
+│   ├── tokenizer.js      # Korean+English composite tokenizer (CJS)
 │   ├── file-association.js # .md file association (Windows, packaged only)
 │   ├── mcp-server.mjs    # MCP stdio bridge (ESM)
 │   └── mcp-http.mjs      # MCP HTTP JSON-RPC bridge (ESM)
@@ -161,6 +194,7 @@ src/
 - `@modelcontextprotocol/sdk` ^1.12.1 — MCP stdio server
 - `electron-store` ^8.2.0 — Settings persistence
 - `pdf-lib` ^1.17.1 — PDF export
+- `wink-bm25-text-search` ^3.1.2 — BM25 full-text search engine
 
 Note: `marked`, `DOMPurify`, `highlight.js`, `mermaid` are **vendored bundles** in `src/renderer/lib/`, not npm imports.
 

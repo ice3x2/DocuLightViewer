@@ -27,7 +27,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "electron-store": "^8.2.0",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "wink-bm25-text-search": "^3.1.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

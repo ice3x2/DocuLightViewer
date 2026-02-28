@@ -31,6 +31,17 @@
     </div>
     <div id="resize-handle" class="hidden"></div>
     <div id="viewer-container" role="tabpanel">
+      <!-- Frontmatter Metabox (Step 20) -->
+      <div id="frontmatter-metabox" class="frontmatter-metabox hidden">
+        <button class="metabox-toggle" aria-expanded="true" aria-controls="metabox-content-area">
+          <svg class="metabox-toggle-icon" viewBox="0 0 24 24" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+          <span class="metabox-title" data-i18n="viewer.metaboxTitle">Document Info</span>
+        </button>
+        <div class="metabox-content" id="metabox-content-area">
+        </div>
+      </div>
       <div id="content" class="markdown-body"></div>
     </div>
     <div id="toc-resize-handle" class="hidden"></div>

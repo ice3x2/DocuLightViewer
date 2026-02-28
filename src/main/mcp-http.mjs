@@ -7,6 +7,11 @@
 import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+
+const _require = createRequire(import.meta.url);
+const { injectFrontmatter } = _require('./frontmatter.js');
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const PROTOCOL_VERSION = '2025-03-26';
@@ -96,7 +101,7 @@ async function saveMcpFile({ content, filePath, title, noSave }, store) {
 const TOOLS = [
   {
     name: 'open_markdown',
-    description: 'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference.',
+    description: 'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, and description when the context is known.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -112,6 +117,9 @@ const TOOLS = [
         flash:            { type: 'boolean', description: 'Flash taskbar button to notify user' },
         progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Taskbar progress bar value (-1 to remove, 0.0–1.0)' },
         autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Auto-close window after N seconds' },
+        project:          { type: 'string', description: '[Recommended] Project or repository name for frontmatter metadata' },
+        docName:          { type: 'string', description: '[Recommended] Document name or type for frontmatter metadata' },
+        description:      { type: 'string', description: '[Recommended] One-line summary of document purpose. STRONGLY RECOMMENDED.' },
         noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
       }
     }
@@ -133,6 +141,9 @@ const TOOLS = [
         flash:            { type: 'boolean', description: 'Flash taskbar button' },
         progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Update taskbar progress bar' },
         autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Reset/set auto-close timer' },
+        project:          { type: 'string', description: '[Recommended] Project name for frontmatter metadata' },
+        docName:          { type: 'string', description: '[Recommended] Document name for frontmatter metadata' },
+        description:      { type: 'string', description: '[Recommended] Document description for frontmatter metadata' },
         noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
       },
       required: ['windowId']
@@ -158,6 +169,30 @@ const TOOLS = [
         tag: { type: 'string', description: 'Filter windows by tag' }
       }
     }
+  },
+  {
+    name: 'search_documents',
+    description: 'Search saved markdown documents using BM25 full-text search. Searches across document body and frontmatter metadata (title, project, description). Requires mcpAutoSave to be enabled with a configured save path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query:   { type: 'string', description: 'Search query (Korean and English supported)' },
+        limit:   { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default: 20)' },
+        project: { type: 'string', description: 'Filter by project name' }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'search_projects',
+    description: 'Search or list projects from saved document frontmatter metadata. Returns project names with descriptions and associated document counts. Requires mcpAutoSave to be enabled with a configured save path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query for project name/description (omit for full list)' },
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default: 20)' }
+      }
+    }
   }
 ];
 
@@ -165,10 +200,11 @@ const TOOLS = [
 // Tool handlers
 // ============================================================================
 
-function createToolHandlers(windowManager, store) {
+function createToolHandlers(windowManager, store, searchEngine) {
   return {
     async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
-                          windowName, severity, tags, flash, progress, autoCloseSeconds, noSave }) {
+                          windowName, severity, tags, flash, progress, autoCloseSeconds, noSave,
+                          project, docName, description }) {
       if (!content && !filePath) {
         return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
       }
@@ -176,16 +212,23 @@ function createToolHandlers(windowManager, store) {
         return { isError: true, content: [{ type: 'text', text: 'Content exceeds 10MB limit.' }] };
       }
 
+      // Frontmatter injection
+      if (content && (project || docName || description)) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
+
       const result = await windowManager.createWindow({
         content, filePath, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
-        windowName, severity, tags, flash, progress, autoCloseSeconds
+        windowName, severity, tags, flash, progress, autoCloseSeconds,
+        project, docName, description
       });
 
       let savedPath = null;
       try {
         savedPath = await saveMcpFile({ content, filePath, title, noSave }, store);
+        if (savedPath && searchEngine) searchEngine.markDirty();
       } catch (err) {
         console.error('[doculight] MCP auto-save error:', err.message);
       }
@@ -226,14 +269,21 @@ function createToolHandlers(windowManager, store) {
     },
 
     async update_markdown({ windowId, content, filePath, title, appendMode, separator,
-                            severity, tags, flash, progress, autoCloseSeconds }) {
+                            severity, tags, flash, progress, autoCloseSeconds,
+                            project, docName, description }) {
       if (!windowId) {
         return { isError: true, content: [{ type: 'text', text: 'windowId is required.' }] };
       }
 
+      // Frontmatter injection (skip for appendMode)
+      if (content && !appendMode && (project || docName || description)) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
+
       const result = await windowManager.updateWindow(windowId, {
         content, filePath, title, appendMode, separator,
-        severity, tags, flash, progress, autoCloseSeconds
+        severity, tags, flash, progress, autoCloseSeconds,
+        project, docName, description
       });
 
       const action = appendMode ? 'Appended to' : 'Updated';
@@ -269,6 +319,54 @@ function createToolHandlers(windowManager, store) {
       });
       return {
         content: [{ type: 'text', text: `Open viewer windows (${windows.length}):\n${lines.join('\n')}` }]
+      };
+    },
+
+    async search_documents({ query, limit, project }) {
+      if (!query) {
+        return { isError: true, content: [{ type: 'text', text: 'query is required.' }] };
+      }
+      if (!searchEngine) {
+        return { isError: true, content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }] };
+      }
+      await searchEngine.ensureFresh();
+      const results = searchEngine.search(query, { limit: limit || 20, project });
+      const totalIndexed = searchEngine.docMeta.size;
+
+      if (results.length === 0) {
+        return { content: [{ type: 'text', text: `No results found for "${query}". (${totalIndexed} documents indexed)` }] };
+      }
+
+      const lines = results.map((r, i) =>
+        `${i + 1}. [${r.score}] ${r.title}${r.project ? ` (${r.project})` : ''}\n   ${r.filePath}\n   ${r.snippet || ''}`
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `Found ${results.length} result(s) for "${query}" (${totalIndexed} indexed):\n\n${lines.join('\n\n')}`
+        }]
+      };
+    },
+
+    async search_projects({ query, limit } = {}) {
+      if (!searchEngine) {
+        return { isError: true, content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }] };
+      }
+      await searchEngine.ensureFresh();
+      const projects = searchEngine.searchProjects(query, limit || 20);
+
+      if (projects.length === 0) {
+        return { content: [{ type: 'text', text: query ? `No projects found for "${query}".` : 'No projects found.' }] };
+      }
+
+      const lines = projects.map(p =>
+        `- **${p.project}** (${p.documentCount} docs)${p.description ? `: ${p.description}` : ''}`
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `${query ? `Projects matching "${query}"` : 'All projects'} (${projects.length}):\n\n${lines.join('\n')}`
+        }]
       };
     }
   };
@@ -374,17 +472,17 @@ async function handleJsonRpc(msg, handlers) {
  * @param {import('electron-store')} store
  * @returns {Promise<http.Server>}
  */
-export async function startMcpHttpServer(windowManager, store, userDataPath) {
+export async function startMcpHttpServer(windowManager, store, userDataPath, searchEngine) {
   const basePort = store.get('mcpPort') || 52580;
-  const handlers = createToolHandlers(windowManager, store);
+  const handlers = createToolHandlers(windowManager, store, searchEngine);
 
   const httpServer = http.createServer(async (req, res) => {
     // CORS preflight
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Accept'
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Session-Id'
       });
       res.end();
       return;
@@ -402,6 +500,8 @@ export async function startMcpHttpServer(windowManager, store, userDataPath) {
         'Connection': 'keep-alive',
         'Access-Control-Allow-Origin': '*'
       });
+      // Flush headers immediately so clients can detect the SSE connection
+      res.write(': ok\n\n');
       // Send a comment every 15 s to prevent proxies from closing the connection
       const keepAlive = setInterval(() => {
         if (!res.writableEnded) res.write(': keep-alive\n\n');
@@ -410,10 +510,20 @@ export async function startMcpHttpServer(windowManager, store, userDataPath) {
       return;
     }
 
+    // DELETE /mcp — session termination (stateless: just acknowledge)
+    if (url.pathname === '/mcp' && req.method === 'DELETE') {
+      res.writeHead(405, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ error: 'Session termination not supported (stateless server)' }));
+      return;
+    }
+
     // Only POST /mcp for JSON-RPC
     if (url.pathname !== '/mcp' || req.method !== 'POST') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'GET or POST /mcp only' }));
+      res.end(JSON.stringify({ error: 'GET, POST, or DELETE /mcp only' }));
       return;
     }
 
@@ -430,23 +540,59 @@ export async function startMcpHttpServer(windowManager, store, userDataPath) {
 
       // Support JSON-RPC batch
       const isBatch = Array.isArray(body);
-      const requests = isBatch ? body : [body];
-      const responses = [];
+      const messages = isBatch ? body : [body];
 
-      for (const rpcMsg of requests) {
+      // Classify: messages with both id and method are requests; others are notifications
+      const hasRequest = messages.some(m => m.id !== undefined && m.method);
+
+      // Process all messages
+      const responses = [];
+      let isInitialize = false;
+
+      for (const rpcMsg of messages) {
         const result = await handleJsonRpc(rpcMsg, handlers);
-        if (result !== null) responses.push(result); // skip notifications
+        if (result !== null) responses.push(result);
+        if (rpcMsg.method === 'initialize') isInitialize = true;
       }
 
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
+      // If no requests (only notifications), return 202 Accepted with empty body
+      if (!hasRequest) {
+        res.writeHead(202, { 'Access-Control-Allow-Origin': '*' });
+        res.end();
+        return;
+      }
 
-      if (isBatch) {
+      // Determine response format based on Accept header
+      const acceptHeader = req.headers['accept'] || '';
+      const wantsSSE = acceptHeader.includes('text/event-stream');
+
+      // Build response headers
+      const resHeaders = {
+        'Content-Type': wantsSSE ? 'text/event-stream' : 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      };
+      if (wantsSSE) {
+        resHeaders['Cache-Control'] = 'no-cache';
+        resHeaders['Connection'] = 'keep-alive';
+      }
+
+      // Include Mcp-Session-Id on initialize response
+      if (isInitialize) {
+        resHeaders['Mcp-Session-Id'] = randomUUID();
+      }
+
+      res.writeHead(200, resHeaders);
+
+      if (wantsSSE) {
+        // SSE format: each JSON-RPC response as a separate event
+        for (const r of responses) {
+          res.write(`event: message\ndata: ${JSON.stringify(r)}\n\n`);
+        }
+        res.end();
+      } else if (isBatch) {
         res.end(JSON.stringify(responses));
       } else {
-        res.end(JSON.stringify(responses[0] || {}));
+        res.end(JSON.stringify(responses[0]));
       }
     } catch (err) {
       console.error('[doculight] MCP HTTP error:', err.message);

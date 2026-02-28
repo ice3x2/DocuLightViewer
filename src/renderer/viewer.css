@@ -146,17 +146,20 @@ html, body {
 #viewer-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
 }
 
 /* === Markdown Body (GitHub-flavored) === */
 .markdown-body {
-  width: var(--content-width);
+  width: min(var(--content-width), 90%);
   max-width: var(--content-max-width);
   margin: 0 auto;
-  padding: 0.75rem 2rem 2rem;
+  padding: 0.75rem 0 2rem;
   line-height: 1.6;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3,
@@ -192,6 +195,7 @@ html, body {
   border-radius: 6px;
   padding: 1em;
   overflow-x: auto;
+  max-width: 100%;
   margin: 1em 0;
 }
 
@@ -399,11 +403,14 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  flex: 1;
   min-height: 400px;
   gap: 12px;
   color: var(--muted-text);
   user-select: none;
+  overflow: hidden;
+  text-align: center;
+  padding: 0 1rem;
 }
 
 .empty-state-icon {
@@ -416,20 +423,25 @@ html, body {
   font-weight: 600;
   color: var(--text-color);
   opacity: 0.7;
+  word-break: break-word;
 }
 
 .empty-state-text {
   font-size: 16px;
+  word-break: break-word;
 }
 
 .empty-state-hint {
   font-size: 13px;
   opacity: 0.6;
+  word-break: break-word;
 }
 
 .markdown-body:has(.empty-state) {
   max-width: none;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* === Drag Over Highlight === */
@@ -1235,4 +1247,95 @@ body.pdf-mode #viewer-container {
 
 body.pdf-mode ::-webkit-scrollbar {
   display: none !important;
+}
+
+/* === Frontmatter Metabox (Step 20) === */
+.frontmatter-metabox {
+  margin: 0.75rem auto 0;
+  padding: 0;
+  max-width: var(--content-max-width);
+  width: min(var(--content-width), 90%);
+}
+
+.frontmatter-metabox.hidden {
+  display: none;
+}
+
+.metabox-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 1rem;
+  background: var(--code-bg);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-text);
+  text-align: left;
+  transition: background 150ms;
+}
+
+.metabox-toggle:hover {
+  background: var(--sidebar-hover);
+}
+
+.metabox-toggle-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 200ms ease;
+  flex-shrink: 0;
+}
+
+.frontmatter-metabox.collapsed .metabox-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.metabox-content {
+  padding: 8px 1rem;
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+  transition: max-height 200ms ease, padding 200ms ease;
+}
+
+.frontmatter-metabox.collapsed .metabox-content {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.metabox-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.metabox-table tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.metabox-table tr:last-child {
+  border-bottom: none;
+}
+
+.metabox-key {
+  padding: 4px 12px 4px 0;
+  font-weight: 600;
+  color: var(--muted-text);
+  white-space: nowrap;
+  width: 1%;
+  vertical-align: top;
+}
+
+.metabox-value {
+  padding: 4px 0;
+  color: var(--text-color);
+  word-break: break-word;
 }

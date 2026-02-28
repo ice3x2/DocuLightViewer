@@ -115,7 +115,8 @@ and Table of Contents visible.*
 
 ## MCP Integration
 
-DocuLight exposes **four MCP tools** over both HTTP and stdio transports.
+DocuLight exposes **six MCP tools** over both HTTP and stdio transports.
+The HTTP server implements the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport (JSON + SSE responses, session ID, `202` for notifications).
 
 ### Tools
 
@@ -125,6 +126,8 @@ DocuLight exposes **four MCP tools** over both HTTP and stdio transports.
 | `update_markdown` | Update the content / title of an existing window |
 | `close_viewer` | Close one specific window or all windows |
 | `list_viewers` | List all open viewer windows with their IDs and titles |
+| `search_documents` | BM25 full-text search across saved documents (requires MCP auto-save) |
+| `search_projects` | Search or list projects from saved document frontmatter metadata |
 
 ### `open_markdown` parameters
 
@@ -142,6 +145,9 @@ DocuLight exposes **four MCP tools** over both HTTP and stdio transports.
 | `flash` | boolean | `false` | Flash taskbar button to request user attention |
 | `progress` | number (-1 – 1.0) | — | Taskbar progress bar value (`-1` = hide) |
 | `autoCloseSeconds` | integer (1 – 3600) | — | Auto-close window after N seconds |
+| `project` | string | — | Project name for frontmatter metadata |
+| `docName` | string | — | Document name/identifier for frontmatter metadata |
+| `description` | string | — | One-line summary for frontmatter metadata |
 | `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
 
 ### `update_markdown` parameters
@@ -159,7 +165,25 @@ DocuLight exposes **four MCP tools** over both HTTP and stdio transports.
 | `flash` | boolean | `false` | Flash taskbar button |
 | `progress` | number (-1 – 1.0) | — | Update taskbar progress bar |
 | `autoCloseSeconds` | integer (1 – 3600) | — | Reset or set auto-close timer |
+| `project` | string | — | Project name for frontmatter metadata |
+| `docName` | string | — | Document name/identifier for frontmatter metadata |
+| `description` | string | — | One-line summary for frontmatter metadata |
 | `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
+
+### `search_documents` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | **required** | Search query (Korean and English supported) |
+| `limit` | integer (1 – 100) | `20` | Maximum number of results |
+| `project` | string | — | Filter results by project name |
+
+### `search_projects` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | — | Search query for project name/description (omit for full list) |
+| `limit` | integer (1 – 100) | `20` | Maximum number of results |
 
 ### `close_viewer` parameters
 
@@ -324,8 +348,11 @@ DocuLight
 │   ├── window-manager.js  BrowserWindow lifecycle, cascade positions, history
 │   ├── link-parser.js     Directory scanner → sidebar file tree (.md files)
 │   ├── preload.js         contextBridge API (window.doclight)
+│   ├── frontmatter.js     YAML frontmatter injection/parsing utility
+│   ├── search-engine.js   BM25 full-text search engine
+│   ├── tokenizer.js       Korean + English composite tokenizer
 │   ├── mcp-server.mjs     MCP stdio server (for Claude Desktop)
-│   └── mcp-http.mjs       MCP HTTP server embedded in Electron (port 52580)
+│   └── mcp-http.mjs       MCP Streamable HTTP server embedded in Electron
 └── src/renderer/
     ├── viewer.html/js/css  Markdown viewer page
     ├── settings.html/js    Settings UI
@@ -456,7 +483,8 @@ await mcpClient.callTool('open_markdown', {
 
 ## MCP 연동
 
-DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **4개의 MCP 도구**를 제공합니다.
+DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **6개의 MCP 도구**를 제공합니다.
+HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) 전송 프로토콜을 구현합니다 (JSON + SSE 응답, 세션 ID, notification에 `202` 반환).
 
 ### 도구 목록
 
@@ -466,6 +494,8 @@ DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **4개의 MCP 도구**
 | `update_markdown` | 기존 창의 내용 / 제목 업데이트 |
 | `close_viewer` | 특정 창 또는 모든 창 닫기 |
 | `list_viewers` | 열려 있는 모든 뷰어 창과 ID, 제목 나열 |
+| `search_documents` | 저장된 문서에서 BM25 전문 검색 (MCP 자동 저장 필요) |
+| `search_projects` | 저장된 문서의 frontmatter 메타데이터에서 프로젝트 검색 또는 목록 조회 |
 
 ### `open_markdown` 파라미터
 
@@ -483,6 +513,9 @@ DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **4개의 MCP 도구**
 | `flash` | boolean | `false` | 태스크바 버튼 깜빡임으로 사용자 주의 요청 |
 | `progress` | number (-1 – 1.0) | — | 태스크바 진행률 (`-1` = 숨김) |
 | `autoCloseSeconds` | integer (1 – 3600) | — | N초 후 자동 닫힘 |
+| `project` | string | — | frontmatter 메타데이터용 프로젝트 이름 |
+| `docName` | string | — | frontmatter 메타데이터용 문서 이름/식별자 |
+| `description` | string | — | frontmatter 메타데이터용 한 줄 요약 |
 | `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
 
 ### `update_markdown` 파라미터
@@ -500,7 +533,25 @@ DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **4개의 MCP 도구**
 | `flash` | boolean | `false` | 태스크바 버튼 깜빡임 |
 | `progress` | number (-1 – 1.0) | — | 태스크바 진행률 업데이트 |
 | `autoCloseSeconds` | integer (1 – 3600) | — | 자동 닫힘 타이머 재설정 또는 설정 |
+| `project` | string | — | frontmatter 메타데이터용 프로젝트 이름 |
+| `docName` | string | — | frontmatter 메타데이터용 문서 이름/식별자 |
+| `description` | string | — | frontmatter 메타데이터용 한 줄 요약 |
 | `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
+
+### `search_documents` 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | string | **필수** | 검색 쿼리 (한국어, 영어 지원) |
+| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
+| `project` | string | — | 프로젝트 이름으로 필터링 |
+
+### `search_projects` 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | string | — | 프로젝트 이름/설명 검색 쿼리 (생략 시 전체 목록) |
+| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
 
 ### `close_viewer` 파라미터
 
@@ -665,8 +716,11 @@ DocuLight
 │   ├── window-manager.js  BrowserWindow 라이프사이클, 계단식 위치, 히스토리
 │   ├── link-parser.js     디렉토리 스캐너 → 사이드바 파일 트리 (.md 파일)
 │   ├── preload.js         contextBridge API (window.doclight)
+│   ├── frontmatter.js     YAML frontmatter 주입/파싱 유틸리티
+│   ├── search-engine.js   BM25 전문 검색 엔진
+│   ├── tokenizer.js       한국어 + 영어 복합 토크나이저
 │   ├── mcp-server.mjs     MCP stdio 서버 (Claude Desktop용)
-│   └── mcp-http.mjs       Electron에 내장된 MCP HTTP 서버 (포트 52580)
+│   └── mcp-http.mjs       Electron에 내장된 MCP Streamable HTTP 서버
 └── src/renderer/
     ├── viewer.html/js/css  Markdown 뷰어 페이지
     ├── settings.html/js    설정 UI

@@ -15,9 +15,13 @@ import { platform } from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const require = createRequire(import.meta.url);
+const { injectFrontmatter } = require('./frontmatter.js');
 
 // =============================================================================
 // Constants
@@ -323,7 +327,7 @@ const server = new McpServer({
 // ---------------------------------------------------------------------------
 server.tool(
   'open_markdown',
-  'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference.',
+  'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, and description when the context is known to improve document traceability and organization.',
   {
     content:          z.string().optional().describe('Raw Markdown content to display'),
     filePath:         z.string().optional().describe('Absolute path to a .md file to open'),
@@ -336,10 +340,14 @@ server.tool(
     flash:            z.boolean().optional().describe('Flash taskbar button to notify user'),
     progress:         z.number().min(-1).max(1).optional().describe('Taskbar progress bar value (-1 to remove, 0.0–1.0)'),
     autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Auto-close window after N seconds'),
+    project:          z.string().optional().describe('[Recommended] Project or repository name this document belongs to (e.g., "DocuLight", "MyApp"). Used for frontmatter metadata.'),
+    docName:          z.string().optional().describe('[Recommended] Document name or type (e.g., "API Reference", "Bug Report", "Step 20 SRS"). Used for frontmatter metadata.'),
+    description:      z.string().optional().describe('[Recommended] One-line summary of the document purpose and content. STRONGLY RECOMMENDED: Always provide a brief summary for better document organization.'),
     noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
   },
   async ({ content, filePath, title, foreground, size,
-           windowName, severity, tags, flash, progress, autoCloseSeconds, noSave }) => {
+           windowName, severity, tags, flash, progress, autoCloseSeconds,
+           project, docName, description, noSave }) => {
     try {
       // Validation: at least one of content or filePath is required
       if (!content && !filePath) {
@@ -360,11 +368,17 @@ server.tool(
         };
       }
 
+      // Frontmatter injection: prepend YAML metadata if any meta params provided
+      if (content && (project || docName || description)) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
+
       const result = await sendIpcRequest('open_markdown', {
         content, filePath, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
-        windowName, severity, tags, flash, progress, autoCloseSeconds, noSave
+        windowName, severity, tags, flash, progress, autoCloseSeconds, noSave,
+        project, docName, description
       });
 
       if (result.upserted) {
@@ -408,10 +422,14 @@ server.tool(
     flash:            z.boolean().optional().describe('Flash taskbar button'),
     progress:         z.number().min(-1).max(1).optional().describe('Update taskbar progress bar'),
     autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Reset/set auto-close timer'),
+    project:          z.string().optional().describe('[Recommended] Project name for frontmatter metadata'),
+    docName:          z.string().optional().describe('[Recommended] Document name for frontmatter metadata'),
+    description:      z.string().optional().describe('[Recommended] Document description for frontmatter metadata'),
     noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
   },
   async ({ windowId, content, filePath, title, appendMode, separator,
-           severity, tags, flash, progress, autoCloseSeconds, noSave }) => {
+           severity, tags, flash, progress, autoCloseSeconds,
+           project, docName, description, noSave }) => {
     try {
       if (!windowId) {
         return {
@@ -431,9 +449,15 @@ server.tool(
         };
       }
 
+      // Frontmatter injection (skip for appendMode)
+      if (content && !appendMode && (project || docName || description)) {
+        content = injectFrontmatter(content, { project, docName, description });
+      }
+
       const result = await sendIpcRequest('update_markdown', {
         windowId, content, filePath, title, appendMode, separator,
-        severity, tags, flash, progress, autoCloseSeconds, noSave
+        severity, tags, flash, progress, autoCloseSeconds, noSave,
+        project, docName, description
       });
 
       const action = appendMode ? 'Appended to' : 'Updated';
@@ -531,6 +555,80 @@ server.tool(
         content: [{ type: 'text', text: `Error: ${err.message}` }],
         isError: true
       };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: search_documents
+// ---------------------------------------------------------------------------
+server.tool(
+  'search_documents',
+  'Search saved markdown documents using BM25 full-text search. Searches across document body and frontmatter metadata (title, project, description). Requires mcpAutoSave to be enabled with a configured save path.',
+  {
+    query:   z.string().describe('Search query (Korean and English supported)'),
+    limit:   z.number().int().min(1).max(100).default(20).describe('Max results'),
+    project: z.string().optional().describe('Filter by project name')
+  },
+  async ({ query, limit, project }) => {
+    try {
+      const result = await sendIpcRequest('search_documents', { query, limit, project });
+      const results = result.results || [];
+      const totalIndexed = result.totalIndexed || 0;
+
+      if (results.length === 0) {
+        return {
+          content: [{ type: 'text', text: `No results found for "${query}". (${totalIndexed} documents indexed)` }]
+        };
+      }
+
+      const lines = results.map((r, i) =>
+        `${i + 1}. [${r.score}] ${r.title}${r.project ? ` (${r.project})` : ''}\n   ${r.filePath}\n   ${r.snippet || ''}`
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `Found ${results.length} result(s) for "${query}" (${totalIndexed} indexed):\n\n${lines.join('\n\n')}`
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: search_projects
+// ---------------------------------------------------------------------------
+server.tool(
+  'search_projects',
+  'Search or list projects from saved document frontmatter metadata. Returns project names with descriptions and associated document counts. Requires mcpAutoSave to be enabled with a configured save path.',
+  {
+    query: z.string().optional().describe('Search query for project name/description (omit for full list)'),
+    limit: z.number().int().min(1).max(100).default(20).describe('Max results')
+  },
+  async ({ query, limit }) => {
+    try {
+      const result = await sendIpcRequest('search_projects', { query, limit });
+      const projects = result.projects || [];
+
+      if (projects.length === 0) {
+        return {
+          content: [{ type: 'text', text: query ? `No projects found for "${query}".` : 'No projects found.' }]
+        };
+      }
+
+      const lines = projects.map(p =>
+        `- **${p.project}** (${p.documentCount} docs)${p.description ? `: ${p.description}` : ''}`
+      );
+      return {
+        content: [{
+          type: 'text',
+          text: `${query ? `Projects matching "${query}"` : 'All projects'} (${projects.length}):\n\n${lines.join('\n')}`
+        }]
+      };
+    } catch (err) {
+      return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
     }
   }
 );

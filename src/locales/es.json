@@ -118,5 +118,11 @@
   "viewer.findPrev": "Resultado anterior",
   "viewer.findNext": "Siguiente resultado",
   "viewer.findNoResults": "Sin resultados",
-  "viewer.copy": "Copiar"
+  "viewer.copy": "Copiar",
+
+  "viewer.metaboxTitle": "Información del documento",
+  "viewer.metaProject": "Proyecto",
+  "viewer.metaDocName": "Nombre del documento",
+  "viewer.metaDescription": "Descripción",
+  "viewer.metaDate": "Fecha"
 }

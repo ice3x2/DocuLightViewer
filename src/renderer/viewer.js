@@ -287,19 +287,102 @@
     }));
   }
 
+  // === Frontmatter Parser (Step 20) ===
+
+  /**
+   * Extract YAML frontmatter from markdown content.
+   * Returns { meta: object|null, body: string }.
+   */
+  function parseFrontmatter(markdown) {
+    const fmRegex = /^---\r?\n([\s\S]*?\r?\n)?---\r?\n?/;
+    const match = markdown.match(fmRegex);
+    if (!match) {
+      return { meta: null, body: markdown };
+    }
+
+    const yamlContent = match[1] || '';
+    const meta = {};
+
+    for (const line of yamlContent.split(/\r?\n/)) {
+      const m = line.match(/^(\w+)\s*:\s*(.*)$/);
+      if (m) {
+        const key = m[1];
+        let value = m[2].trim();
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        meta[key] = value;
+      }
+    }
+
+    const body = markdown.slice(match[0].length);
+    return { meta, body };
+  }
+
+  /**
+   * Render the frontmatter metabox UI.
+   */
+  function renderMetabox(meta) {
+    const metabox = document.getElementById('frontmatter-metabox');
+    if (!metabox) return;
+
+    if (!meta || Object.keys(meta).length === 0) {
+      metabox.classList.add('hidden');
+      return;
+    }
+
+    metabox.classList.remove('hidden');
+
+    const contentEl = metabox.querySelector('.metabox-content');
+    if (!contentEl) return;
+
+    const fieldLabels = {
+      project: t('viewer.metaProject'),
+      docName: t('viewer.metaDocName'),
+      description: t('viewer.metaDescription'),
+      date: t('viewer.metaDate')
+    };
+
+    let html = '<table class="metabox-table">';
+    for (const [key, value] of Object.entries(meta)) {
+      const label = fieldLabels[key] || key;
+      const escapedValue = escapeHtml(String(value));
+      html += `<tr><td class="metabox-key">${escapeHtml(label)}</td><td class="metabox-value">${escapedValue}</td></tr>`;
+    }
+    html += '</table>';
+
+    contentEl.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   // === Rendering Pipeline ===
   async function renderMarkdown(markdown) {
     const contentEl = document.getElementById('content');
     if (!contentEl) return;
 
+    // Step 0: Extract frontmatter (before markdown parsing)
+    const { meta, body } = parseFrontmatter(markdown);
+    renderMetabox(meta);
+
+    // Use body (without frontmatter) for rendering
+    const renderTarget = body;
+
     // Performance warning for large documents
-    const size = new Blob([markdown]).size;
+    const size = new Blob([renderTarget]).size;
     if (size > 5 * 1024 * 1024) {
       showPerformanceWarning(size);
     }
 
     // Step 1: Parse markdown to HTML
-    const rawHtml = marked.parse(markdown);
+    const rawHtml = marked.parse(renderTarget);
 
     // Step 2: Sanitize with DOMPurify
     // ALLOWED_URI_REGEXP is extended to permit file:// URLs so that local images
@@ -408,11 +491,13 @@
       const tocContainer = document.getElementById('toc-container');
       const resizeHandle = document.getElementById('resize-handle');
       const tabBar = document.getElementById('tab-bar');
+      const metabox = document.getElementById('frontmatter-metabox');
       if (floatingBtns) floatingBtns.style.display = 'none';
       if (sidebarContainer) sidebarContainer.style.display = 'none';
       if (tocContainer) tocContainer.style.display = 'none';
       if (resizeHandle) resizeHandle.style.display = 'none';
       if (tabBar) tabBar.style.display = 'none';
+      if (metabox) metabox.style.display = 'none';
 
       // Wait for Mermaid rendering then signal completion
       setTimeout(() => {
@@ -1871,6 +1956,20 @@
     }
 
     await initI18n();
+
+    // Metabox toggle (collapsible, Step 20)
+    const metaboxToggle = document.querySelector('.metabox-toggle');
+    if (metaboxToggle) {
+      metaboxToggle.addEventListener('click', () => {
+        const metabox = document.getElementById('frontmatter-metabox');
+        if (metabox) {
+          metabox.classList.toggle('collapsed');
+          const isCollapsed = metabox.classList.contains('collapsed');
+          metaboxToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        }
+      });
+    }
+
     const prefs = await loadPanelPrefs();
     if (prefs) {
       savedPrefs = prefs;

@@ -118,5 +118,11 @@
   "viewer.findPrev": "\u524d\u306e\u4e00\u81f4",
   "viewer.findNext": "\u6b21\u306e\u4e00\u81f4",
   "viewer.findNoResults": "\u7d50\u679c\u306a\u3057",
-  "viewer.copy": "\u30b3\u30d4\u30fc"
+  "viewer.copy": "\u30b3\u30d4\u30fc",
+
+  "viewer.metaboxTitle": "\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u60c5\u5831",
+  "viewer.metaProject": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8",
+  "viewer.metaDocName": "\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u540d",
+  "viewer.metaDescription": "\u8aac\u660e",
+  "viewer.metaDate": "\u65e5\u4ed8"
 }
