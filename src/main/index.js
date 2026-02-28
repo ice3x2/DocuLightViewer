@@ -8,6 +8,7 @@ const fs = require('fs');
 const { WindowManager } = require('./window-manager');
 const Store = require('electron-store');
 const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
+const { SearchEngine } = require('./search-engine');
 
 // === CLI locale override ===
 // --flags are consumed by Chromium (--lang) or npm (--locale, --language).
@@ -32,6 +33,9 @@ const PIPE_PATH = process.platform === 'win32'
 const ICON_PATH = process.platform === 'win32'
   ? path.join(__dirname, '..', '..', 'assets', 'icon.ico')
   : path.join(__dirname, '..', '..', 'assets', 'icon.png');
+const TRAY_ICON_PATH = process.platform === 'darwin'
+  ? path.join(__dirname, '..', '..', 'assets', 'tray-iconTemplate.png')
+  : ICON_PATH;
 const MAX_TRAY_ITEMS = 10;
 
 // === Global State ===
@@ -42,6 +46,7 @@ let settingsWin = null;
 let pendingOpenFile = null; // macOS: buffers open-file events before app.isReady()
 let isExporting = false;
 const windowManager = new WindowManager();
+let searchEngine = null; // Initialized after store is created
 
 // =============================================================================
 // File argument helpers
@@ -119,6 +124,9 @@ const store = new Store({
   }
 });
 
+// Initialize search engine after store is ready
+searchEngine = new SearchEngine(store);
+
 // =============================================================================
 // macOS open-file event (fires before app.isReady())
 // =============================================================================
@@ -190,10 +198,17 @@ app.on('ready', async () => {
     });
   }
 
+  // Initialize search engine (background, non-blocking)
+  if (store.get('mcpAutoSave', false) && store.get('mcpAutoSavePath', '')) {
+    searchEngine.initialize().catch(err => {
+      console.error('[doculight] Search engine init error:', err.message);
+    });
+  }
+
   // Start HTTP-based MCP server (ESM module loaded via dynamic import)
   try {
     const { startMcpHttpServer } = await import('./mcp-http.mjs');
-    mcpHttpServer = await startMcpHttpServer(windowManager, store, app.getPath('userData'));
+    mcpHttpServer = await startMcpHttpServer(windowManager, store, app.getPath('userData'), searchEngine);
   } catch (err) {
     console.error('[doculight] Failed to start MCP HTTP server:', err.message);
   }
@@ -262,7 +277,7 @@ app.on('before-quit', () => {
  */
 function createTray() {
   try {
-    const icon = nativeImage.createFromPath(ICON_PATH);
+    const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
     tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
     tray.setToolTip('DocuLight');
     updateTrayMenu();
@@ -658,6 +673,7 @@ async function handleIpcMessage(socket, msg) {
         try {
           const savedPath = await saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave });
           if (savedPath) {
+            searchEngine.markDirty();
             const entry = windowManager.getWindowEntry(result.windowId);
             if (entry) {
               entry.meta.savedFilePath = savedPath;
@@ -682,6 +698,28 @@ async function handleIpcMessage(socket, msg) {
 
       case 'list_viewers':
         result = { windows: windowManager.listWindows({ tag: params?.tag }) };
+        break;
+
+      case 'search_documents':
+        await searchEngine.ensureFresh();
+        result = {
+          results: searchEngine.search(params.query, {
+            limit: params.limit,
+            project: params.project
+          }),
+          totalIndexed: searchEngine.docMeta.size
+        };
+        break;
+
+      case 'search_projects':
+        await searchEngine.ensureFresh();
+        result = {
+          projects: searchEngine.searchProjects(params.query, params.limit)
+        };
+        break;
+
+      case 'rebuild_index':
+        result = await searchEngine.rebuild();
         break;
 
       default:
