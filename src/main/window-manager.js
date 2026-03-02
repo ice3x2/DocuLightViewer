@@ -337,8 +337,11 @@ class WindowManager {
       x,
       y,
       title: displayTitle,
-      icon: path.join(__dirname, '../../assets/icon.png'),
+      icon: process.platform === 'win32'
+        ? path.join(__dirname, '../../assets/icon.ico')
+        : path.join(__dirname, '../../assets/icon.png'),
       show: false, // shown after ready-to-show
+      paintWhenInitiallyHidden: true,
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -987,8 +990,11 @@ class WindowManager {
       x,
       y,
       title: resolvedTitle,
-      icon: path.join(__dirname, '../../assets/icon.png'),
+      icon: process.platform === 'win32'
+        ? path.join(__dirname, '../../assets/icon.ico')
+        : path.join(__dirname, '../../assets/icon.png'),
       show: false,
+      paintWhenInitiallyHidden: true,
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),

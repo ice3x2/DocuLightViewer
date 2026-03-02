@@ -173,6 +173,7 @@ if (!gotTheLock) {
 // App Lifecycle
 // =============================================================================
 app.on('ready', async () => {
+  app.setAppUserModelId('com.doculight.app');
   // Use pre-parsed --lang value from module scope
   initStrings(_langOverride);
   Menu.setApplicationMenu(null);

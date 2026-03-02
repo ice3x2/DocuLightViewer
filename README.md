@@ -103,13 +103,38 @@ and Table of Contents visible.*
 - **Settings UI** — theme, font size, font family, code theme, MCP port, auto-refresh, tabs
 - **MCP auto-save** — MCP-opened files are auto-saved to a configurable path in date-based subdirectories
 
+### Internationalization
+- Supported languages: **English**, **Korean**, **Japanese**, **Spanish**
+- Locale override via CLI arg (`npm run dev -- locale ja`) or `DOCULIGHT_LOCALE` env var
+- Falls back to English when a translation is missing
+
 ### Themes & Appearance
 | Option | Choices |
 |--------|---------|
 | UI Theme | `light`, `dark` |
-| Code Highlight | `github`, `github-dark`, `monokai`, `dracula` |
+| Code Highlight | `github` (auto dark variant in dark mode), `monokai`, `dracula` |
 | Font Size | 8–32 px (default 16) |
 | Font Family | Any CSS font stack |
+| Content Width | Any CSS width value (default `900px`) |
+
+### Settings
+
+All settings are persisted via [electron-store](https://github.com/sindresorhus/electron-store).
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `theme` | `light` | UI color theme (`light` / `dark`) |
+| `fontSize` | `16` | Base font size in pixels (8–32) |
+| `fontFamily` | `system-ui, …` | CSS font stack |
+| `codeTheme` | `github` | Syntax highlight theme |
+| `contentWidth` | `900px` | Content area width |
+| `contentMaxWidth` | `900px` | Content area max width |
+| `mcpPort` | `52580` | HTTP MCP server port (1024–65535) |
+| `defaultWindowSize` | `auto` | Default window size (`auto`/`s`/`m`/`l`/`f`) |
+| `autoRefresh` | `true` | Auto-refresh on file change |
+| `enableTabs` | `false` | Tab-based multi-document view |
+| `mcpAutoSave` | `false` | Auto-save MCP-opened documents to disk |
+| `mcpAutoSavePath` | `""` | Directory for MCP auto-saved files |
 
 ---
 
@@ -344,22 +369,24 @@ Syntax highlighting is powered by [highlight.js](https://highlightjs.org/) and c
 ```
 DocuLight
 ├── src/main/
-│   ├── index.js           Electron main process, IPC hub, app lifecycle
-│   ├── window-manager.js  BrowserWindow lifecycle, cascade positions, history
-│   ├── link-parser.js     Directory scanner → sidebar file tree (.md files)
-│   ├── preload.js         contextBridge API (window.doclight)
-│   ├── frontmatter.js     YAML frontmatter injection/parsing utility
-│   ├── search-engine.js   BM25 full-text search engine
-│   ├── tokenizer.js       Korean + English composite tokenizer
-│   ├── mcp-server.mjs     MCP stdio server (for Claude Desktop)
-│   └── mcp-http.mjs       MCP Streamable HTTP server embedded in Electron
+│   ├── index.js              Electron main process, IPC hub, app lifecycle
+│   ├── window-manager.js     BrowserWindow lifecycle, cascade positions, history
+│   ├── link-parser.js        Directory scanner → sidebar file tree (.md files)
+│   ├── preload.js            contextBridge API (window.doclight)
+│   ├── strings.js            i18n loader (ko, en, ja, es)
+│   ├── frontmatter.js        YAML frontmatter injection/parsing utility
+│   ├── search-engine.js      BM25 full-text search engine
+│   ├── tokenizer.js          Korean + English composite tokenizer
+│   ├── file-association.js   .md file association (Windows, packaged only)
+│   ├── mcp-server.mjs        MCP stdio server (for Claude Desktop)
+│   └── mcp-http.mjs          MCP Streamable HTTP server embedded in Electron
 └── src/renderer/
-    ├── viewer.html/js/css  Markdown viewer page
-    ├── settings.html/js    Settings UI
-    ├── tab-manager.js      Tab-based multi-document view
-    ├── sidebar-search.js   Sidebar fuzzy search/filter
-    ├── pdf-export-ui.js    PDF export modal
-    └── image-resolver.js   Relative image path → file:// URL
+    ├── viewer.html/js/css     Markdown viewer page
+    ├── settings.html/js/css   Settings UI
+    ├── tab-manager.js         Tab-based multi-document view
+    ├── sidebar-search.js      Sidebar fuzzy search/filter
+    ├── pdf-export-ui.js       PDF export modal
+    └── image-resolver.js      Relative image path → file:// URL
 ```
 
 ---
@@ -471,13 +498,38 @@ await mcpClient.callTool('open_markdown', {
 - **설정 UI** — 테마, 폰트 크기, 폰트 패밀리, 코드 테마, MCP 포트, 자동 새로고침, 탭
 - **MCP 자동 저장** — MCP로 열린 파일을 설정 경로에 날짜 기반 폴더 구조로 자동 저장
 
+### 다국어 지원
+- 지원 언어: **한국어**, **영어**, **일본어**, **스페인어**
+- CLI 인자(`npm run dev -- locale ja`) 또는 `DOCULIGHT_LOCALE` 환경 변수로 로케일 변경
+- 번역이 없으면 영어로 폴백
+
 ### 테마 & 외관
 | 옵션 | 선택지 |
 |------|--------|
 | UI 테마 | `light`, `dark` |
-| 코드 강조 | `github`, `github-dark`, `monokai`, `dracula` |
+| 코드 강조 | `github` (다크 모드 시 자동 다크 변형), `monokai`, `dracula` |
 | 폰트 크기 | 8–32 px (기본값 16) |
 | 폰트 패밀리 | 임의의 CSS 폰트 스택 |
+| 콘텐츠 너비 | 임의의 CSS 너비 값 (기본값 `900px`) |
+
+### 설정
+
+모든 설정은 [electron-store](https://github.com/sindresorhus/electron-store)를 통해 저장됩니다.
+
+| 설정 | 기본값 | 설명 |
+|------|--------|------|
+| `theme` | `light` | UI 색상 테마 (`light` / `dark`) |
+| `fontSize` | `16` | 기본 폰트 크기 (8–32 px) |
+| `fontFamily` | `system-ui, …` | CSS 폰트 스택 |
+| `codeTheme` | `github` | 구문 강조 테마 |
+| `contentWidth` | `900px` | 콘텐츠 영역 너비 |
+| `contentMaxWidth` | `900px` | 콘텐츠 영역 최대 너비 |
+| `mcpPort` | `52580` | HTTP MCP 서버 포트 (1024–65535) |
+| `defaultWindowSize` | `auto` | 기본 창 크기 (`auto`/`s`/`m`/`l`/`f`) |
+| `autoRefresh` | `true` | 파일 변경 시 자동 새로고침 |
+| `enableTabs` | `false` | 탭 기반 다중 문서 뷰 |
+| `mcpAutoSave` | `false` | MCP로 열린 문서 자동 저장 |
+| `mcpAutoSavePath` | `""` | MCP 자동 저장 경로 |
 
 ---
 
@@ -712,21 +764,23 @@ npm run dev        # --dev 플래그로 실행
 ```
 DocuLight
 ├── src/main/
-│   ├── index.js           Electron 메인 프로세스, IPC 허브, 앱 라이프사이클
-│   ├── window-manager.js  BrowserWindow 라이프사이클, 계단식 위치, 히스토리
-│   ├── link-parser.js     디렉토리 스캐너 → 사이드바 파일 트리 (.md 파일)
-│   ├── preload.js         contextBridge API (window.doclight)
-│   ├── frontmatter.js     YAML frontmatter 주입/파싱 유틸리티
-│   ├── search-engine.js   BM25 전문 검색 엔진
-│   ├── tokenizer.js       한국어 + 영어 복합 토크나이저
-│   ├── mcp-server.mjs     MCP stdio 서버 (Claude Desktop용)
-│   └── mcp-http.mjs       Electron에 내장된 MCP Streamable HTTP 서버
+│   ├── index.js              Electron 메인 프로세스, IPC 허브, 앱 라이프사이클
+│   ├── window-manager.js     BrowserWindow 라이프사이클, 계단식 위치, 히스토리
+│   ├── link-parser.js        디렉토리 스캐너 → 사이드바 파일 트리 (.md 파일)
+│   ├── preload.js            contextBridge API (window.doclight)
+│   ├── strings.js            i18n 로더 (ko, en, ja, es)
+│   ├── frontmatter.js        YAML frontmatter 주입/파싱 유틸리티
+│   ├── search-engine.js      BM25 전문 검색 엔진
+│   ├── tokenizer.js          한국어 + 영어 복합 토크나이저
+│   ├── file-association.js   .md 파일 연결 (Windows, 패키징 빌드 전용)
+│   ├── mcp-server.mjs        MCP stdio 서버 (Claude Desktop용)
+│   └── mcp-http.mjs          Electron에 내장된 MCP Streamable HTTP 서버
 └── src/renderer/
-    ├── viewer.html/js/css  Markdown 뷰어 페이지
-    ├── settings.html/js    설정 UI
-    ├── tab-manager.js      탭 기반 다중 문서 뷰
-    ├── sidebar-search.js   사이드바 퍼지 검색/필터
-    ├── pdf-export-ui.js    PDF 내보내기 모달
-    └── image-resolver.js   상대 이미지 경로 → file:// URL
+    ├── viewer.html/js/css     Markdown 뷰어 페이지
+    ├── settings.html/js/css   설정 UI
+    ├── tab-manager.js         탭 기반 다중 문서 뷰
+    ├── sidebar-search.js      사이드바 퍼지 검색/필터
+    ├── pdf-export-ui.js       PDF 내보내기 모달
+    └── image-resolver.js      상대 이미지 경로 → file:// URL
 ```
 
