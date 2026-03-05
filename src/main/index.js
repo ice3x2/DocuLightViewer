@@ -803,6 +803,10 @@ function findContentMatches(content, fileName, lowerQuery, queryRegex, maxMatche
 function registerIpcHandlers() {
   // --- Port availability check ---
   ipcMain.handle('check-port-available', async (_event, port) => {
+    if (mcpHttpServer) {
+      const addr = mcpHttpServer.address();
+      if (addr && addr.port === port) return true;
+    }
     return new Promise((resolve) => {
       const srv = net.createServer();
       srv.once('error', () => resolve(false));
