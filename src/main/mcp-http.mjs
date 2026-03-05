@@ -14,7 +14,6 @@ const _require = createRequire(import.meta.url);
 const { injectFrontmatter } = _require('./frontmatter.js');
 const { saveMcpFile } = _require('./mcp-save.js');
 
-const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const PROTOCOL_VERSION = '2025-03-26';
 const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
 
@@ -132,10 +131,6 @@ function createToolHandlers(windowManager, store, searchEngine) {
       if (!content && !filePath) {
         return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
       }
-      if (content && Buffer.byteLength(content, 'utf8') > MAX_BODY_SIZE) {
-        return { isError: true, content: [{ type: 'text', text: 'Content exceeds 10MB limit.' }] };
-      }
-
       // Frontmatter injection
       if (content && (project || docName || description)) {
         content = injectFrontmatter(content, { project, docName, description });
@@ -314,21 +309,12 @@ function jsonrpcError(id, code, message) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    const BODY_TIMEOUT = 30_000; // 30 seconds
-    const timer = setTimeout(() => {
-      req.destroy();
-      reject(new Error('Request body timeout'));
-    }, BODY_TIMEOUT);
-
     const chunks = [];
-    let size = 0;
     req.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_SIZE) { clearTimeout(timer); req.destroy(); reject(new Error('Body too large')); return; }
       chunks.push(chunk);
     });
-    req.on('end', () => { clearTimeout(timer); resolve(Buffer.concat(chunks).toString('utf8')); });
-    req.on('error', (err) => { clearTimeout(timer); reject(err); });
+    req.on('end', () => { resolve(Buffer.concat(chunks).toString('utf8')); });
+    req.on('error', (err) => { reject(err); });
   });
 }
 
@@ -406,8 +392,6 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
   const basePort = store.get('mcpPort') || 32580;
   const handlers = createToolHandlers(windowManager, store, searchEngine);
 
-  const MAX_SSE_CONNECTIONS = 5;
-  let sseConnectionCount = 0;
   const activeSSEConnections = new Set();
 
   const httpServer = http.createServer(async (req, res) => {
@@ -439,17 +423,6 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
     // Claude Code HTTP transport requires this endpoint to be available.
     // DocuLight has no server-initiated messages, so the stream stays open silently.
     if (url.pathname === '/mcp' && req.method === 'GET') {
-      // SSE connection limit
-      if (sseConnectionCount >= MAX_SSE_CONNECTIONS) {
-        res.writeHead(503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          jsonrpc: '2.0',
-          error: { code: -32603, message: 'Too many SSE connections' },
-          id: null
-        }));
-        return;
-      }
-      sseConnectionCount++;
       activeSSEConnections.add(res);
 
       res.writeHead(200, {
@@ -463,7 +436,6 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
       }, 15000);
       req.on('close', () => {
         clearInterval(keepAlive);
-        sseConnectionCount--;
         activeSSEConnections.delete(res);
       });
       return;
@@ -629,7 +601,6 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
       try { sseRes.end(); } catch { /* ignore */ }
     }
     activeSSEConnections.clear();
-    sseConnectionCount = 0;
     httpServer.close();
   };
 
