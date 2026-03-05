@@ -12,87 +12,11 @@ import { createRequire } from 'node:module';
 
 const _require = createRequire(import.meta.url);
 const { injectFrontmatter } = _require('./frontmatter.js');
+const { saveMcpFile } = _require('./mcp-save.js');
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const PROTOCOL_VERSION = '2025-03-26';
 const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
-
-// ============================================================================
-// MCP Auto-Save Helpers
-// ============================================================================
-
-function sanitizeFilenameWithUrlEncode(str) {
-  const ENCODE_MAP = {
-    '<': '%3C', '>': '%3E', ':': '%3A', '"': '%22',
-    '/': '%2F', '\\': '%5C', '|': '%7C', '?': '%3F', '*': '%2A'
-  };
-  return str.replace(/[<>:"/\\|?*\x00-\x1f]/g, c => ENCODE_MAP[c] || encodeURIComponent(c));
-}
-
-function extractTitleFromContent(content) {
-  if (!content) return null;
-  const lines = content.split(/\r?\n/);
-  for (const line of lines) {
-    const m = line.match(/^#{1,6}\s+(.+)/);
-    if (m) return m[1].trim();
-  }
-  for (const line of lines) {
-    const t = line.trim();
-    if (t) return t.slice(0, 50);
-  }
-  return null;
-}
-
-async function saveMcpFile({ content, filePath, title, noSave }, store) {
-  if (noSave === true) return null;
-  const enabled = store.get('mcpAutoSave', false);
-  const savePath = store.get('mcpAutoSavePath', '');
-  if (!enabled || !savePath) return null;
-
-  const now = new Date();
-  const dateFolder = [
-    String(now.getFullYear()),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0')
-  ].join('-');
-  const ts = [
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0')
-  ].join('');
-
-  let fileName;
-  if (filePath) {
-    fileName = `${ts}_${path.basename(filePath)}`;
-  } else {
-    let nameCore = null;
-    if (title) {
-      nameCore = sanitizeFilenameWithUrlEncode(title.trim());
-    } else {
-      const extracted = extractTitleFromContent(content);
-      if (extracted) {
-        nameCore = sanitizeFilenameWithUrlEncode(extracted);
-      }
-    }
-    fileName = nameCore ? `${ts}_${nameCore}.md` : `${ts}.md`;
-  }
-
-  const dateFolderPath = path.join(savePath, dateFolder);
-  const destPath = path.join(dateFolderPath, fileName);
-  try {
-    await fs.promises.mkdir(dateFolderPath, { recursive: true });
-    if (filePath) {
-      await fs.promises.copyFile(filePath, destPath);
-    } else {
-      await fs.promises.writeFile(destPath, content || '', 'utf-8');
-    }
-    console.log(`[doculight] MCP auto-save: ${destPath}`);
-    return destPath;
-  } catch (err) {
-    console.error(`[doculight] MCP auto-save failed: ${err.message}`);
-    return null;
-  }
-}
 
 // ============================================================================
 // Tool definitions (MCP tools/list format)
@@ -227,7 +151,7 @@ function createToolHandlers(windowManager, store, searchEngine) {
 
       let savedPath = null;
       try {
-        savedPath = await saveMcpFile({ content, filePath, title, noSave }, store);
+        savedPath = await saveMcpFile(store, { content, filePath, title, noSave });
         if (savedPath && searchEngine) searchEngine.markDirty();
       } catch (err) {
         console.error('[doculight] MCP auto-save error:', err.message);
@@ -390,15 +314,21 @@ function jsonrpcError(id, code, message) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
+    const BODY_TIMEOUT = 30_000; // 30 seconds
+    const timer = setTimeout(() => {
+      req.destroy();
+      reject(new Error('Request body timeout'));
+    }, BODY_TIMEOUT);
+
     const chunks = [];
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY_SIZE) { req.destroy(); reject(new Error('Body too large')); return; }
+      if (size > MAX_BODY_SIZE) { clearTimeout(timer); req.destroy(); reject(new Error('Body too large')); return; }
       chunks.push(chunk);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
+    req.on('end', () => { clearTimeout(timer); resolve(Buffer.concat(chunks).toString('utf8')); });
+    req.on('error', (err) => { clearTimeout(timer); reject(err); });
   });
 }
 
@@ -473,14 +403,29 @@ async function handleJsonRpc(msg, handlers) {
  * @returns {Promise<http.Server>}
  */
 export async function startMcpHttpServer(windowManager, store, userDataPath, searchEngine) {
-  const basePort = store.get('mcpPort') || 52580;
+  const basePort = store.get('mcpPort') || 32580;
   const handlers = createToolHandlers(windowManager, store, searchEngine);
 
+  const MAX_SSE_CONNECTIONS = 5;
+  let sseConnectionCount = 0;
+  const activeSSEConnections = new Set();
+
   const httpServer = http.createServer(async (req, res) => {
-    // CORS preflight
+    // Block browser requests (Origin header present = browser)
+    const origin = req.headers['origin'];
+    if (origin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32600, message: 'Browser requests are not allowed' },
+        id: null
+      }));
+      return;
+    }
+
+    // CORS preflight (kept minimal for non-browser clients that may send OPTIONS)
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Session-Id'
       });
@@ -494,27 +439,40 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
     // Claude Code HTTP transport requires this endpoint to be available.
     // DocuLight has no server-initiated messages, so the stream stays open silently.
     if (url.pathname === '/mcp' && req.method === 'GET') {
+      // SSE connection limit
+      if (sseConnectionCount >= MAX_SSE_CONNECTIONS) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Too many SSE connections' },
+          id: null
+        }));
+        return;
+      }
+      sseConnectionCount++;
+      activeSSEConnections.add(res);
+
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*'
+        'Connection': 'keep-alive'
       });
-      // Flush headers immediately so clients can detect the SSE connection
       res.write(': ok\n\n');
-      // Send a comment every 15 s to prevent proxies from closing the connection
       const keepAlive = setInterval(() => {
         if (!res.writableEnded) res.write(': keep-alive\n\n');
       }, 15000);
-      req.on('close', () => clearInterval(keepAlive));
+      req.on('close', () => {
+        clearInterval(keepAlive);
+        sseConnectionCount--;
+        activeSSEConnections.delete(res);
+      });
       return;
     }
 
     // DELETE /mcp — session termination (stateless: just acknowledge)
     if (url.pathname === '/mcp' && req.method === 'DELETE') {
       res.writeHead(405, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': 'application/json'
       });
       res.end(JSON.stringify({ error: 'Session termination not supported (stateless server)' }));
       return;
@@ -557,7 +515,7 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
 
       // If no requests (only notifications), return 202 Accepted with empty body
       if (!hasRequest) {
-        res.writeHead(202, { 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(202);
         res.end();
         return;
       }
@@ -568,8 +526,7 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
 
       // Build response headers
       const resHeaders = {
-        'Content-Type': wantsSSE ? 'text/event-stream' : 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Content-Type': wantsSSE ? 'text/event-stream' : 'application/json'
       };
       if (wantsSSE) {
         resHeaders['Cache-Control'] = 'no-cache';
@@ -606,16 +563,23 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
   // Port binding helper
   function tryListen(port) {
     return new Promise((resolve, reject) => {
-      httpServer.once('error', reject);
+      const onError = (err) => reject(err);
+      httpServer.once('error', onError);
       httpServer.listen(port, '127.0.0.1', () => {
-        httpServer.removeListener('error', reject);
+        httpServer.removeListener('error', onError);
         resolve(port);
       });
     });
   }
 
+  // Prevent MaxListenersExceeded warning when probing many ports
+  const originalMaxListeners = httpServer.getMaxListeners();
+  httpServer.setMaxListeners(0);
+
   // Port discovery: basePort → up to 65535, then basePort-1 → down to 1024
   let boundPort;
+
+  const RETRIABLE_CODES = new Set(['EADDRINUSE', 'EACCES', 'EPERM']);
 
   // Phase 1: basePort upward
   for (let p = basePort; p <= 65535; p++) {
@@ -623,7 +587,7 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
       boundPort = await tryListen(p);
       break;
     } catch (err) {
-      if (err.code !== 'EADDRINUSE') throw err;
+      if (!RETRIABLE_CODES.has(err.code)) throw err;
     }
   }
 
@@ -634,18 +598,23 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
         boundPort = await tryListen(p);
         break;
       } catch (err) {
-        if (err.code !== 'EADDRINUSE') throw err;
+        if (!RETRIABLE_CODES.has(err.code)) throw err;
       }
     }
   }
 
   if (!boundPort) throw new Error('No available port found (1024-65535)');
 
-  // Write port discovery file
+  // Restore original maxListeners after port discovery
+  httpServer.setMaxListeners(originalMaxListeners);
+
+  // Write port discovery file (atomic: write .tmp then rename)
   if (userDataPath) {
     try {
       const portFilePath = path.join(userDataPath, 'mcp-port');
-      fs.writeFileSync(portFilePath, String(boundPort), 'utf-8');
+      const tmpPath = portFilePath + '.tmp';
+      fs.writeFileSync(tmpPath, String(boundPort), 'utf-8');
+      fs.renameSync(tmpPath, portFilePath);
       console.log(`[doculight] Port discovery file written: ${portFilePath}`);
     } catch (err) {
       console.error('[doculight] Failed to write port file:', err.message);
@@ -653,5 +622,16 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
   }
 
   console.log(`[doculight] MCP HTTP server listening on http://127.0.0.1:${boundPort}/mcp`);
+
+  // Return server with close helper that cleans up SSE connections
+  httpServer._mcpClose = () => {
+    for (const sseRes of activeSSEConnections) {
+      try { sseRes.end(); } catch { /* ignore */ }
+    }
+    activeSSEConnections.clear();
+    sseConnectionCount = 0;
+    httpServer.close();
+  };
+
   return httpServer;
 }

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // src/main/mcp-server.mjs — MCP Bridge Process (stdio <-> IPC Socket)
 // Runs as a separate process from Electron. Communicates with the Electron
 // main process via Named Pipe (Windows) / Unix Domain Socket.
@@ -15,13 +16,10 @@ import { platform } from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { injectFrontmatter } from './frontmatter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const require = createRequire(import.meta.url);
-const { injectFrontmatter } = require('./frontmatter.js');
 
 // =============================================================================
 // Constants
@@ -33,7 +31,7 @@ const PIPE_PATH = platform() === 'win32'
 
 const IPC_TIMEOUT = 10_000;        // 10 seconds per request
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024;  // 10 MB
-const MAX_RETRIES = 10;
+const MAX_RETRIES = 20;
 const RETRY_INTERVAL = 500;        // ms between connection retries
 const SHUTDOWN_GRACE = 5_000;      // max wait for pending requests on shutdown
 
@@ -85,11 +83,21 @@ function tryConnect() {
  * If the socket is not available, attempts to auto-launch the Electron app
  * and retries up to MAX_RETRIES times.
  */
+let _connectPromise = null;
+
 async function connectToElectron() {
   // If already connected, do nothing
   if (ipcSocket && !ipcSocket.destroyed) {
     return;
   }
+  // Deduplicate concurrent connection attempts (FR-4-002)
+  if (_connectPromise) return _connectPromise;
+  _connectPromise = _doConnect().finally(() => { _connectPromise = null; });
+  return _connectPromise;
+}
+
+async function _doConnect() {
+  if (ipcSocket && !ipcSocket.destroyed) return;
 
   // First attempt: try direct connection
   try {
@@ -214,7 +222,7 @@ function spawnDetached(command, args) {
  * @param {object} params  - Action parameters
  * @returns {Promise<object>} Resolved with the result from Electron
  */
-async function sendIpcRequest(action, params) {
+async function sendIpcRequest(action, params, _retried = false) {
   // Ensure we have a live connection
   if (!ipcSocket || ipcSocket.destroyed) {
     await connectToElectron();
@@ -235,10 +243,21 @@ async function sendIpcRequest(action, params) {
     const payload = JSON.stringify({ id, action, params }) + '\n';
 
     try {
-      ipcSocket.write(payload);
+      const ok = ipcSocket.write(payload);
+      if (!ok && !_retried) {
+        // Buffer full: retry once after reconnect
+        pendingRequests.delete(id);
+        clearTimeout(timer);
+        ipcSocket = null;
+        return sendIpcRequest(action, params, true).then(resolve, reject);
+      }
     } catch (err) {
       clearTimeout(timer);
       pendingRequests.delete(id);
+      if (!_retried) {
+        ipcSocket = null;
+        return sendIpcRequest(action, params, true).then(resolve, reject);
+      }
       reject(new Error(`Failed to write to IPC socket: ${err.message}`));
     }
   });

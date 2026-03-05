@@ -1,6 +1,6 @@
 {
   "name": "doculight",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "description": "Lightweight Markdown Document Viewer & Manager — Electron + MCP",
   "main": "src/main/index.js",
   "bin": {
@@ -10,6 +10,11 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "mcp": "node src/main/mcp-server.mjs",
+    "bundle:mcp": "esbuild src/main/mcp-server.mjs --bundle --platform=node --target=node20 --format=esm --outfile=src/main/mcp-server.bundle.mjs",
+    "prebuild": "npm run bundle:mcp",
+    "prebuild:win": "npm run bundle:mcp",
+    "prebuild:mac": "npm run bundle:mcp",
+    "prebuild:linux": "npm run bundle:mcp",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -28,12 +33,14 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "electron-store": "^8.2.0",
     "pdf-lib": "^1.17.1",
-    "wink-bm25-text-search": "^3.1.2"
+    "wink-bm25-text-search": "^3.1.2",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "electron": "^33.4.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.0"
   },
   "engines": {
     "node": ">=20.0.0"

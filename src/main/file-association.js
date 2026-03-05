@@ -251,7 +251,12 @@ async function linuxRegister() {
   const executablePath = process.env.APPIMAGE || process.execPath;
 
   // Build .desktop file content
-  const iconPath = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+  let iconPath;
+  if (app.isPackaged) {
+    iconPath = path.join(process.resourcesPath, 'icon.png');
+  } else {
+    iconPath = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+  }
   const escapedPath = linuxEscapeExecPath(executablePath);
 
   const content = [

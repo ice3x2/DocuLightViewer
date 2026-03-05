@@ -52,7 +52,7 @@
     contentWidth: '900px',
     contentMaxWidth: '900px',
     codeTheme: 'github',
-    mcpPort: 52580,
+    mcpPort: 32580,
     defaultWindowSize: 'auto',
     autoRefresh: true,
     enableTabs: false,
@@ -62,7 +62,7 @@
 
   const VALIDATION = {
     fontSize: { min: 8, max: 32 },
-    mcpPort: { min: 1024, max: 65535 }
+    mcpPort: { min: 1, max: 65535 }
   };
 
   // DOM elements
@@ -224,12 +224,43 @@
     return values;
   }
 
-  // MCP port input → update address live
+  // MCP port input → update address live + availability check
+  const mcpPortStatusEl = document.getElementById('mcp-port-status');
+  let portCheckTimer = null;
+
+  async function checkPortStatus(port) {
+    try {
+      const available = await window.doclight.checkPortAvailable(port);
+      if (mcpPortStatusEl) {
+        mcpPortStatusEl.textContent = available
+          ? t('settings.portAvailable')
+          : t('settings.portUnavailable');
+        mcpPortStatusEl.className = 'hint ' + (available ? 'port-available' : 'port-unavailable');
+      }
+    } catch (err) {
+      console.error('Port check failed:', err);
+    }
+  }
+
   fields.mcpPort.addEventListener('input', () => {
     const port = parseInt(fields.mcpPort.value, 10);
-    if (!isNaN(port) && port >= 1024 && port <= 65535) {
-      updateMcpAddress(port);
+    if (fields.mcpPort.value.trim() === '') {
+      if (mcpPortStatusEl) {
+        mcpPortStatusEl.textContent = t('settings.portEmpty');
+        mcpPortStatusEl.className = 'hint port-unavailable';
+      }
+      return;
     }
+    if (isNaN(port) || port < 1 || port > 65535) {
+      if (mcpPortStatusEl) {
+        mcpPortStatusEl.textContent = t('settings.portInvalidRange');
+        mcpPortStatusEl.className = 'hint port-unavailable';
+      }
+      return;
+    }
+    updateMcpAddress(port);
+    if (portCheckTimer) clearTimeout(portCheckTimer);
+    portCheckTimer = setTimeout(() => checkPortStatus(port), 300);
   });
 
   // MCP address click → copy to clipboard
@@ -381,7 +412,12 @@
   document.addEventListener('DOMContentLoaded', async () => {
     await initI18n();
     document.title = t('settings.pageTitle');
-    loadSettings();
+    await loadSettings();
     initFileAssociation();
+    // Check port availability immediately on load
+    const initialPort = parseInt(fields.mcpPort.value, 10);
+    if (!isNaN(initialPort) && initialPort >= 1024 && initialPort <= 65535) {
+      checkPortStatus(initialPort);
+    }
   });
 })();

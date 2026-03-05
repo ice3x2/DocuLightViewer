@@ -103,6 +103,9 @@ contextBridge.exposeInMainWorld('doclight', {
   // Resolve real file path from a dropped File object (sandbox-safe)
   getFilePath: (file) => webUtils.getPathForFile(file),
 
+  // Port availability check
+  checkPortAvailable: (port) => ipcRenderer.invoke('check-port-available', port),
+
   // Settings (Phase 6)
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

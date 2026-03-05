@@ -268,6 +268,7 @@ claude mcp add --transport http doclight http://localhost:52580/mcp
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or
 `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
+**Running from source:**
 ```json
 {
   "mcpServers": {
@@ -278,6 +279,27 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   }
 }
 ```
+
+**Packaged (installed) app:**
+```json
+{
+  "mcpServers": {
+    "doculight": {
+      "command": "node",
+      "args": ["<path-to-mcp-server>"]
+    }
+  }
+}
+```
+
+| Platform | `<path-to-mcp-server>` |
+|----------|------------------------|
+| Windows | `C:/Users/<USER>/AppData/Local/Programs/doculight/resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+| macOS | `/Applications/DocuLight.app/Contents/Resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+| Linux (deb) | `/opt/DocuLight/resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+
+> **AppImage users**: The MCP stdio path changes on each launch. Use HTTP transport instead:
+> `claude mcp add --transport http doclight http://localhost:52580/mcp`
 
 ### Quick test via curl
 
@@ -663,6 +685,7 @@ claude mcp add --transport http doclight http://localhost:52580/mcp
 macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
+**소스에서 실행하는 경우:**
 ```json
 {
   "mcpServers": {
@@ -673,6 +696,26 @@ Windows: `%APPDATA%\Claude\claude_desktop_config.json`
   }
 }
 ```
+
+**패키징(설치) 앱 사용 시:**
+```json
+{
+  "mcpServers": {
+    "doculight": {
+      "command": "node",
+      "args": ["<mcp-server-경로>"]
+    }
+  }
+}
+```
+
+| 플랫폼 | `<mcp-server-경로>` |
+|--------|----------------------|
+| Windows | `C:/Users/<USER>/AppData/Local/Programs/doculight/resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+| macOS | `/Applications/DocuLight.app/Contents/Resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+| Linux (deb) | `/opt/DocuLight/resources/app.asar.unpacked/src/main/mcp-server.bundle.mjs` |
+
+> **AppImage 사용자:** AppImage는 읽기 전용 파일시스템으로 stdio 전송이 작동하지 않습니다. 대신 HTTP 전송 (`http://localhost:52580/mcp`)을 사용하세요.
 
 ### curl로 빠른 테스트
 

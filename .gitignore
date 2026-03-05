@@ -55,6 +55,9 @@ tmpclaude-*-cwd
 # OMC state
 .omc/
 
+# esbuild bundle output
+src/main/mcp-server.bundle.mjs
+
 # Build output
 dist/
 

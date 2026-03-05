@@ -18,6 +18,7 @@ class SearchEngine {
     this.docMeta = new Map(); // docId → { title, project, docName, description, date, snippet }
     this.dirty = false;
     this.initialized = false;
+    this._rebuildPromise = null;
   }
 
   // ─── Initialization ──────────────────────────────────────
@@ -38,9 +39,10 @@ class SearchEngine {
       }
       this.initialized = true;
     } catch (err) {
-      console.error('[doculight] Search index init failed:', err.message);
+      console.warn('[doculight] Search index load failed, will rebuild:', err.message);
       this._createFreshEngine();
       this.initialized = true;
+      this.dirty = true;  // trigger auto-rebuild on next ensureFresh()
     }
   }
 
@@ -53,15 +55,27 @@ class SearchEngine {
     const savePath = this.store.get('mcpAutoSavePath', '');
     if (!savePath) throw new Error('mcpAutoSavePath not configured');
 
+    // Set dirty=false at start; if markDirty() is called during rebuild,
+    // it will set dirty=true again, triggering another rebuild next time
+    this.dirty = false;
+
     this._createFreshEngine();
 
     const mdFiles = await this._scanMarkdownFiles(savePath);
-    for (const filePath of mdFiles) {
-      try {
-        const content = await fs.promises.readFile(filePath, 'utf-8');
-        this._indexDocument(filePath, content);
-      } catch (err) {
-        console.error(`[doculight] Failed to index ${filePath}:`, err.message);
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < mdFiles.length; i += BATCH_SIZE) {
+      const batch = mdFiles.slice(i, i + BATCH_SIZE);
+      const contents = await Promise.all(
+        batch.map(f => fs.promises.readFile(f, 'utf-8').catch(() => null))
+      );
+      for (let j = 0; j < batch.length; j++) {
+        if (contents[j]) {
+          try {
+            this._indexDocument(batch[j], contents[j]);
+          } catch (err) {
+            console.error(`[doculight] Failed to index ${batch[j]}:`, err.message);
+          }
+        }
       }
     }
 
@@ -69,7 +83,6 @@ class SearchEngine {
     if (mdFiles.length >= MIN_DOCS_FOR_CONSOLIDATE) {
       this.engine.consolidate();
     }
-    this.dirty = false;
     this.initialized = true;
 
     // Save index
@@ -182,7 +195,13 @@ class SearchEngine {
 
   async ensureFresh() {
     if (this.dirty || !this.initialized) {
-      await this.rebuild();
+      if (this._rebuildPromise) {
+        return this._rebuildPromise;
+      }
+      this._rebuildPromise = this.rebuild().finally(() => {
+        this._rebuildPromise = null;
+      });
+      return this._rebuildPromise;
     }
   }
 
@@ -283,7 +302,12 @@ class SearchEngine {
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
-  async _scanMarkdownFiles(dirPath) {
+  async _scanMarkdownFiles(dirPath, depth = 0) {
+    const MAX_SCAN_DEPTH = 10;
+    if (depth >= MAX_SCAN_DEPTH) {
+      console.warn(`[doculight] Scan depth limit (${MAX_SCAN_DEPTH}) reached at: ${dirPath}`);
+      return [];
+    }
     const results = [];
     let entries;
     try {
@@ -295,7 +319,7 @@ class SearchEngine {
       if (entry.name.startsWith('.')) continue;
       const fullPath = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
-        const sub = await this._scanMarkdownFiles(fullPath);
+        const sub = await this._scanMarkdownFiles(fullPath, depth + 1);
         results.push(...sub);
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
         results.push(fullPath);

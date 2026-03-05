@@ -15,6 +15,13 @@ files:
   - assets/**/*
   - package.json
 
+asarUnpack:
+  - "src/main/mcp-server.bundle.mjs"
+
+extraResources:
+  - from: "assets/icon.png"
+    to: "icon.png"
+
 fileAssociations:
   - ext: md
     name: Markdown Document
@@ -27,6 +34,7 @@ win:
     - target: nsis
       arch:
         - x64
+        - arm64
     - target: portable
       arch:
         - x64
@@ -38,7 +46,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  artifactName: DocuLight-Setup-${version}.${ext}
+  artifactName: DocuLight-Setup-${version}-${arch}.${ext}
 
 portable:
   artifactName: DocuLight-Portable-${version}.${ext}
@@ -51,6 +59,10 @@ mac:
         - arm64
   icon: assets/icon.png
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   artifactName: DocuLight-${version}-${arch}.dmg
 
 linux:
@@ -58,12 +70,14 @@ linux:
     - target: AppImage
       arch:
         - x64
+        - arm64
     - target: deb
       arch:
         - x64
+        - arm64
   icon: assets/icon.png
   category: Development
-  artifactName: DocuLight-${version}.${ext}
+  artifactName: DocuLight-${version}-${arch}.${ext}
   mimeTypes:
     - text/markdown
     - text/x-markdown

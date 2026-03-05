@@ -101,6 +101,9 @@ class WindowManager {
 
     /** Named window map: windowName → windowId (FR-19-001) */
     this.nameToId = new Map();
+
+    /** Pending named window creations to prevent race conditions (FR-4-001) */
+    this._pendingNames = new Set();
   }
 
   /**
@@ -267,16 +270,37 @@ class WindowManager {
             project, docName, description } = opts;
     let { content, filePath } = opts;
 
-    // --- Named window upsert (FR-19-001) -----------------------------------
+    // --- Named window upsert (FR-19-001 + FR-4-001 race guard) -------------
     if (windowName) {
       const existing = this.getWindowByName(windowName);
       if (existing) {
-        // Update the existing window and return its id
         const updateResult = await this.updateWindow(existing.meta.windowId, opts);
         return { windowId: existing.meta.windowId, title: updateResult.title, upserted: true, windowName };
       }
+
+      // Wait if another concurrent call is creating the same named window
+      if (this._pendingNames.has(windowName)) {
+        const PENDING_TIMEOUT = 5000;
+        const start = Date.now();
+        await new Promise((resolve, reject) => {
+          const check = () => {
+            if (!this._pendingNames.has(windowName)) return resolve();
+            if (Date.now() - start > PENDING_TIMEOUT) {
+              return reject(new Error(`Timed out waiting for windowName "${windowName}"`));
+            }
+            setTimeout(check, 50);
+          };
+          setTimeout(check, 50);
+        });
+        // Retry: the window should now exist
+        return this.createWindow(opts);
+      }
+
+      // Acquire name lock
+      this._pendingNames.add(windowName);
     }
 
+    try {
     // --- Validate inputs ---------------------------------------------------
     if (!content && !filePath) {
       throw new Error(t('error.contentRequired'));
@@ -387,9 +411,10 @@ class WindowManager {
       }
     });
 
-    // Register named window
+    // Register named window and release pending lock
     if (windowName) {
       this.nameToId.set(windowName, windowId);
+      this._pendingNames.delete(windowName);
     }
 
     // --- Lifecycle events --------------------------------------------------
@@ -457,6 +482,11 @@ class WindowManager {
         autoCloseSeconds: autoCloseSeconds || null
       });
     });
+    } catch (err) {
+      // Release pending name lock on error (FR-4-001)
+      if (windowName) this._pendingNames.delete(windowName);
+      throw err;
+    }
   }
 
   // -----------------------------------------------------------------------

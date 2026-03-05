@@ -95,7 +95,7 @@ const store = new Store({
     fontSize: { type: 'number', minimum: 8, maximum: 32, default: 16 },
     fontFamily: { type: 'string', minLength: 1, default: 'system-ui, -apple-system, sans-serif' },
     codeTheme: { type: 'string', default: 'github' },
-    mcpPort: { type: 'number', minimum: 1024, maximum: 65535, default: 52580 },
+    mcpPort: { type: 'number', minimum: 1, maximum: 65535, default: 32580 },
     defaultWindowSize: {
       type: 'string',
       enum: ['auto', 's', 'm', 'l', 'f'],
@@ -278,7 +278,10 @@ app.on('before-quit', () => {
  */
 function createTray() {
   try {
-    const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
+    let icon = nativeImage.createFromPath(TRAY_ICON_PATH);
+    if (process.platform === 'darwin' && !icon.isEmpty()) {
+      icon = icon.resize({ width: 16, height: 16 });
+    }
     tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
     tray.setToolTip('DocuLight');
     updateTrayMenu();
@@ -580,81 +583,10 @@ function startIpcServer() {
 }
 
 // =============================================================================
-// MCP Auto-Save Helpers
+// MCP Auto-Save (shared module)
 // =============================================================================
 
-function sanitizeFilenameWithUrlEncode(str) {
-  const ENCODE_MAP = {
-    '<': '%3C', '>': '%3E', ':': '%3A', '"': '%22',
-    '/': '%2F', '\\': '%5C', '|': '%7C', '?': '%3F', '*': '%2A'
-  };
-  return str.replace(/[<>:"/\\|?*\x00-\x1f]/g, c => ENCODE_MAP[c] || encodeURIComponent(c));
-}
-
-function extractTitleFromContent(content) {
-  if (!content) return null;
-  const lines = content.split(/\r?\n/);
-  for (const line of lines) {
-    const m = line.match(/^#{1,6}\s+(.+)/);
-    if (m) return m[1].trim();
-  }
-  for (const line of lines) {
-    const t = line.trim();
-    if (t) return t.slice(0, 50);
-  }
-  return null;
-}
-
-async function saveMcpFile({ content, filePath, title, noSave }) {
-  if (noSave === true) return null;
-  const enabled = store.get('mcpAutoSave', false);
-  const savePath = store.get('mcpAutoSavePath', '');
-  if (!enabled || !savePath) return null;
-
-  const now = new Date();
-  const dateFolder = [
-    String(now.getFullYear()),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0')
-  ].join('-');
-  const ts = [
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0')
-  ].join('');
-
-  let fileName;
-  if (filePath) {
-    fileName = `${ts}_${path.basename(filePath)}`;
-  } else {
-    let nameCore = null;
-    if (title) {
-      nameCore = sanitizeFilenameWithUrlEncode(title.trim());
-    } else {
-      const extracted = extractTitleFromContent(content);
-      if (extracted) {
-        nameCore = sanitizeFilenameWithUrlEncode(extracted);
-      }
-    }
-    fileName = nameCore ? `${ts}_${nameCore}.md` : `${ts}.md`;
-  }
-
-  const dateFolderPath = path.join(savePath, dateFolder);
-  const destPath = path.join(dateFolderPath, fileName);
-  try {
-    await fs.promises.mkdir(dateFolderPath, { recursive: true });
-    if (filePath) {
-      await fs.promises.copyFile(filePath, destPath);
-    } else {
-      await fs.promises.writeFile(destPath, content || '', 'utf-8');
-    }
-    console.log(`[doculight] MCP auto-save: ${destPath}`);
-    return destPath;
-  } catch (err) {
-    console.error(`[doculight] MCP auto-save failed: ${err.message}`);
-    return null;
-  }
-}
+const { saveMcpFile } = require('./mcp-save');
 
 /**
  * Route an incoming IPC message to the appropriate WindowManager method.
@@ -672,7 +604,7 @@ async function handleIpcMessage(socket, msg) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
         try {
-          const savedPath = await saveMcpFile({ content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave });
+          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave });
           if (savedPath) {
             searchEngine.markDirty();
             const entry = windowManager.getWindowEntry(result.windowId);
@@ -691,6 +623,34 @@ async function handleIpcMessage(socket, msg) {
 
       case 'update_markdown':
         result = await windowManager.updateWindow(params.windowId, params);
+        // Auto-save updated content (issue #6)
+        try {
+          const entry = windowManager.getWindowEntry(params.windowId);
+          if (entry && params.noSave !== true) {
+            const content = params.content || entry.meta.lastRenderedContent;
+            if (content && entry.meta.savedFilePath) {
+              // Overwrite existing saved file
+              const enabled = store.get('mcpAutoSave', false);
+              if (enabled) {
+                await fs.promises.writeFile(entry.meta.savedFilePath, content, 'utf-8');
+                searchEngine.markDirty();
+              }
+            } else if (content) {
+              // No existing saved file — create new via saveMcpFile
+              const savedPath = await saveMcpFile(store, {
+                content,
+                title: params.title || entry.meta.title,
+                noSave: params.noSave
+              });
+              if (savedPath) {
+                entry.meta.savedFilePath = savedPath;
+                searchEngine.markDirty();
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[doculight] update auto-save error:', e.message);
+        }
         break;
 
       case 'close_viewer':
@@ -841,6 +801,17 @@ function findContentMatches(content, fileName, lowerQuery, queryRegex, maxMatche
 // =============================================================================
 
 function registerIpcHandlers() {
+  // --- Port availability check ---
+  ipcMain.handle('check-port-available', async (_event, port) => {
+    return new Promise((resolve) => {
+      const srv = net.createServer();
+      srv.once('error', () => resolve(false));
+      srv.listen(port, '127.0.0.1', () => {
+        srv.close(() => resolve(true));
+      });
+    });
+  });
+
   // --- File Association IPC ---
   const fileAssoc = require('./file-association');
   fileAssoc.init(store);
