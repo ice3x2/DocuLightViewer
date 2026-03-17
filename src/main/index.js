@@ -120,6 +120,7 @@ const store = new Store({
     contentMaxWidth: { type: 'string', default: '900px' },
     mcpAutoSave: { type: 'boolean', default: false },
     mcpAutoSavePath: { type: 'string', default: '' },
+    mcpSaveSubDir: { type: 'string', default: '' },
     lastSaveAsDirectory: { type: 'string', default: '' }
   }
 });
@@ -586,7 +587,7 @@ function startIpcServer() {
 // MCP Auto-Save (shared module)
 // =============================================================================
 
-const { saveMcpFile } = require('./mcp-save');
+const { saveMcpFile, mcpManualSave, extractTitleFromContent } = require('./mcp-save');
 
 /**
  * Route an incoming IPC message to the appropriate WindowManager method.
@@ -604,16 +605,20 @@ async function handleIpcMessage(socket, msg) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
         try {
-          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave });
-          if (savedPath) {
-            searchEngine.markDirty();
-            const entry = windowManager.getWindowEntry(result.windowId);
-            if (entry) {
+          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project });
+          const entry = windowManager.getWindowEntry(result.windowId);
+          if (entry && !entry.win.isDestroyed()) {
+            // Send MCP document state to renderer (FR-22-001)
+            entry.win.webContents.send('set-mcp-state', {
+              isMcpDocument: true,
+              mcpAutoSave: store.get('mcpAutoSave', false),
+              project: params.project || ''
+            });
+            if (savedPath) {
+              searchEngine.markDirty();
               entry.meta.savedFilePath = savedPath;
-              if (!entry.win.isDestroyed()) {
-                entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
-                entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
-              }
+              entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
+              entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
             }
           }
         } catch (err) {
@@ -854,7 +859,17 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('show-in-explorer', (event, filePath) => {
-    if (filePath) shell.showItemInFolder(filePath);
+    if (!filePath) return;
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        shell.openPath(filePath);
+      } else {
+        shell.showItemInFolder(filePath);
+      }
+    } catch {
+      shell.showItemInFolder(filePath);
+    }
   });
 
   ipcMain.handle('pick-directory', async (event) => {
@@ -1690,6 +1705,36 @@ function registerIpcHandlers() {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  });
+
+  // === MCP Manual Save (FR-22-001) ===
+  ipcMain.handle('mcp-manual-save', async (event, params) => {
+    const result = await mcpManualSave(store, params);
+    if (result.success) {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (win) {
+        const windowId = windowManager.findWindowId(win);
+        if (windowId) {
+          const entry = windowManager.getWindowEntry(windowId);
+          if (entry) entry.meta.savedFilePath = result.filePath;
+        }
+      }
+      searchEngine.markDirty();
+    }
+    return result;
+  });
+
+  // === Render Pasted Content (FR-22-004) ===
+  ipcMain.handle('render-pasted-content', async (event, content) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    const title = extractTitleFromContent(content) || 'Pasted';
+    win.webContents.send('render-markdown', {
+      markdown: content,
+      filePath: null,
+      title: title,
+      source: 'paste'
+    });
   });
 
   // Read a local image file and return it as a base64 data URL.

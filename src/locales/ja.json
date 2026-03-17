@@ -59,8 +59,14 @@
   "settings.autoRefreshHint": "\u30d5\u30a1\u30a4\u30eb\u5909\u66f4\u6642\u306b\u81ea\u52d5\u66f4\u65b0",
   "settings.enableTabs": "\u30bf\u30d6\u6a5f\u80fd\u3092\u6709\u52b9\u306b\u3059\u308b",
   "settings.enableTabsHint": "1\u3064\u306e\u30a6\u30a3\u30f3\u30c9\u30a6\u3067\u8907\u6570\u306e\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3092\u30bf\u30d6\u3067\u7ba1\u7406\uff08\u65b0\u3057\u3044\u30a6\u30a3\u30f3\u30c9\u30a6\u304b\u3089\u9069\u7528\uff09",
-  "settings.mcpAutoSave": "MCP \u81ea\u52d5\u4fdd\u5b58",
-  "settings.mcpAutoSaveHint": "MCP\u7d4c\u7531\u3067\u958b\u3044\u305f\u30d5\u30a1\u30a4\u30eb\u3092\u81ea\u52d5\u4fdd\u5b58",
+  "settings.mcpAutoSave": "MCPから読み込んだ文書の保存",
+  "settings.mcpAutoSaveCheckbox": "自動保存",
+  "settings.mcpAutoSaveHint": "MCPで開いたファイルを自動的にディスクに保存",
+  "settings.mcpSaveSubDirPlaceholder": "サブディレクトリ形式 (例: {yyyy-mm-dd})",
+  "settings.mcpSaveSubDirHelp": "フォーマットヘルプ",
+  "settings.mcpSaveSubDirHelpTitle": "サブディレクトリフォーマットヘルプ",
+  "settings.mcpSaveSubDirHelpContent": "サブディレクトリフォーマット\n\nサポートトークン:\n  {yyyy}       → 年 (例: 2026)\n  {mm}         → 月 (例: 03)\n  {dd}         → 日 (例: 17)\n  {yyyy-mm-dd} → 日付 (例: 2026-03-17)\n  {HH}         → 時 (24時間, 例: 14)\n  {MM}         → 分 (例: 05)\n  {ss}         → 秒 (例: 30)\n  {project}    → プロジェクト名\n\n例:\n  {yyyy-mm-dd}           → 2026-03-17/file.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/file.md\n  {yyyy}/{mm}            → 2026/03/file.md\n\n/ と \\ の両方をサポートし、OSに合わせて自動変換されます。",
+  "settings.closeButton": "閉じる",
   "settings.mcpAutoSavePathPlaceholder": "\u4fdd\u5b58\u3059\u308b\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u30d1\u30b9",
   "settings.mcpAutoSavePathBrowse": "\u53c2\u7167",
   "viewer.exportPdf": "PDF \u30a8\u30af\u30b9\u30dd\u30fc\u30c8",
@@ -128,5 +134,12 @@
   "viewer.metaProject": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8",
   "viewer.metaDocName": "\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u540d",
   "viewer.metaDescription": "\u8aac\u660e",
-  "viewer.metaDate": "\u65e5\u4ed8"
+  "viewer.metaDate": "日付",
+
+  "viewer.save": "保存",
+  "viewer.saveErrorNoDir": "保存先が設定されていません",
+  "viewer.saveErrorPermission": "保存先への書き込み権限がありません",
+  "viewer.saveErrorGeneric": "保存に失敗しました",
+  "viewer.pathCopied": "パスがコピーされました",
+  "viewer.saveFirstToCopyPath": "先にドキュメントを保存してください"
 }

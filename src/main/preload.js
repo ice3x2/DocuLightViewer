@@ -149,4 +149,13 @@ contextBridge.exposeInMainWorld('doclight', {
     ipcRenderer.on('set-saved-file-path', handler);
     return () => ipcRenderer.removeListener('set-saved-file-path', handler);
   },
+
+  // MCP Manual Save / Paste (FR-22)
+  mcpManualSave: (params) => ipcRenderer.invoke('mcp-manual-save', params),
+  renderPastedContent: (content) => ipcRenderer.invoke('render-pasted-content', content),
+  onSetMcpState: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('set-mcp-state', handler);
+    return () => ipcRenderer.removeListener('set-mcp-state', handler);
+  },
 });

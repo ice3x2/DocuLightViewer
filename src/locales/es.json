@@ -59,8 +59,14 @@
   "settings.autoRefreshHint": "Actualizar autom\u00e1ticamente cuando el archivo cambie",
   "settings.enableTabs": "Habilitar pesta\u00f1as",
   "settings.enableTabsHint": "Administrar m\u00faltiples documentos en pesta\u00f1as dentro de una ventana (se aplica a nuevas ventanas)",
-  "settings.mcpAutoSave": "Guardado autom\u00e1tico MCP",
-  "settings.mcpAutoSaveHint": "Guardar autom\u00e1ticamente los archivos abiertos por MCP",
+  "settings.mcpAutoSave": "Guardar documentos de MCP",
+  "settings.mcpAutoSaveCheckbox": "Guardado automático",
+  "settings.mcpAutoSaveHint": "Guardar automáticamente archivos abiertos por MCP en disco",
+  "settings.mcpSaveSubDirPlaceholder": "Formato de subdirectorio (ej: {yyyy-mm-dd})",
+  "settings.mcpSaveSubDirHelp": "Ayuda de formato",
+  "settings.mcpSaveSubDirHelpTitle": "Ayuda de formato de subdirectorio",
+  "settings.mcpSaveSubDirHelpContent": "Formato de subdirectorio\n\nTokens soportados:\n  {yyyy}       → Año (ej: 2026)\n  {mm}         → Mes (ej: 03)\n  {dd}         → Día (ej: 17)\n  {yyyy-mm-dd} → Fecha (ej: 2026-03-17)\n  {HH}         → Hora (24h, ej: 14)\n  {MM}         → Minuto (ej: 05)\n  {ss}         → Segundo (ej: 30)\n  {project}    → Nombre del proyecto\n\nEjemplos:\n  {yyyy-mm-dd}           → 2026-03-17/archivo.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/archivo.md\n  {yyyy}/{mm}            → 2026/03/archivo.md\n\nSe soportan / y \\ y se convierten automáticamente para su SO.",
+  "settings.closeButton": "Cerrar",
   "settings.mcpAutoSavePathPlaceholder": "Ruta del directorio de guardado",
   "settings.mcpAutoSavePathBrowse": "Examinar",
   "viewer.exportPdf": "Exportar PDF",
@@ -128,5 +134,12 @@
   "viewer.metaProject": "Proyecto",
   "viewer.metaDocName": "Nombre del documento",
   "viewer.metaDescription": "Descripción",
-  "viewer.metaDate": "Fecha"
+  "viewer.metaDate": "Fecha",
+
+  "viewer.save": "Guardar",
+  "viewer.saveErrorNoDir": "El directorio de guardado no está configurado",
+  "viewer.saveErrorPermission": "No tiene permiso de escritura en el directorio",
+  "viewer.saveErrorGeneric": "Error al guardar",
+  "viewer.pathCopied": "Ruta copiada",
+  "viewer.saveFirstToCopyPath": "Guarde el documento primero"
 }

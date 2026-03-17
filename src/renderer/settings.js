@@ -57,7 +57,8 @@
     autoRefresh: true,
     enableTabs: false,
     mcpAutoSave: false,
-    mcpAutoSavePath: ''
+    mcpAutoSavePath: '',
+    mcpSaveSubDir: ''
   };
 
   const VALIDATION = {
@@ -156,6 +157,8 @@
     if (mcpAutoSaveEl) mcpAutoSaveEl.checked = settings.mcpAutoSave !== undefined ? settings.mcpAutoSave : DEFAULTS.mcpAutoSave;
     const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
     if (mcpAutoSavePathEl) mcpAutoSavePathEl.value = settings.mcpAutoSavePath || '';
+    const mcpSaveSubDirEl = document.getElementById('mcpSaveSubDir-input');
+    if (mcpSaveSubDirEl) mcpSaveSubDirEl.value = settings.mcpSaveSubDir || '';
     updateAutoSavePathState();
     updateMcpAddress(settings.mcpPort !== undefined ? settings.mcpPort : DEFAULTS.mcpPort);
   }
@@ -220,6 +223,8 @@
     values.mcpAutoSave = mcpAutoSaveEl ? mcpAutoSaveEl.checked : DEFAULTS.mcpAutoSave;
     const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
     values.mcpAutoSavePath = mcpAutoSavePathEl ? mcpAutoSavePathEl.value.trim() : DEFAULTS.mcpAutoSavePath;
+    const mcpSaveSubDirEl = document.getElementById('mcpSaveSubDir-input');
+    values.mcpSaveSubDir = mcpSaveSubDirEl ? mcpSaveSubDirEl.value.trim() : DEFAULTS.mcpSaveSubDir;
 
     return values;
   }
@@ -386,11 +391,7 @@
   const mcpAutoSavePathBrowseBtn = document.getElementById('mcpAutoSavePath-browse-btn');
 
   function updateAutoSavePathState() {
-    const enabled = mcpAutoSaveCheckbox && mcpAutoSaveCheckbox.checked;
-    const group = document.getElementById('mcpAutoSavePath-group');
-    if (group) group.style.opacity = enabled ? '1' : '0.5';
-    if (mcpAutoSavePathInput) mcpAutoSavePathInput.disabled = !enabled;
-    if (mcpAutoSavePathBrowseBtn) mcpAutoSavePathBrowseBtn.disabled = !enabled;
+    // Path input is always enabled (manual save uses it even when auto-save is off)
   }
 
   if (mcpAutoSaveCheckbox) {
@@ -404,6 +405,27 @@
         if (dir && mcpAutoSavePathInput) mcpAutoSavePathInput.value = dir;
       } catch (err) {
         console.error('Failed to pick directory:', err);
+      }
+    });
+  }
+
+  // === Subdirectory Format Help Modal ===
+  const subdirHelpBtn = document.getElementById('mcpSaveSubDir-help-btn');
+  const subdirHelpModal = document.getElementById('subdir-help-modal');
+  if (subdirHelpBtn && subdirHelpModal) {
+    const helpBody = document.getElementById('subdir-help-body');
+    subdirHelpBtn.addEventListener('click', function () {
+      if (helpBody) helpBody.textContent = t('settings.mcpSaveSubDirHelpContent');
+      subdirHelpModal.classList.remove('hidden');
+    });
+    var closeBtn = subdirHelpModal.querySelector('.modal-close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', function () { subdirHelpModal.classList.add('hidden'); });
+    subdirHelpModal.addEventListener('click', function (ev) {
+      if (ev.target === subdirHelpModal) subdirHelpModal.classList.add('hidden');
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !subdirHelpModal.classList.contains('hidden')) {
+        subdirHelpModal.classList.add('hidden');
       }
     });
   }

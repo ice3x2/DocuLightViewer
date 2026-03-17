@@ -308,3 +308,64 @@ h1 {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+.help-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.help-btn:hover {
+  background: var(--button-secondary-bg);
+  opacity: 0.8;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+.modal-overlay.hidden { display: none; }
+.modal-content {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.modal-content h3 { margin-top: 0; }
+.modal-small pre {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg-secondary, #f6f8fa);
+  padding: 12px;
+  border-radius: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.modal-close-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+}

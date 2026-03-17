@@ -59,8 +59,14 @@
   "settings.autoRefreshHint": "파일 변경 시 자동으로 새로고침",
   "settings.enableTabs": "탭 기능 사용",
   "settings.enableTabsHint": "하나의 창에서 여러 문서를 탭으로 관리 (새 창부터 적용)",
-  "settings.mcpAutoSave": "MCP 자동 저장",
-  "settings.mcpAutoSaveHint": "MCP로 열린 파일을 자동으로 저장",
+  "settings.mcpAutoSave": "MCP로 불러온 문서 저장",
+  "settings.mcpAutoSaveCheckbox": "자동 저장",
+  "settings.mcpAutoSaveHint": "MCP로 열린 파일을 자동으로 디스크에 저장",
+  "settings.mcpSaveSubDirPlaceholder": "서브디렉토리 포맷 (예: {yyyy-mm-dd})",
+  "settings.mcpSaveSubDirHelp": "포맷 도움말",
+  "settings.mcpSaveSubDirHelpTitle": "서브디렉토리 포맷 도움말",
+  "settings.mcpSaveSubDirHelpContent": "서브디렉토리 포맷\n\n지원 토큰:\n  {yyyy}       → 연도 (예: 2026)\n  {mm}         → 월 (예: 03)\n  {dd}         → 일 (예: 17)\n  {yyyy-mm-dd} → 날짜 (예: 2026-03-17)\n  {HH}         → 시 (24시간, 예: 14)\n  {MM}         → 분 (예: 05)\n  {ss}         → 초 (예: 30)\n  {project}    → 프로젝트 이름\n\n예시:\n  {yyyy-mm-dd}           → 2026-03-17/파일명.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/파일명.md\n  {yyyy}/{mm}            → 2026/03/파일명.md\n\n/ 와 \\ 모두 사용 가능하며, OS에 맞게 자동 변환됩니다.",
+  "settings.closeButton": "닫기",
   "settings.mcpAutoSavePathPlaceholder": "저장할 디렉터리 경로",
   "settings.mcpAutoSavePathBrowse": "찾아보기",
   "viewer.exportPdf": "PDF 내보내기",
@@ -128,5 +134,12 @@
   "viewer.metaProject": "프로젝트",
   "viewer.metaDocName": "문서 이름",
   "viewer.metaDescription": "설명",
-  "viewer.metaDate": "날짜"
+  "viewer.metaDate": "날짜",
+
+  "viewer.save": "저장",
+  "viewer.saveErrorNoDir": "저장 경로가 설정되지 않았습니다",
+  "viewer.saveErrorPermission": "저장 경로에 대한 쓰기 권한이 없습니다",
+  "viewer.saveErrorGeneric": "저장 실패",
+  "viewer.pathCopied": "경로가 복사되었습니다",
+  "viewer.saveFirstToCopyPath": "먼저 문서를 저장해주세요"
 }

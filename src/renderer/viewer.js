@@ -57,6 +57,10 @@
   let userToggledPin = false;
   let savedFilePath = null;
   let originalContent = null;
+  let isMcpDocument = false;
+  let mcpAutoSaveEnabled = false;
+  let currentProject = '';
+  let saveAsFilePath = null;
 
   // Find-in-page state
   let findBarVisible = false;
@@ -462,6 +466,13 @@
 
   // === IPC Handlers ===
 
+  // set-mcp-state: MCP document state from main process (FR-22-001)
+  cleanups.push(window.doclight.onSetMcpState((data) => {
+    isMcpDocument = !!data.isMcpDocument;
+    mcpAutoSaveEnabled = !!data.mcpAutoSave;
+    currentProject = data.project || '';
+  }));
+
   // render-markdown: initial content when window opens
   cleanups.push(window.doclight.onRenderMarkdown((data) => {
     const isSameFile = currentFilePath && data.filePath && currentFilePath === data.filePath;
@@ -469,6 +480,12 @@
     const savedScrollTop = isSameFile && viewerContainerEl ? viewerContainerEl.scrollTop : 0;
 
     currentFilePath = data.filePath || null;
+    // Reset save-as path on new content
+    saveAsFilePath = null;
+    // Non-MCP sources (paste, file) reset MCP state
+    if (data.source === 'paste') {
+      isMcpDocument = false;
+    }
     // Track original content for Save As (FR-21-002)
     if (!data.filePath) {
       originalContent = data.markdown || '';
@@ -686,20 +703,21 @@
   }));
 
   // === Viewer Toast ===
-  function showViewerToast(message) {
+  function showViewerToast(message, type) {
     var existing = document.querySelector('.viewer-toast');
     if (existing) existing.remove();
     var toast = document.createElement('div');
-    toast.className = 'viewer-toast';
+    toast.className = 'viewer-toast' + (type ? ' ' + type : '');
     toast.textContent = message;
     document.body.appendChild(toast);
     requestAnimationFrame(function () {
       toast.classList.add('visible');
     });
+    var duration = type === 'error' ? 3500 : 2500;
     setTimeout(function () {
       toast.classList.remove('visible');
       setTimeout(function () { toast.remove(); }, 200);
-    }, 2500);
+    }, duration);
   }
 
   // === Save As / Quick Save (FR-21-002, FR-21-003) ===
@@ -736,6 +754,7 @@
 
     var result = await window.doclight.saveAs(params);
     if (result.success) {
+      saveAsFilePath = result.filePath;
       showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
     } else if (result.error) {
       showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
@@ -766,6 +785,89 @@
     } else if (result.error && result.error !== 'no saved file') {
       showViewerToast(t('viewer.deleteFailed') + ': ' + result.error);
     }
+  }
+
+  // === MCP Manual Save (FR-22-001) ===
+  async function handleMcpSave() {
+    if (!isMcpDocument) return;
+    var params = buildSaveParams();
+    if (!params) return;
+    params.title = document.title || '';
+    params.project = currentProject || '';
+    var result = await window.doclight.mcpManualSave(params);
+    if (result.success) {
+      savedFilePath = result.filePath;
+      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+    } else {
+      showViewerToast(t(result.errorKey) + (result.errorDetail ? ': ' + result.errorDetail : ''), 'error');
+    }
+  }
+
+  // === Path Copy Helper (FR-22-003) ===
+  function getCopyablePath() {
+    if (currentFilePath) return currentFilePath;
+    if (saveAsFilePath) return saveAsFilePath;
+    if (savedFilePath) return savedFilePath;
+    return null;
+  }
+
+  // === Context Menu Positioning & Close (shared) ===
+  function positionAndBindContextMenu(menu, e) {
+    document.body.appendChild(menu);
+    var rect = menu.getBoundingClientRect();
+    var x = e.clientX, y = e.clientY;
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    function closeMenu(ev) {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener('mousedown', closeMenu);
+        document.removeEventListener('keydown', escH);
+      }
+    }
+    function escH(ev) {
+      if (ev.key === 'Escape') {
+        menu.remove();
+        document.removeEventListener('mousedown', closeMenu);
+        document.removeEventListener('keydown', escH);
+      }
+    }
+    setTimeout(function () {
+      document.addEventListener('mousedown', closeMenu);
+      document.addEventListener('keydown', escH);
+    }, 0);
+  }
+
+  // === Sidebar Context Menu (FR-22-002) ===
+  function showSidebarContextMenu(e, itemPath, isDirectory) {
+    var old = document.querySelector('.ctx-menu');
+    if (old) old.remove();
+    var menu = document.createElement('div');
+    menu.className = 'ctx-menu';
+
+    var copyItem = document.createElement('div');
+    copyItem.className = 'ctx-menu-item';
+    copyItem.textContent = t('viewer.copyPath');
+    copyItem.addEventListener('click', function () {
+      menu.remove();
+      navigator.clipboard.writeText(itemPath).then(function () {
+        showViewerToast(t('viewer.pathCopied'));
+      }).catch(function (err) { console.error('Failed to copy path:', err); });
+    });
+    menu.appendChild(copyItem);
+
+    var explorerItem = document.createElement('div');
+    explorerItem.className = 'ctx-menu-item';
+    explorerItem.textContent = t('viewer.showInExplorer');
+    explorerItem.addEventListener('click', function () {
+      menu.remove();
+      window.doclight.showFileInExplorer(itemPath);
+    });
+    menu.appendChild(explorerItem);
+
+    positionAndBindContextMenu(menu, e);
   }
 
   // === Context Menu ===
@@ -856,15 +958,16 @@
       sep.className = 'ctx-menu-sep';
       menu.appendChild(sep);
 
-      // Copy Path
+      // Copy Path (FR-22-003: extended to MCP saved files)
+      const copyPath = getCopyablePath();
       const copyPathItem = document.createElement('div');
-      copyPathItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
-      copyPathItem.textContent = t('viewer.copyPath');
-      if (currentFilePath) {
+      copyPathItem.className = 'ctx-menu-item' + (copyPath ? '' : ' disabled');
+      copyPathItem.innerHTML = t('viewer.copyPath') + '<span class="ctx-menu-shortcut">Ctrl+Shift+C</span>';
+      if (copyPath) {
         copyPathItem.addEventListener('click', () => {
           menu.remove();
-          navigator.clipboard.writeText(currentFilePath).then(() => {
-            showViewerToast(currentFilePath);
+          navigator.clipboard.writeText(copyPath).then(() => {
+            showViewerToast(t('viewer.pathCopied'));
           }).catch(function(err) {
             console.error('Failed to copy path:', err);
           });
@@ -874,20 +977,29 @@
 
       // Show in Explorer
       const showExplorerItem = document.createElement('div');
-      showExplorerItem.className = 'ctx-menu-item' + (currentFilePath ? '' : ' disabled');
+      showExplorerItem.className = 'ctx-menu-item' + (copyPath ? '' : ' disabled');
       showExplorerItem.textContent = t('viewer.showInExplorer');
-      if (currentFilePath) {
+      if (copyPath) {
         showExplorerItem.addEventListener('click', () => {
           menu.remove();
-          window.doclight.showFileInExplorer(currentFilePath);
+          window.doclight.showFileInExplorer(copyPath);
         });
       }
       menu.appendChild(showExplorerItem);
 
-      // Separator before Save As
+      // Separator before Save
       const sep2 = document.createElement('div');
       sep2.className = 'ctx-menu-sep';
       menu.appendChild(sep2);
+
+      // Save (FR-22-001: MCP manual save when auto-save is off)
+      if (isMcpDocument && !mcpAutoSaveEnabled) {
+        const saveItem = document.createElement('div');
+        saveItem.className = 'ctx-menu-item';
+        saveItem.innerHTML = t('viewer.save') + '<span class="ctx-menu-shortcut">Ctrl+S</span>';
+        saveItem.addEventListener('click', () => { menu.remove(); handleMcpSave(); });
+        menu.appendChild(saveItem);
+      }
 
       // Save As (FR-21-002)
       const saveAsItem = document.createElement('div');
@@ -948,36 +1060,7 @@
     });
     menu.appendChild(closeItem);
 
-    document.body.appendChild(menu);
-
-    // Position: ensure menu stays within viewport
-    const rect = menu.getBoundingClientRect();
-    let x = e.clientX;
-    let y = e.clientY;
-    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
-    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
-
-    // Close on click outside or Escape
-    function closeMenu(ev) {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('mousedown', closeMenu);
-        document.removeEventListener('keydown', escHandler);
-      }
-    }
-    function escHandler(ev) {
-      if (ev.key === 'Escape') {
-        menu.remove();
-        document.removeEventListener('mousedown', closeMenu);
-        document.removeEventListener('keydown', escHandler);
-      }
-    }
-    setTimeout(() => {
-      document.addEventListener('mousedown', closeMenu);
-      document.addEventListener('keydown', escHandler);
-    }, 0);
+    positionAndBindContextMenu(menu, e);
   }
 
   // Attach context menu to viewer area
@@ -987,6 +1070,31 @@
       e.preventDefault();
       showContextMenu(e);
     }
+  });
+
+  // === MD Paste on Empty Page (FR-22-004) ===
+  document.addEventListener('paste', function (e) {
+    var contentEl = document.getElementById('content');
+    var isEmpty = !currentFilePath && (!contentEl || !contentEl.hasChildNodes() ||
+                  !!contentEl.querySelector('.empty-state'));
+    if (!isEmpty) return;
+
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    if (findBarVisible) return;
+
+    var text = null;
+    if (e.clipboardData) {
+      text = e.clipboardData.getData('text/plain');
+    }
+    if (!text || !text.trim()) return;
+
+    e.preventDefault();
+    originalContent = text;
+    currentFilePath = null;
+    saveAsFilePath = null;
+    savedFilePath = null;
+    window.doclight.renderPastedContent(text);
   });
 
   // === Find in Page ===
@@ -1449,6 +1557,15 @@
       });
     }
 
+    // Sidebar context menu (FR-22-002)
+    if (node.path) {
+      item.addEventListener('contextmenu', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        showSidebarContextMenu(ev, node.path, !!node.isDirectory);
+      });
+    }
+
     container.appendChild(item);
 
     // Children
@@ -1740,10 +1857,31 @@
       return;
     }
 
+    // Ctrl+Shift+C / Cmd+Shift+C: Copy path (FR-22-003)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      var pathToCopy = getCopyablePath();
+      if (pathToCopy) {
+        navigator.clipboard.writeText(pathToCopy).then(function () {
+          showViewerToast(t('viewer.pathCopied'));
+        });
+      } else if (isMcpDocument) {
+        showViewerToast(t('viewer.saveFirstToCopyPath'), 'error');
+      }
+      return;
+    }
+
     // Ctrl+Shift+S / Cmd+Shift+S: Save As (FR-21-002)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
       e.preventDefault();
       handleSaveAs();
+      return;
+    }
+
+    // Ctrl+S / Cmd+S: MCP manual save (FR-22-001)
+    if (mod && !e.shiftKey && !e.altKey && e.key === 's') {
+      e.preventDefault();
+      handleMcpSave();
       return;
     }
 

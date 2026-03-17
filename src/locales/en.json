@@ -59,8 +59,14 @@
   "settings.autoRefreshHint": "Automatically refresh when file changes",
   "settings.enableTabs": "Enable Tabs",
   "settings.enableTabsHint": "Manage multiple documents in tabs within one window (applies to new windows)",
-  "settings.mcpAutoSave": "MCP Auto Save",
-  "settings.mcpAutoSaveHint": "Auto-save files opened via MCP",
+  "settings.mcpAutoSave": "Save Documents from MCP",
+  "settings.mcpAutoSaveCheckbox": "Auto-save",
+  "settings.mcpAutoSaveHint": "Auto-save files opened via MCP to disk",
+  "settings.mcpSaveSubDirPlaceholder": "Subdirectory format (e.g. {yyyy-mm-dd})",
+  "settings.mcpSaveSubDirHelp": "Format help",
+  "settings.mcpSaveSubDirHelpTitle": "Subdirectory Format Help",
+  "settings.mcpSaveSubDirHelpContent": "Subdirectory Format\n\nSupported tokens:\n  {yyyy}       → Year (e.g. 2026)\n  {mm}         → Month (e.g. 03)\n  {dd}         → Day (e.g. 17)\n  {yyyy-mm-dd} → Date (e.g. 2026-03-17)\n  {HH}         → Hour (24h, e.g. 14)\n  {MM}         → Minute (e.g. 05)\n  {ss}         → Second (e.g. 30)\n  {project}    → Project name\n\nExamples:\n  {yyyy-mm-dd}           → 2026-03-17/file.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/file.md\n  {yyyy}/{mm}            → 2026/03/file.md\n\nBoth / and \\ are supported and auto-converted for your OS.",
+  "settings.closeButton": "Close",
   "settings.mcpAutoSavePathPlaceholder": "Directory path to save files",
   "settings.mcpAutoSavePathBrowse": "Browse",
   "viewer.exportPdf": "PDF Export",
@@ -128,5 +134,12 @@
   "viewer.metaProject": "Project",
   "viewer.metaDocName": "Document Name",
   "viewer.metaDescription": "Description",
-  "viewer.metaDate": "Date"
+  "viewer.metaDate": "Date",
+
+  "viewer.save": "Save",
+  "viewer.saveErrorNoDir": "Save directory is not configured",
+  "viewer.saveErrorPermission": "No write permission for the save directory",
+  "viewer.saveErrorGeneric": "Save failed",
+  "viewer.pathCopied": "Path copied",
+  "viewer.saveFirstToCopyPath": "Please save the document first"
 }
