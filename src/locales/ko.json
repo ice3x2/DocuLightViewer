@@ -65,7 +65,7 @@
   "settings.mcpSaveSubDirPlaceholder": "서브디렉토리 포맷 (예: {yyyy-mm-dd})",
   "settings.mcpSaveSubDirHelp": "포맷 도움말",
   "settings.mcpSaveSubDirHelpTitle": "서브디렉토리 포맷 도움말",
-  "settings.mcpSaveSubDirHelpContent": "서브디렉토리 포맷\n\n지원 토큰:\n  {yyyy}       → 연도 (예: 2026)\n  {mm}         → 월 (예: 03)\n  {dd}         → 일 (예: 17)\n  {yyyy-mm-dd} → 날짜 (예: 2026-03-17)\n  {HH}         → 시 (24시간, 예: 14)\n  {MM}         → 분 (예: 05)\n  {ss}         → 초 (예: 30)\n  {project}    → 프로젝트 이름\n\n예시:\n  {yyyy-mm-dd}           → 2026-03-17/파일명.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/파일명.md\n  {yyyy}/{mm}            → 2026/03/파일명.md\n\n/ 와 \\ 모두 사용 가능하며, OS에 맞게 자동 변환됩니다.",
+  "settings.mcpSaveSubDirHelpContent": "서브디렉토리 포맷\n\n지원 토큰:\n  {yyyy}       → 연도 (예: 2026)\n  {mm}         → 월 (예: 03)\n  {dd}         → 일 (예: 17)\n  {yyyy-mm-dd} → 날짜 (예: 2026-03-17)\n  {HH}         → 시 (24시간, 예: 14)\n  {MM}         → 분 (예: 05)\n  {ss}         → 초 (예: 30)\n  {project}    → 프로젝트 이름\n  {severity}   → 심각도 (info/success/warning/error, 기본: general)\n\n예시:\n  {yyyy-mm-dd}           → 2026-03-17/파일명.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/파일명.md\n  {yyyy}/{mm}            → 2026/03/파일명.md\n\n/ 와 \\ 모두 사용 가능하며, OS에 맞게 자동 변환됩니다.",
   "settings.closeButton": "닫기",
   "settings.mcpAutoSavePathPlaceholder": "저장할 디렉터리 경로",
   "settings.mcpAutoSavePathBrowse": "찾아보기",
@@ -88,6 +88,7 @@
   "viewer.maxTabsReached": "최대 탭 수에 도달했습니다",
   "viewer.selectAll": "전체 선택",
   "viewer.selectBlock": "블럭 내 텍스트 선택",
+  "viewer.openInNewTab": "새 탭에서 열기",
   "viewer.copyPath": "경로 복사",
   "viewer.showInExplorer": "파일 탐색기 열기",
   "viewer.closeWindow": "닫기",
@@ -140,6 +141,8 @@
   "viewer.saveErrorNoDir": "저장 경로가 설정되지 않았습니다",
   "viewer.saveErrorPermission": "저장 경로에 대한 쓰기 권한이 없습니다",
   "viewer.saveErrorGeneric": "저장 실패",
-  "viewer.pathCopied": "경로가 복사되었습니다",
-  "viewer.saveFirstToCopyPath": "먼저 문서를 저장해주세요"
+  "viewer.pathCopied": "경로가 복사되었습니다 ({path})",
+  "viewer.saveFirstToCopyPath": "먼저 문서를 저장해주세요",
+
+  "sidebar.externalLinks": "외부 링크"
 }

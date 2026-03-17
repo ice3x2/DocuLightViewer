@@ -146,7 +146,7 @@ function createToolHandlers(windowManager, store, searchEngine) {
 
       let savedPath = null;
       try {
-        savedPath = await saveMcpFile(store, { content, filePath, title, noSave });
+        savedPath = await saveMcpFile(store, { content, filePath, title, noSave, severity });
         if (savedPath && searchEngine) searchEngine.markDirty();
       } catch (err) {
         console.error('[doculight] MCP auto-save error:', err.message);

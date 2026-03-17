@@ -65,7 +65,7 @@
   "settings.mcpSaveSubDirPlaceholder": "Subdirectory format (e.g. {yyyy-mm-dd})",
   "settings.mcpSaveSubDirHelp": "Format help",
   "settings.mcpSaveSubDirHelpTitle": "Subdirectory Format Help",
-  "settings.mcpSaveSubDirHelpContent": "Subdirectory Format\n\nSupported tokens:\n  {yyyy}       → Year (e.g. 2026)\n  {mm}         → Month (e.g. 03)\n  {dd}         → Day (e.g. 17)\n  {yyyy-mm-dd} → Date (e.g. 2026-03-17)\n  {HH}         → Hour (24h, e.g. 14)\n  {MM}         → Minute (e.g. 05)\n  {ss}         → Second (e.g. 30)\n  {project}    → Project name\n\nExamples:\n  {yyyy-mm-dd}           → 2026-03-17/file.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/file.md\n  {yyyy}/{mm}            → 2026/03/file.md\n\nBoth / and \\ are supported and auto-converted for your OS.",
+  "settings.mcpSaveSubDirHelpContent": "Subdirectory Format\n\nSupported tokens:\n  {yyyy}       → Year (e.g. 2026)\n  {mm}         → Month (e.g. 03)\n  {dd}         → Day (e.g. 17)\n  {yyyy-mm-dd} → Date (e.g. 2026-03-17)\n  {HH}         → Hour (24h, e.g. 14)\n  {MM}         → Minute (e.g. 05)\n  {ss}         → Second (e.g. 30)\n  {project}    → Project name\n  {severity}   → Severity level (info/success/warning/error, default: general)\n\nExamples:\n  {yyyy-mm-dd}           → 2026-03-17/file.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/file.md\n  {yyyy}/{mm}            → 2026/03/file.md\n\nBoth / and \\ are supported and auto-converted for your OS.",
   "settings.closeButton": "Close",
   "settings.mcpAutoSavePathPlaceholder": "Directory path to save files",
   "settings.mcpAutoSavePathBrowse": "Browse",
@@ -88,6 +88,7 @@
   "viewer.maxTabsReached": "Maximum number of tabs reached",
   "viewer.selectAll": "Select All",
   "viewer.selectBlock": "Select Block Text",
+  "viewer.openInNewTab": "Open in New Tab",
   "viewer.copyPath": "Copy Path",
   "viewer.showInExplorer": "Show in Explorer",
   "viewer.closeWindow": "Close",
@@ -140,6 +141,8 @@
   "viewer.saveErrorNoDir": "Save directory is not configured",
   "viewer.saveErrorPermission": "No write permission for the save directory",
   "viewer.saveErrorGeneric": "Save failed",
-  "viewer.pathCopied": "Path copied",
-  "viewer.saveFirstToCopyPath": "Please save the document first"
+  "viewer.pathCopied": "Path copied ({path})",
+  "viewer.saveFirstToCopyPath": "Please save the document first",
+
+  "sidebar.externalLinks": "External Links"
 }

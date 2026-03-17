@@ -114,13 +114,13 @@ const store = new Store({
     fileAssociation: { type: 'boolean', default: false },
     fileAssociationPrevProgId: { type: 'string', default: '' },
     autoRefresh: { type: 'boolean', default: true },
-    enableTabs: { type: 'boolean', default: false },
+    enableTabs: { type: 'boolean', default: true },
     recentFiles: { type: 'array', items: { type: 'string' }, default: [] },
     contentWidth: { type: 'string', default: '900px' },
     contentMaxWidth: { type: 'string', default: '900px' },
     mcpAutoSave: { type: 'boolean', default: false },
     mcpAutoSavePath: { type: 'string', default: '' },
-    mcpSaveSubDir: { type: 'string', default: '' },
+    mcpSaveSubDir: { type: 'string', default: '{yyyy-mm-dd}' },
     lastSaveAsDirectory: { type: 'string', default: '' }
   }
 });
@@ -143,7 +143,8 @@ app.on('open-file', (event, filePath) => {
 // =============================================================================
 // Single Instance Lock
 // =============================================================================
-const gotTheLock = app.requestSingleInstanceLock();
+const isDev = !app.isPackaged;
+const gotTheLock = isDev ? true : app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
@@ -231,6 +232,8 @@ app.on('ready', async () => {
   if (windowManager.listWindows().length === 0) {
     windowManager.createEmptyWindow();
   }
+
+  // DevTools disabled — use Ctrl+Shift+I manually if needed
 });
 
 app.on('window-all-closed', () => {
@@ -605,7 +608,7 @@ async function handleIpcMessage(socket, msg) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
         try {
-          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project });
+          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project, severity: params.severity });
           const entry = windowManager.getWindowEntry(result.windowId);
           if (entry && !entry.win.isDestroyed()) {
             // Send MCP document state to renderer (FR-22-001)
@@ -645,7 +648,8 @@ async function handleIpcMessage(socket, msg) {
               const savedPath = await saveMcpFile(store, {
                 content,
                 title: params.title || entry.meta.title,
-                noSave: params.noSave
+                noSave: params.noSave,
+                severity: params.severity || entry.meta.severity
               });
               if (savedPath) {
                 entry.meta.savedFilePath = savedPath;
@@ -1064,8 +1068,8 @@ function registerIpcHandlers() {
 
       // Build sidebar tree
       try {
-        const { buildDirectoryTree } = require('./link-parser');
-        const tree = buildDirectoryTree(path.dirname(filePath));
+        const { buildSidebarTree } = require('./link-parser');
+        const tree = buildSidebarTree(filePath);
         entry.meta.tree = tree;
         entry.win.webContents.send('sidebar-tree', { tree });
         entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
@@ -1468,8 +1472,8 @@ function registerIpcHandlers() {
       // Build sidebar tree from file's directory
       let sidebarTree = null;
       try {
-        const { buildDirectoryTree } = require('./link-parser');
-        sidebarTree = buildDirectoryTree(path.dirname(filePath));
+        const { buildSidebarTree } = require('./link-parser');
+        sidebarTree = buildSidebarTree(filePath);
       } catch (err) {
         console.error(`[doculight] Failed to build tree for tab: ${err.message}`);
       }

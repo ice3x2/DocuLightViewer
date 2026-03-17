@@ -65,7 +65,7 @@
   "settings.mcpSaveSubDirPlaceholder": "Formato de subdirectorio (ej: {yyyy-mm-dd})",
   "settings.mcpSaveSubDirHelp": "Ayuda de formato",
   "settings.mcpSaveSubDirHelpTitle": "Ayuda de formato de subdirectorio",
-  "settings.mcpSaveSubDirHelpContent": "Formato de subdirectorio\n\nTokens soportados:\n  {yyyy}       → Año (ej: 2026)\n  {mm}         → Mes (ej: 03)\n  {dd}         → Día (ej: 17)\n  {yyyy-mm-dd} → Fecha (ej: 2026-03-17)\n  {HH}         → Hora (24h, ej: 14)\n  {MM}         → Minuto (ej: 05)\n  {ss}         → Segundo (ej: 30)\n  {project}    → Nombre del proyecto\n\nEjemplos:\n  {yyyy-mm-dd}           → 2026-03-17/archivo.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/archivo.md\n  {yyyy}/{mm}            → 2026/03/archivo.md\n\nSe soportan / y \\ y se convierten automáticamente para su SO.",
+  "settings.mcpSaveSubDirHelpContent": "Formato de subdirectorio\n\nTokens soportados:\n  {yyyy}       → Año (ej: 2026)\n  {mm}         → Mes (ej: 03)\n  {dd}         → Día (ej: 17)\n  {yyyy-mm-dd} → Fecha (ej: 2026-03-17)\n  {HH}         → Hora (24h, ej: 14)\n  {MM}         → Minuto (ej: 05)\n  {ss}         → Segundo (ej: 30)\n  {project}    → Nombre del proyecto\n  {severity}   → Nivel de severidad (info/success/warning/error, por defecto: general)\n\nEjemplos:\n  {yyyy-mm-dd}           → 2026-03-17/archivo.md\n  {project}/{yyyy-mm-dd} → MyProject/2026-03-17/archivo.md\n  {yyyy}/{mm}            → 2026/03/archivo.md\n\nSe soportan / y \\ y se convierten automáticamente para su SO.",
   "settings.closeButton": "Cerrar",
   "settings.mcpAutoSavePathPlaceholder": "Ruta del directorio de guardado",
   "settings.mcpAutoSavePathBrowse": "Examinar",
@@ -88,6 +88,7 @@
   "viewer.maxTabsReached": "Se alcanz\u00f3 el n\u00famero m\u00e1ximo de pesta\u00f1as",
   "viewer.selectAll": "Seleccionar todo",
   "viewer.selectBlock": "Seleccionar texto del bloque",
+  "viewer.openInNewTab": "Abrir en nueva pestaña",
   "viewer.copyPath": "Copiar ruta",
   "viewer.showInExplorer": "Abrir en el explorador",
   "viewer.closeWindow": "Cerrar",
@@ -140,6 +141,8 @@
   "viewer.saveErrorNoDir": "El directorio de guardado no está configurado",
   "viewer.saveErrorPermission": "No tiene permiso de escritura en el directorio",
   "viewer.saveErrorGeneric": "Error al guardar",
-  "viewer.pathCopied": "Ruta copiada",
-  "viewer.saveFirstToCopyPath": "Guarde el documento primero"
+  "viewer.pathCopied": "Ruta copiada ({path})",
+  "viewer.saveFirstToCopyPath": "Guarde el documento primero",
+
+  "sidebar.externalLinks": "Enlaces externos"
 }
