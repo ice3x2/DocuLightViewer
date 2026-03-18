@@ -208,14 +208,6 @@ app.on('ready', async () => {
     });
   }
 
-  // Start HTTP-based MCP server (ESM module loaded via dynamic import)
-  try {
-    const { startMcpHttpServer } = await import('./mcp-http.mjs');
-    mcpHttpServer = await startMcpHttpServer(windowManager, store, app.getPath('userData'), searchEngine);
-  } catch (err) {
-    console.error('[doculight] Failed to start MCP HTTP server:', err.message);
-  }
-
   // Open .md files passed via command-line arguments
   const mdPaths = extractMdPathsFromArgv(process.argv);
   for (const mdPath of mdPaths) {
@@ -231,6 +223,15 @@ app.on('ready', async () => {
   // If no viewer window was opened (no .md args, no pending file), show an empty viewer
   if (windowManager.listWindows().length === 0) {
     windowManager.createEmptyWindow();
+  }
+
+  // Start HTTP-based MCP server (ESM module loaded via dynamic import)
+  // Moved after window creation to avoid blocking the initial UI
+  try {
+    const { startMcpHttpServer } = await import('./mcp-http.mjs');
+    mcpHttpServer = await startMcpHttpServer(windowManager, store, app.getPath('userData'), searchEngine);
+  } catch (err) {
+    console.error('[doculight] Failed to start MCP HTTP server:', err.message);
   }
 
   // DevTools disabled — use Ctrl+Shift+I manually if needed
