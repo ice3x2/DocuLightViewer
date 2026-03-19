@@ -234,6 +234,7 @@ h1 {
 .path-input-group input[type="text"] {
   flex: 1;
   min-width: 0;
+  padding: 4px 10px;
 }
 
 .path-input-group button {
@@ -313,6 +314,8 @@ h1 {
   width: 28px;
   height: 28px;
   min-width: 28px;
+  flex-shrink: 0;
+  align-self: center;
   border-radius: 50%;
   border: 1px solid var(--border-color);
   background: var(--button-secondary-bg);
@@ -341,14 +344,15 @@ h1 {
 }
 .modal-overlay.hidden { display: none; }
 .modal-content {
-  background: var(--bg-primary);
+  background: var(--bg-color, #ffffff);
+  border: 1px solid var(--border-color, #e1e4e8);
   border-radius: 8px;
-  padding: 20px;
+  padding: 14px 20px 20px;
   max-width: 450px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.modal-content h3 { margin-top: 0; }
+.modal-content h3 { margin: 0 0 8px; }
 .modal-small pre {
   white-space: pre-wrap;
   font-size: 13px;
@@ -360,8 +364,10 @@ h1 {
   overflow-y: auto;
 }
 .modal-close-btn {
+  display: block;
   margin-top: 12px;
-  padding: 6px 16px;
+  margin-left: auto;
+  padding: 6px 32px;
   cursor: pointer;
   background: var(--button-secondary-bg);
   color: var(--button-secondary-text);

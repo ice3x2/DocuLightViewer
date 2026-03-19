@@ -609,7 +609,7 @@ async function handleIpcMessage(socket, msg) {
       case 'open_markdown':
         result = await windowManager.createWindow(params);
         try {
-          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project, severity: params.severity });
+          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project, severity: params.severity, docType: params.docType });
           const entry = windowManager.getWindowEntry(result.windowId);
           if (entry && !entry.win.isDestroyed()) {
             // Send MCP document state to renderer (FR-22-001)
@@ -650,7 +650,8 @@ async function handleIpcMessage(socket, msg) {
                 content,
                 title: params.title || entry.meta.title,
                 noSave: params.noSave,
-                severity: params.severity || entry.meta.severity
+                severity: params.severity || entry.meta.severity,
+                docType: params.docType || entry.meta.docType
               });
               if (savedPath) {
                 entry.meta.savedFilePath = savedPath;
@@ -676,7 +677,8 @@ async function handleIpcMessage(socket, msg) {
         result = {
           results: searchEngine.search(params.query, {
             limit: params.limit,
-            project: params.project
+            project: params.project,
+            docType: params.docType
           }),
           totalIndexed: searchEngine.docMeta.size
         };

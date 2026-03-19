@@ -5,7 +5,7 @@ const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { buildDirectoryTree } = require('./link-parser');
+const { buildSidebarTree } = require('./link-parser');
 const { t } = require('./strings');
 const { injectFrontmatter } = require('./frontmatter');
 
@@ -267,7 +267,7 @@ class WindowManager {
   async createWindow(opts = {}) {
     const { foreground, title: explicitTitle, size, windowName,
             severity, tags, flash, progress, autoCloseSeconds,
-            project, docName, description } = opts;
+            project, docName, description, docType } = opts;
     let { content, filePath } = opts;
 
     // --- Named window upsert (FR-19-001 + FR-4-001 race guard) -------------
@@ -314,8 +314,8 @@ class WindowManager {
       content = await fs.promises.readFile(filePath, 'utf-8');
 
       // Inject frontmatter if metadata params provided (filePath mode)
-      if (project || docName || description) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (project || docName || description || docType) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
     }
 
@@ -407,7 +407,8 @@ class WindowManager {
         severity: severity || null,
         autoCloseTimer: undefined,
         progress: (progress !== undefined && progress !== null) ? progress : undefined,
-        lastRenderedContent: filePath ? undefined : (content || '')
+        lastRenderedContent: filePath ? undefined : (content || ''),
+        docType: docType || null
       }
     });
 
@@ -458,6 +459,8 @@ class WindowManager {
       });
     }
 
+
+
     // Notify tray / listeners that window list changed
     if (typeof this.onTrayUpdate === 'function') {
       this.onTrayUpdate();
@@ -501,10 +504,14 @@ class WindowManager {
    */
   onWindowReady(windowId) {
     const pending = this.pendingReady.get(windowId);
-    if (!pending) return;
-
     const entry = this.windows.get(windowId);
     if (!entry) return;
+
+    if (!pending) {
+      // 새로고침: pendingReady가 이미 소비됨 → 캐시된 상태 재전송
+      this._resendWindowState(windowId, entry);
+      return;
+    }
 
     const { resolve, content, filePath, title,
             severity, flash, progress, autoCloseSeconds } = pending;
@@ -527,7 +534,7 @@ class WindowManager {
       // Build sidebar tree for filePath-based windows
       if (filePath) {
         try {
-          const tree = buildDirectoryTree(path.dirname(filePath));
+          const tree = buildSidebarTree(filePath);
           entry.meta.tree = tree;
           entry.win.webContents.send('sidebar-tree', { tree });
           entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
@@ -584,6 +591,66 @@ class WindowManager {
     // Resolve the createWindow promise (may be null for empty windows)
     if (typeof resolve === 'function') {
       resolve({ windowId, title });
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // _resendWindowState — re-send state on refresh (F5)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Re-send the window state after a page refresh (F5).
+   * Uses cached meta to restore content, sidebar tree, and severity.
+   *
+   * @param {string} windowId
+   * @param {{ win: BrowserWindow, meta: object }} entry
+   */
+  async _resendWindowState(windowId, entry) {
+    const filePath = entry.meta.filePath;
+
+    if (!filePath) {
+      // Content-only 윈도우 (MCP 등)
+      if (entry.meta.lastRenderedContent != null) {
+        entry.win.webContents.send('render-markdown', {
+          markdown: entry.meta.lastRenderedContent,
+          filePath: null, windowId,
+          imageBasePath: null, platform: process.platform
+        });
+      } else {
+        entry.win.webContents.send('empty-window', { windowId });
+      }
+      return;
+    }
+
+    // 파일 기반 윈도우: 디스크에서 재읽기
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      const imageBasePath = entry.meta.tree
+        ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
+        : path.dirname(filePath).replace(/\\/g, '/');
+
+      entry.win.webContents.send('render-markdown', {
+        markdown: content,
+        filePath: filePath.replace(/\\/g, '/'),
+        windowId, imageBasePath, platform: process.platform
+      });
+
+      // ★ 핵심: rootFilePath 기준으로 트리 재빌드
+      const rootPath = entry.meta.rootFilePath || filePath;
+      const tree = buildSidebarTree(rootPath);
+      entry.meta.tree = tree;
+      entry.win.webContents.send('sidebar-tree', { tree });
+      entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
+
+      // severity 복원
+      if (entry.meta.severity) {
+        entry.win.webContents.send('set-severity', { severity: entry.meta.severity });
+      }
+
+      // 파일 감시 재시작
+      this.startFileWatcher(windowId);
+    } catch (err) {
+      console.error(`[doculight] Refresh error: ${err.message}`);
     }
   }
 
@@ -668,9 +735,9 @@ class WindowManager {
       throw new Error(t('error.windowNotFound', { windowId }));
     }
 
-    let { content, filePath, title, appendMode, separator,
+    let { content, filePath, title, appendMode, separator, foreground,
           severity, flash, progress, tags, autoCloseSeconds,
-          project, docName, description } = opts;
+          project, docName, description, docType } = opts;
 
     // --- Append mode (FR-19-002) -------------------------------------------
     if (appendMode) {
@@ -697,8 +764,8 @@ class WindowManager {
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
       // Inject frontmatter metadata for filePath mode (Step 20)
-      if (project || docName || description) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (project || docName || description || docType) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
     }
 
@@ -740,6 +807,11 @@ class WindowManager {
       entry.win.webContents.send('set-severity', { severity: entry.meta.severity });
     }
 
+    // --- Document type (Step 23) ------------------------------------------
+    if (docType !== undefined) {
+      entry.meta.docType = docType || null;
+    }
+
     // --- Taskbar flash (FR-19-006) -----------------------------------------
     if (flash && !entry.win.isFocused()) {
       entry.win.flashFrame(true);
@@ -771,6 +843,13 @@ class WindowManager {
       }, seconds * 1000);
       entry.meta.autoCloseSeconds = seconds;
       entry.win.webContents.send('auto-close-start', { seconds });
+    }
+
+    // --- Foreground (bring to front) ----------------------------------------
+    if (foreground !== false && !entry.win.isDestroyed()) {
+      if (entry.win.isMinimized()) entry.win.restore();
+      entry.win.show();
+      entry.win.focus();
     }
 
     return { title: entry.meta.title };

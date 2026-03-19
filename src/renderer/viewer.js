@@ -324,6 +324,20 @@
     return { meta, body };
   }
 
+  // Document type icon mapping (Step 23)
+  const DOC_TYPE_ICONS = {
+    note:       '📝',
+    plan:       '📋',
+    report:     '📊',
+    completion: '✅',
+    issue:      '🐛',
+    review:     '🔍',
+    log:        '📜',
+    reference:  '📖',
+    guide:      '📘',
+    spec:       '📐',
+  };
+
   /**
    * Render the frontmatter metabox UI.
    */
@@ -344,6 +358,7 @@
     const fieldLabels = {
       project: t('viewer.metaProject'),
       docName: t('viewer.metaDocName'),
+      docType: t('viewer.metaDocType'),
       description: t('viewer.metaDescription'),
       date: t('viewer.metaDate')
     };
@@ -351,8 +366,15 @@
     let html = '<table class="metabox-table">';
     for (const [key, value] of Object.entries(meta)) {
       const label = fieldLabels[key] || key;
-      const escapedValue = escapeHtml(String(value));
-      html += `<tr><td class="metabox-key">${escapeHtml(label)}</td><td class="metabox-value">${escapedValue}</td></tr>`;
+      let displayValue;
+      if (key === 'docType' && DOC_TYPE_ICONS[value]) {
+        const icon = DOC_TYPE_ICONS[value];
+        const typeLabel = t('docType.' + value) || value;
+        displayValue = escapeHtml(icon + ' ' + typeLabel);
+      } else {
+        displayValue = escapeHtml(String(value));
+      }
+      html += `<tr><td class="metabox-key">${escapeHtml(label)}</td><td class="metabox-value">${displayValue}</td></tr>`;
     }
     html += '</table>';
 
@@ -847,13 +869,29 @@
     var menu = document.createElement('div');
     menu.className = 'ctx-menu';
 
+    // Open in New Tab (only if tabs enabled and item is a file)
+    var tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
+    var tabsEnabled = tabMod && tabMod.isEnabled();
+    if (tabsEnabled && !isDirectory) {
+      var openTabItem = document.createElement('div');
+      openTabItem.className = 'ctx-menu-item';
+      openTabItem.textContent = t('viewer.openInNewTab');
+      openTabItem.addEventListener('click', function () {
+        menu.remove();
+        if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+          window.DocuLight.fn.navigateToForTab(itemPath);
+        }
+      });
+      menu.appendChild(openTabItem);
+    }
+
     var copyItem = document.createElement('div');
     copyItem.className = 'ctx-menu-item';
     copyItem.textContent = t('viewer.copyPath');
     copyItem.addEventListener('click', function () {
       menu.remove();
       navigator.clipboard.writeText(itemPath).then(function () {
-        showViewerToast(t('viewer.pathCopied'));
+        showViewerToast(t('viewer.pathCopied', { path: itemPath }));
       }).catch(function (err) { console.error('Failed to copy path:', err); });
     });
     menu.appendChild(copyItem);
@@ -967,7 +1005,7 @@
         copyPathItem.addEventListener('click', () => {
           menu.remove();
           navigator.clipboard.writeText(copyPath).then(() => {
-            showViewerToast(t('viewer.pathCopied'));
+            showViewerToast(t('viewer.pathCopied', { path: copyPath }));
           }).catch(function(err) {
             console.error('Failed to copy path:', err);
           });
@@ -1487,10 +1525,16 @@
     const container = document.getElementById('sidebar-tree');
     if (!container) return;
     container.innerHTML = '';
-    // 루트 디렉토리 자체 생략, 하위 항목만 표시
-    if (tree.children) {
-      for (const child of tree.children) {
-        renderTreeNode(child, container, 0);
+
+    if (tree.treeType === 'link') {
+      // 호환: 순수 링크 트리 (안전장치)
+      renderTreeNode(tree, container, 0);
+    } else {
+      // directory / merged: 루트 디렉토리 생략, children만 렌더
+      if (tree.children) {
+        for (const child of tree.children) {
+          renderTreeNode(child, container, 0);
+        }
       }
     }
   }
@@ -1502,6 +1546,8 @@
     const normalizedCurrent = (currentFilePath || '').replace(/\\/g, '/');
     const item = document.createElement('div');
     item.className = 'tree-item' + (normalizedNodePath === normalizedCurrent ? ' active' : '') + (!node.exists ? ' not-exists' : '');
+    if (node.linked) item.classList.add('linked');
+    if (node.isVirtual) item.classList.add('virtual-dir');
     item.dataset.path = normalizedNodePath;
     item.style.paddingLeft = (16 + depth * 16) + 'px';
 
@@ -1527,13 +1573,20 @@
     // Icon
     const icon = document.createElement('span');
     icon.className = 'tree-icon';
-    icon.textContent = node.isDirectory ? '📁' : '📄';
+    if (node.isDirectory) {
+      icon.textContent = node.isVirtual ? '🔗' : '📁';
+    } else {
+      icon.textContent = node.linked ? '🔗' : '📄';
+    }
     item.appendChild(icon);
 
     // Label
     const label = document.createElement('span');
     label.className = 'tree-label';
-    label.textContent = node.title || t('viewer.untitled');
+    const displayTitle = (node.title === '__external_links__')
+      ? (t('sidebar.externalLinks') || '외부 링크')
+      : (node.title || t('viewer.untitled'));
+    label.textContent = displayTitle;
     label.title = node.path || '';
     item.appendChild(label);
 
@@ -1549,7 +1602,9 @@
       });
     } else if (node.exists !== false && node.path) {
       item.addEventListener('click', () => {
-        if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+        const hasTabNav = !!(window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab);
+        console.log('[doculight-sidebar] click:', node.path, 'hasNavigateToForTab:', hasTabNav);
+        if (hasTabNav) {
           window.DocuLight.fn.navigateToForTab(node.path);
         } else {
           window.doclight.navigateTo(node.path);
@@ -1863,7 +1918,7 @@
       var pathToCopy = getCopyablePath();
       if (pathToCopy) {
         navigator.clipboard.writeText(pathToCopy).then(function () {
-          showViewerToast(t('viewer.pathCopied'));
+          showViewerToast(t('viewer.pathCopied', { path: pathToCopy }));
         });
       } else if (isMcpDocument) {
         showViewerToast(t('viewer.saveFirstToCopyPath'), 'error');

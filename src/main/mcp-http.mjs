@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const _require = createRequire(import.meta.url);
-const { injectFrontmatter } = _require('./frontmatter.js');
+const { injectFrontmatter, DOC_TYPE_VALUES } = _require('./frontmatter.js');
 const { saveMcpFile } = _require('./mcp-save.js');
 
 const PROTOCOL_VERSION = '2025-03-26';
@@ -24,7 +24,7 @@ const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
 const TOOLS = [
   {
     name: 'open_markdown',
-    description: 'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, and description when the context is known.',
+    description: 'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, description, and docType when the context is known.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,15 +35,14 @@ const TOOLS = [
         alwaysOnTop:      { type: 'boolean', description: 'Keep window above others (default: true)' },
         size:             { type: 'string', enum: ['s', 'm', 'l', 'f'], description: 'Window size preset' },
         windowName:       { type: 'string', description: 'Named window key — reuses existing window if name matches (upsert)' },
-        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Severity color bar at window top' },
+        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error'], description: 'Document status/urgency indicator shown as a colored bar at the top. info (blue — general notes, in-progress reports, neutral information), success (green — completed tasks, final reports, passed validations, positive outcomes), warning (yellow — needs attention, potential issues, review required), error (red — failures, critical bugs, blocked tasks)' },
         tags:             { type: 'array', items: { type: 'string' }, description: 'Tags for grouping windows' },
-        flash:            { type: 'boolean', description: 'Flash taskbar button to notify user' },
         progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Taskbar progress bar value (-1 to remove, 0.0–1.0)' },
-        autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Auto-close window after N seconds' },
         project:          { type: 'string', description: '[Recommended] Project or repository name for frontmatter metadata' },
         docName:          { type: 'string', description: '[Recommended] Document name or type for frontmatter metadata' },
         description:      { type: 'string', description: '[Recommended] One-line summary of document purpose. STRONGLY RECOMMENDED.' },
-        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
+        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' },
+        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' }
       }
     }
   },
@@ -57,17 +56,16 @@ const TOOLS = [
         content:          { type: 'string', description: 'New Markdown content' },
         filePath:         { type: 'string', description: 'Absolute path to a .md file' },
         title:            { type: 'string', description: 'New window title' },
+        foreground:       { type: 'boolean', description: 'Bring window to foreground (default: true)' },
         appendMode:       { type: 'boolean', description: 'Append content to existing window content instead of replacing' },
-        separator:        { type: 'string', description: 'Separator between existing and new content (default: \\n\\n)' },
-        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error', ''], description: 'Update severity color bar (empty string to clear)' },
+        severity:         { type: 'string', enum: ['info', 'success', 'warning', 'error', ''], description: 'Document status/urgency indicator shown as a colored bar at the top. info (blue — general notes, in-progress reports, neutral information), success (green — completed tasks, final reports, passed validations, positive outcomes), warning (yellow — needs attention, potential issues, review required), error (red — failures, critical bugs, blocked tasks). Empty string to clear.' },
         tags:             { type: 'array', items: { type: 'string' }, description: 'Replace window tags' },
-        flash:            { type: 'boolean', description: 'Flash taskbar button' },
         progress:         { type: 'number', minimum: -1, maximum: 1, description: 'Update taskbar progress bar' },
-        autoCloseSeconds: { type: 'integer', minimum: 1, maximum: 3600, description: 'Reset/set auto-close timer' },
         project:          { type: 'string', description: '[Recommended] Project name for frontmatter metadata' },
         docName:          { type: 'string', description: '[Recommended] Document name for frontmatter metadata' },
         description:      { type: 'string', description: '[Recommended] Document description for frontmatter metadata' },
-        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' }
+        noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' },
+        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' }
       },
       required: ['windowId']
     }
@@ -101,7 +99,8 @@ const TOOLS = [
       properties: {
         query:   { type: 'string', description: 'Search query (Korean and English supported)' },
         limit:   { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default: 20)' },
-        project: { type: 'string', description: 'Filter by project name' }
+        project: { type: 'string', description: 'Filter by project name' },
+        docType: { type: 'string', enum: DOC_TYPE_VALUES, description: 'Filter by document type' }
       },
       required: ['query']
     }
@@ -126,27 +125,27 @@ const TOOLS = [
 function createToolHandlers(windowManager, store, searchEngine) {
   return {
     async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
-                          windowName, severity, tags, flash, progress, autoCloseSeconds, noSave,
-                          project, docName, description }) {
+                          windowName, severity, tags, progress, noSave,
+                          project, docName, description, docType }) {
       if (!content && !filePath) {
         return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
       }
       // Frontmatter injection
-      if (content && (project || docName || description)) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (content && (project || docName || description || docType)) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
       const result = await windowManager.createWindow({
         content, filePath, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
-        windowName, severity, tags, flash, progress, autoCloseSeconds,
-        project, docName, description
+        windowName, severity, tags, progress,
+        project, docName, description, docType
       });
 
       let savedPath = null;
       try {
-        savedPath = await saveMcpFile(store, { content, filePath, title, noSave, severity });
+        savedPath = await saveMcpFile(store, { content, filePath, title, noSave, severity, docType });
         if (savedPath && searchEngine) searchEngine.markDirty();
       } catch (err) {
         console.error('[doculight] MCP auto-save error:', err.message);
@@ -187,22 +186,22 @@ function createToolHandlers(windowManager, store, searchEngine) {
       };
     },
 
-    async update_markdown({ windowId, content, filePath, title, appendMode, separator,
-                            severity, tags, flash, progress, autoCloseSeconds,
-                            project, docName, description }) {
+    async update_markdown({ windowId, content, filePath, title, foreground, appendMode,
+                            severity, tags, progress,
+                            project, docName, description, docType }) {
       if (!windowId) {
         return { isError: true, content: [{ type: 'text', text: 'windowId is required.' }] };
       }
 
       // Frontmatter injection (skip for appendMode)
-      if (content && !appendMode && (project || docName || description)) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (content && !appendMode && (project || docName || description || docType)) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
       const result = await windowManager.updateWindow(windowId, {
-        content, filePath, title, appendMode, separator,
-        severity, tags, flash, progress, autoCloseSeconds,
-        project, docName, description
+        content, filePath, title, foreground, appendMode,
+        severity, tags, progress,
+        project, docName, description, docType
       });
 
       const action = appendMode ? 'Appended to' : 'Updated';
@@ -241,7 +240,7 @@ function createToolHandlers(windowManager, store, searchEngine) {
       };
     },
 
-    async search_documents({ query, limit, project }) {
+    async search_documents({ query, limit, project, docType }) {
       if (!query) {
         return { isError: true, content: [{ type: 'text', text: 'query is required.' }] };
       }
@@ -249,7 +248,7 @@ function createToolHandlers(windowManager, store, searchEngine) {
         return { isError: true, content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }] };
       }
       await searchEngine.ensureFresh();
-      const results = searchEngine.search(query, { limit: limit || 20, project });
+      const results = searchEngine.search(query, { limit: limit || 20, project, docType });
       const totalIndexed = searchEngine.docMeta.size;
 
       if (results.length === 0) {

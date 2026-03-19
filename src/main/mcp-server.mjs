@@ -16,7 +16,7 @@ import { platform } from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { injectFrontmatter } from './frontmatter.js';
+import { injectFrontmatter, DOC_TYPE_VALUES } from './frontmatter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -346,7 +346,7 @@ const server = new McpServer({
 // ---------------------------------------------------------------------------
 server.tool(
   'open_markdown',
-  'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, and description when the context is known to improve document traceability and organization.',
+  'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, description, and docType when the context is known.',
   {
     content:          z.string().optional().describe('Raw Markdown content to display'),
     filePath:         z.string().optional().describe('Absolute path to a .md file to open'),
@@ -354,19 +354,18 @@ server.tool(
     foreground:       z.boolean().optional().describe('Bring window to foreground (default: true)'),
     size:             z.enum(['s', 'm', 'l', 'f']).optional().describe('Window size preset: s(mall), m(edium), l(arge), f(ullscreen)'),
     windowName:       z.string().optional().describe('Named window key — reuses existing window if name matches (upsert)'),
-    severity:         z.enum(['info', 'success', 'warning', 'error']).optional().describe('Severity color bar at window top'),
+    severity:         z.enum(['info', 'success', 'warning', 'error']).optional().describe('Document status/urgency indicator shown as a colored bar at the top. info (blue — general notes, in-progress reports, neutral information), success (green — completed tasks, final reports, passed validations, positive outcomes), warning (yellow — needs attention, potential issues, review required), error (red — failures, critical bugs, blocked tasks)'),
     tags:             z.array(z.string()).optional().describe('Tags for grouping windows'),
-    flash:            z.boolean().optional().describe('Flash taskbar button to notify user'),
     progress:         z.number().min(-1).max(1).optional().describe('Taskbar progress bar value (-1 to remove, 0.0–1.0)'),
-    autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Auto-close window after N seconds'),
     project:          z.string().optional().describe('[Recommended] Project or repository name this document belongs to (e.g., "DocuLight", "MyApp"). Used for frontmatter metadata.'),
     docName:          z.string().optional().describe('[Recommended] Document name or type (e.g., "API Reference", "Bug Report", "Step 20 SRS"). Used for frontmatter metadata.'),
     description:      z.string().optional().describe('[Recommended] One-line summary of the document purpose and content. STRONGLY RECOMMENDED: Always provide a brief summary for better document organization.'),
-    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
+    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled'),
+    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)')
   },
   async ({ content, filePath, title, foreground, size,
-           windowName, severity, tags, flash, progress, autoCloseSeconds,
-           project, docName, description, noSave }) => {
+           windowName, severity, tags, progress,
+           project, docName, description, noSave, docType }) => {
     try {
       // Validation: at least one of content or filePath is required
       if (!content && !filePath) {
@@ -388,16 +387,16 @@ server.tool(
       }
 
       // Frontmatter injection: prepend YAML metadata if any meta params provided
-      if (content && (project || docName || description)) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (content && (project || docName || description || docType)) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
       const result = await sendIpcRequest('open_markdown', {
         content, filePath, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
-        windowName, severity, tags, flash, progress, autoCloseSeconds, noSave,
-        project, docName, description
+        windowName, severity, tags, progress, noSave,
+        project, docName, description, docType
       });
 
       if (result.upserted) {
@@ -434,21 +433,20 @@ server.tool(
     content:          z.string().optional().describe('New Markdown content'),
     filePath:         z.string().optional().describe('Absolute path to a .md file'),
     title:            z.string().optional().describe('New window title'),
+    foreground:       z.boolean().optional().describe('Bring window to foreground (default: true)'),
     appendMode:       z.boolean().default(false).describe('Append content to existing window content instead of replacing'),
-    separator:        z.string().default('\n\n').describe('Separator between existing and new content'),
-    severity:         z.string().optional().describe('Update severity color bar (info/success/warning/error, empty to clear)'),
+    severity:         z.enum(['info', 'success', 'warning', 'error', '']).optional().describe('Document status/urgency indicator shown as a colored bar at the top. info (blue — general notes, in-progress reports, neutral information), success (green — completed tasks, final reports, passed validations, positive outcomes), warning (yellow — needs attention, potential issues, review required), error (red — failures, critical bugs, blocked tasks). Empty string to clear.'),
     tags:             z.array(z.string()).optional().describe('Replace window tags'),
-    flash:            z.boolean().optional().describe('Flash taskbar button'),
     progress:         z.number().min(-1).max(1).optional().describe('Update taskbar progress bar'),
-    autoCloseSeconds: z.number().int().min(1).max(3600).optional().describe('Reset/set auto-close timer'),
     project:          z.string().optional().describe('[Recommended] Project name for frontmatter metadata'),
     docName:          z.string().optional().describe('[Recommended] Document name for frontmatter metadata'),
     description:      z.string().optional().describe('[Recommended] Document description for frontmatter metadata'),
-    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled')
+    noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled'),
+    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)')
   },
-  async ({ windowId, content, filePath, title, appendMode, separator,
-           severity, tags, flash, progress, autoCloseSeconds,
-           project, docName, description, noSave }) => {
+  async ({ windowId, content, filePath, title, foreground, appendMode,
+           severity, tags, progress,
+           project, docName, description, noSave, docType }) => {
     try {
       if (!windowId) {
         return {
@@ -469,14 +467,14 @@ server.tool(
       }
 
       // Frontmatter injection (skip for appendMode)
-      if (content && !appendMode && (project || docName || description)) {
-        content = injectFrontmatter(content, { project, docName, description });
+      if (content && !appendMode && (project || docName || description || docType)) {
+        content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
       const result = await sendIpcRequest('update_markdown', {
-        windowId, content, filePath, title, appendMode, separator,
-        severity, tags, flash, progress, autoCloseSeconds, noSave,
-        project, docName, description
+        windowId, content, filePath, title, foreground, appendMode,
+        severity, tags, progress, noSave,
+        project, docName, description, docType
       });
 
       const action = appendMode ? 'Appended to' : 'Updated';
@@ -587,11 +585,12 @@ server.tool(
   {
     query:   z.string().describe('Search query (Korean and English supported)'),
     limit:   z.number().int().min(1).max(100).default(20).describe('Max results'),
-    project: z.string().optional().describe('Filter by project name')
+    project: z.string().optional().describe('Filter by project name'),
+    docType: z.enum(DOC_TYPE_VALUES).optional().describe('Filter by document type')
   },
-  async ({ query, limit, project }) => {
+  async ({ query, limit, project, docType }) => {
     try {
-      const result = await sendIpcRequest('search_documents', { query, limit, project });
+      const result = await sendIpcRequest('search_documents', { query, limit, project, docType });
       const results = result.results || [];
       const totalIndexed = result.totalIndexed || 0;
 

@@ -1,6 +1,25 @@
 // src/main/frontmatter.js — Frontmatter injection utility (CJS)
 'use strict';
 
+// ---------------------------------------------------------------------------
+// Document Type definitions (Step 23)
+// ---------------------------------------------------------------------------
+
+const DOC_TYPES = {
+  note:       { icon: '📝', labelKey: 'docType.note' },
+  plan:       { icon: '📋', labelKey: 'docType.plan' },
+  report:     { icon: '📊', labelKey: 'docType.report' },
+  completion: { icon: '✅', labelKey: 'docType.completion' },
+  issue:      { icon: '🐛', labelKey: 'docType.issue' },
+  review:     { icon: '🔍', labelKey: 'docType.review' },
+  log:        { icon: '📜', labelKey: 'docType.log' },
+  reference:  { icon: '📖', labelKey: 'docType.reference' },
+  guide:      { icon: '📘', labelKey: 'docType.guide' },
+  spec:       { icon: '📐', labelKey: 'docType.spec' },
+};
+
+const DOC_TYPE_VALUES = Object.keys(DOC_TYPES);
+
 /**
  * Inject or merge YAML frontmatter into markdown content.
  *
@@ -13,13 +32,15 @@
  * @param {string} [meta.project]
  * @param {string} [meta.docName]
  * @param {string} [meta.description]
+ * @param {string} [meta.docType] - Document type (default: 'note')
  * @returns {string} Content with frontmatter prepended/merged
  */
-function injectFrontmatter(content, { project, docName, description }) {
+function injectFrontmatter(content, { project, docName, description, docType }) {
   const newFields = {};
   if (project) newFields.project = project;
   if (docName) newFields.docName = docName;
   if (description) newFields.description = description;
+  newFields.docType = (docType && DOC_TYPE_VALUES.includes(docType)) ? docType : 'note';
   newFields.date = new Date().toISOString().replace(/\.\d{3}Z$/, '');
 
   // Check if content already has frontmatter
@@ -104,4 +125,4 @@ function parseFrontmatter(content) {
   return { data: {}, body: content };
 }
 
-module.exports = { injectFrontmatter, parseSimpleYaml, buildYamlBlock, parseFrontmatter };
+module.exports = { injectFrontmatter, parseSimpleYaml, buildYamlBlock, parseFrontmatter, DOC_TYPES, DOC_TYPE_VALUES };

@@ -143,16 +143,83 @@ All settings are persisted via [electron-store](https://github.com/sindresorhus/
 DocuLight exposes **six MCP tools** over both HTTP and stdio transports.
 The HTTP server implements the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport (JSON + SSE responses, session ID, `202` for notifications).
 
-### Tools
+### Tools at a Glance
 
-| Tool | Description |
-|------|-------------|
-| `open_markdown` | Open a new viewer window from raw Markdown or a file path |
-| `update_markdown` | Update the content / title of an existing window |
-| `close_viewer` | Close one specific window or all windows |
-| `list_viewers` | List all open viewer windows with their IDs and titles |
-| `search_documents` | BM25 full-text search across saved documents (requires MCP auto-save) |
-| `search_projects` | Search or list projects from saved document frontmatter metadata |
+| Tool | Role | When to Use |
+|------|------|-------------|
+| `open_markdown` | **Display** — Open or upsert a viewer window | Show reports, logs, documentation, or any Markdown content to the user |
+| `update_markdown` | **Update** — Modify an existing window | Append progress, change status/severity, update content in-place |
+| `close_viewer` | **Cleanup** — Close windows | Clean up after task completion; close by ID, tag, or all at once |
+| `list_viewers` | **Query** — List open windows | Check which reports are open before creating duplicates |
+| `search_documents` | **Search** — Full-text search saved docs | Find previously saved documents by keyword (requires MCP auto-save) |
+| `search_projects` | **Browse** — List/search projects | Discover available projects from saved document metadata |
+
+### Severity Reference
+
+The `severity` parameter controls a colored bar at the top of the window:
+
+| Value | Color | Use For | Examples |
+|-------|-------|---------|----------|
+| `info` | Blue | General information, in-progress work | Progress reports, neutral notes, status updates |
+| `success` | Green | Completed work, positive outcomes | Final reports, passed tests, finished tasks |
+| `warning` | Yellow | Needs attention, potential issues | Review requests, deprecation notices, partial failures |
+| `error` | Red | Failures, critical problems | Build failures, crash logs, blocked tasks |
+
+### Document Type Reference
+
+The `docType` parameter categorizes documents for search and organization:
+
+| Value | Icon | Use For |
+|-------|------|---------|
+| `note` | 📝 | General notes (default) |
+| `plan` | 📋 | Implementation plans, design documents |
+| `report` | 📊 | Analysis results, status reports |
+| `completion` | ✅ | Finished work, final deliverables |
+| `issue` | 🐛 | Bug reports, problem descriptions |
+| `review` | 🔍 | Code reviews, document reviews |
+| `log` | 📜 | Progress logs, changelogs |
+| `reference` | 📖 | API docs, configuration references |
+| `guide` | 📘 | Tutorials, how-to guides |
+| `spec` | 📐 | Specifications, SRS documents |
+
+### User Prompt Examples
+
+These are natural-language prompts you can give to an AI agent (Claude Code, Claude Desktop, etc.) that has DocuLight configured as an MCP server:
+
+**Displaying content:**
+```
+"Show this analysis result in DocuLight"
+"Open the README.md in a viewer window"
+"Display the test results as a large window"
+```
+
+**Reporting task status:**
+```
+"Report the build result to DocuLight with a success indicator"
+"Show the error log in DocuLight with error severity"
+"Open a progress window and update it as you work"
+```
+
+**Managing windows:**
+```
+"Close all DocuLight windows"
+"Close the windows tagged 'debug'"
+"List all open viewer windows"
+```
+
+**Searching saved documents:**
+```
+"Search DocuLight for documents about authentication"
+"Find all saved reports from the DocuLight project"
+"List all projects in DocuLight"
+```
+
+**Advanced usage:**
+```
+"Open a named window 'build-status' so it updates in place instead of creating new windows"
+"Show the report and auto-close it after 30 seconds"
+"Flash the taskbar to get my attention when the report is ready"
+```
 
 ### `open_markdown` parameters
 
@@ -165,7 +232,7 @@ The HTTP server implements the [MCP Streamable HTTP](https://modelcontextprotoco
 | `foreground` | boolean | `true` | Bring window to front immediately |
 | `alwaysOnTop` | boolean | `true` | Keep window above all other windows *(HTTP MCP only)* |
 | `windowName` | string | — | Named key for upsert — reuses existing window if name matches |
-| `severity` | `info`/`success`/`warning`/`error` | — | Color bar theme at window top |
+| `severity` | `info`/`success`/`warning`/`error` | — | Color bar at window top (see [Severity Reference](#severity-reference)) |
 | `tags` | string[] | — | Tags for grouping / filtering windows |
 | `flash` | boolean | `false` | Flash taskbar button to request user attention |
 | `progress` | number (-1 – 1.0) | — | Taskbar progress bar value (`-1` = hide) |
@@ -173,6 +240,7 @@ The HTTP server implements the [MCP Streamable HTTP](https://modelcontextprotoco
 | `project` | string | — | Project name for frontmatter metadata |
 | `docName` | string | — | Document name/identifier for frontmatter metadata |
 | `description` | string | — | One-line summary for frontmatter metadata |
+| `docType` | string | `note` | Document type for categorization (see [Document Type Reference](#document-type-reference)) |
 | `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
 
 ### `update_markdown` parameters
@@ -193,22 +261,8 @@ The HTTP server implements the [MCP Streamable HTTP](https://modelcontextprotoco
 | `project` | string | — | Project name for frontmatter metadata |
 | `docName` | string | — | Document name/identifier for frontmatter metadata |
 | `description` | string | — | One-line summary for frontmatter metadata |
+| `docType` | string | — | Document type for categorization |
 | `noSave` | boolean | `false` | Skip auto-save for this call even if MCP auto-save is enabled |
-
-### `search_documents` parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | string | **required** | Search query (Korean and English supported) |
-| `limit` | integer (1 – 100) | `20` | Maximum number of results |
-| `project` | string | — | Filter results by project name |
-
-### `search_projects` parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | string | — | Search query for project name/description (omit for full list) |
-| `limit` | integer (1 – 100) | `20` | Maximum number of results |
 
 ### `close_viewer` parameters
 
@@ -225,23 +279,42 @@ If neither `windowId` nor `tag` is provided, all open viewer windows are closed.
 |-----------|------|-------------|
 | `tag` | string *(optional)* | Filter results — return only windows with this tag |
 
+### `search_documents` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | **required** | Search query (Korean and English supported) |
+| `limit` | integer (1 – 100) | `20` | Maximum number of results |
+| `project` | string | — | Filter results by project name |
+| `docType` | string | — | Filter results by document type |
+
+### `search_projects` parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | — | Search query for project name/description (omit for full list) |
+| `limit` | integer (1 – 100) | `20` | Maximum number of results |
+
 ### Code examples
 
 ```javascript
 // Open a named window and show a progress bar — no duplicate windows on repeated calls
 await mcpClient.callTool('open_markdown', {
   windowName: 'build-status',
-  title: '🔨 Build in Progress',
+  title: 'Build in Progress',
   content: '# Building…\nStarting compilation.',
   severity: 'info',
   progress: 0.0,
+  project: 'MyApp',
+  docName: 'Build Status',
+  docType: 'log',
 });
 
 // Update the same named window with append mode as the build progresses
 await mcpClient.callTool('update_markdown', {
   windowId: buildWindowId,
   appendMode: true,
-  content: '✅ Compilation done. Running tests…',
+  content: 'Compilation done. Running tests…',
   progress: 0.5,
 });
 
@@ -249,10 +322,31 @@ await mcpClient.callTool('update_markdown', {
 await mcpClient.callTool('update_markdown', {
   windowId: buildWindowId,
   severity: 'success',
-  title: '✅ Build Passed',
+  title: 'Build Passed',
+  content: '# Build Passed\n\nAll 42 tests passed.',
   progress: -1,
   flash: true,
   autoCloseSeconds: 30,
+  docType: 'completion',
+});
+
+// Show a final report with metadata
+await mcpClient.callTool('open_markdown', {
+  content: '# Code Review Report\n\n## Summary\n...',
+  title: 'Code Review',
+  severity: 'success',
+  size: 'l',
+  project: 'MyApp',
+  docName: 'Sprint 5 Review',
+  description: 'Code review results for sprint 5 feature branch',
+  docType: 'review',
+});
+
+// Search previously saved documents
+await mcpClient.callTool('search_documents', {
+  query: 'authentication bug fix',
+  project: 'MyApp',
+  limit: 10,
 });
 ```
 
@@ -331,10 +425,28 @@ Download the latest installer from the
 |----------|------|
 | Windows (Installer) | `DocuLight-Setup-x.x.x.exe` |
 | Windows (Portable) | `DocuLight-Portable-x.x.x.exe` |
-| macOS (Apple Silicon) | `DocuLight-x.x.x-arm64.dmg` |
-| macOS (Intel) | `DocuLight-x.x.x-x64.dmg` |
+| macOS (Apple Silicon) | `DocuLight-x.x.x-arm64.dmg` or `.zip` |
+| macOS (Intel) | `DocuLight-x.x.x-x64.dmg` or `.zip` |
 | Linux (AppImage) | `DocuLight-x.x.x.AppImage` |
 | Linux (Debian/Ubuntu) | `DocuLight-x.x.x.deb` |
+
+### macOS — Quick Install via curl (Recommended)
+
+Unsigned DMG files are blocked by macOS Gatekeeper, requiring multiple security bypass steps.
+The **ZIP + curl** method avoids this entirely:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ice3x2/DocuLightViewer/main/install-mac.sh | bash
+```
+
+This script:
+- Detects your architecture (Apple Silicon / Intel) automatically
+- Downloads the latest ZIP release from GitHub
+- Installs to `/Applications/DocuLight.app`
+- Strips quarantine attributes so Gatekeeper does not block the app
+- Supports upgrades — re-run the same command to update
+
+To uninstall, simply delete `/Applications/DocuLight.app`.
 
 ### Run from source
 
@@ -560,16 +672,83 @@ await mcpClient.callTool('open_markdown', {
 DocuLight는 HTTP와 stdio 두 가지 전송 방식으로 **6개의 MCP 도구**를 제공합니다.
 HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) 전송 프로토콜을 구현합니다 (JSON + SSE 응답, 세션 ID, notification에 `202` 반환).
 
-### 도구 목록
+### 도구 한눈에 보기
 
-| 도구 | 설명 |
-|------|------|
-| `open_markdown` | 원시 Markdown 또는 파일 경로로 새 뷰어 창 열기 |
-| `update_markdown` | 기존 창의 내용 / 제목 업데이트 |
-| `close_viewer` | 특정 창 또는 모든 창 닫기 |
-| `list_viewers` | 열려 있는 모든 뷰어 창과 ID, 제목 나열 |
-| `search_documents` | 저장된 문서에서 BM25 전문 검색 (MCP 자동 저장 필요) |
-| `search_projects` | 저장된 문서의 frontmatter 메타데이터에서 프로젝트 검색 또는 목록 조회 |
+| 도구 | 역할 | 사용 시점 |
+|------|------|-----------|
+| `open_markdown` | **표시** — 뷰어 창 열기 또는 upsert | 보고서, 로그, 문서 등 Markdown 콘텐츠를 사용자에게 보여줄 때 |
+| `update_markdown` | **업데이트** — 기존 창 수정 | 진행 상황 추가, 상태/severity 변경, 내용 현재 위치에서 갱신 |
+| `close_viewer` | **정리** — 창 닫기 | 작업 완료 후 정리; ID, 태그, 또는 전체 일괄 닫기 |
+| `list_viewers` | **조회** — 열린 창 목록 | 중복 생성 전 어떤 보고서가 열려 있는지 확인 |
+| `search_documents` | **검색** — 저장된 문서 전문 검색 | 키워드로 이전에 저장된 문서 찾기 (MCP 자동 저장 필요) |
+| `search_projects` | **탐색** — 프로젝트 목록/검색 | 저장된 문서 메타데이터에서 프로젝트 탐색 |
+
+### Severity 참조
+
+`severity` 파라미터는 창 상단에 색상 바를 표시합니다:
+
+| 값 | 색상 | 용도 | 예시 |
+|----|------|------|------|
+| `info` | 파란색 | 일반 정보, 진행 중인 작업 | 진행 보고서, 중립적 메모, 상태 업데이트 |
+| `success` | 초록색 | 완료된 작업, 긍정적 결과 | 최종 보고서, 통과한 테스트, 완료된 태스크 |
+| `warning` | 노란색 | 주의 필요, 잠재적 문제 | 리뷰 요청, 폐기 예정 알림, 부분 실패 |
+| `error` | 빨간색 | 실패, 심각한 문제 | 빌드 실패, 크래시 로그, 차단된 작업 |
+
+### 문서 타입 참조
+
+`docType` 파라미터는 문서를 분류하여 검색과 정리에 활용합니다:
+
+| 값 | 아이콘 | 용도 |
+|----|--------|------|
+| `note` | 📝 | 일반 메모 (기본값) |
+| `plan` | 📋 | 구현 계획, 설계 문서 |
+| `report` | 📊 | 분석 결과, 상태 보고서 |
+| `completion` | ✅ | 완료된 작업, 최종 산출물 |
+| `issue` | 🐛 | 버그 보고서, 문제 설명 |
+| `review` | 🔍 | 코드 리뷰, 문서 리뷰 |
+| `log` | 📜 | 진행 로그, 변경 이력 |
+| `reference` | 📖 | API 문서, 설정 참조 |
+| `guide` | 📘 | 튜토리얼, 사용법 가이드 |
+| `spec` | 📐 | 사양서, SRS 문서 |
+
+### 사용자 프롬프트 예시
+
+DocuLight를 MCP 서버로 설정한 AI 에이전트(Claude Code, Claude Desktop 등)에게 자연어로 요청할 수 있는 예시입니다:
+
+**콘텐츠 표시:**
+```
+"이 분석 결과를 DocuLight로 보여줘"
+"README.md를 뷰어 창에 열어줘"
+"테스트 결과를 큰 창으로 표시해줘"
+```
+
+**작업 상태 보고:**
+```
+"빌드 결과를 성공 표시와 함께 DocuLight로 보고해줘"
+"에러 로그를 DocuLight에 error severity로 보여줘"
+"진행 상황 창을 열고 작업하면서 업데이트해줘"
+```
+
+**창 관리:**
+```
+"DocuLight 창 모두 닫아줘"
+"debug 태그가 붙은 창들 닫아줘"
+"열려 있는 뷰어 창 목록 보여줘"
+```
+
+**저장된 문서 검색:**
+```
+"DocuLight에서 인증 관련 문서 검색해줘"
+"DocuLight 프로젝트의 저장된 보고서 전부 찾아줘"
+"DocuLight에 등록된 프로젝트 목록 보여줘"
+```
+
+**고급 사용법:**
+```
+"build-status라는 이름으로 창을 열어서 새 창을 만들지 말고 같은 창에 업데이트해줘"
+"보고서를 보여주고 30초 후에 자동으로 닫아줘"
+"보고서가 준비되면 태스크바를 깜빡여서 알려줘"
+```
 
 ### `open_markdown` 파라미터
 
@@ -582,7 +761,7 @@ HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specificati
 | `foreground` | boolean | `true` | 즉시 창을 맨 앞으로 가져오기 |
 | `alwaysOnTop` | boolean | `true` | 다른 모든 창 위에 유지 *(HTTP MCP 전용)* |
 | `windowName` | string | — | upsert용 이름 키 — 동일 이름의 창이 있으면 재사용 |
-| `severity` | `info`/`success`/`warning`/`error` | — | 창 상단 색상 바 테마 |
+| `severity` | `info`/`success`/`warning`/`error` | — | 창 상단 색상 바 ([Severity 참조](#severity-참조) 참고) |
 | `tags` | string[] | — | 창 그룹화 / 필터링용 태그 |
 | `flash` | boolean | `false` | 태스크바 버튼 깜빡임으로 사용자 주의 요청 |
 | `progress` | number (-1 – 1.0) | — | 태스크바 진행률 (`-1` = 숨김) |
@@ -590,6 +769,7 @@ HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specificati
 | `project` | string | — | frontmatter 메타데이터용 프로젝트 이름 |
 | `docName` | string | — | frontmatter 메타데이터용 문서 이름/식별자 |
 | `description` | string | — | frontmatter 메타데이터용 한 줄 요약 |
+| `docType` | string | `note` | 문서 타입 분류 ([문서 타입 참조](#문서-타입-참조) 참고) |
 | `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
 
 ### `update_markdown` 파라미터
@@ -610,22 +790,8 @@ HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specificati
 | `project` | string | — | frontmatter 메타데이터용 프로젝트 이름 |
 | `docName` | string | — | frontmatter 메타데이터용 문서 이름/식별자 |
 | `description` | string | — | frontmatter 메타데이터용 한 줄 요약 |
+| `docType` | string | — | 문서 타입 분류 |
 | `noSave` | boolean | `false` | MCP 자동 저장이 켜져 있어도 이 호출에서는 파일 저장 생략 |
-
-### `search_documents` 파라미터
-
-| 파라미터 | 타입 | 기본값 | 설명 |
-|---------|------|--------|------|
-| `query` | string | **필수** | 검색 쿼리 (한국어, 영어 지원) |
-| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
-| `project` | string | — | 프로젝트 이름으로 필터링 |
-
-### `search_projects` 파라미터
-
-| 파라미터 | 타입 | 기본값 | 설명 |
-|---------|------|--------|------|
-| `query` | string | — | 프로젝트 이름/설명 검색 쿼리 (생략 시 전체 목록) |
-| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
 
 ### `close_viewer` 파라미터
 
@@ -642,23 +808,42 @@ HTTP 서버는 [MCP Streamable HTTP](https://modelcontextprotocol.io/specificati
 |---------|------|------|
 | `tag` | string *(선택)* | 이 태그를 가진 창만 필터링하여 반환 |
 
+### `search_documents` 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | string | **필수** | 검색 쿼리 (한국어, 영어 지원) |
+| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
+| `project` | string | — | 프로젝트 이름으로 필터링 |
+| `docType` | string | — | 문서 타입으로 필터링 |
+
+### `search_projects` 파라미터
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | string | — | 프로젝트 이름/설명 검색 쿼리 (생략 시 전체 목록) |
+| `limit` | integer (1 – 100) | `20` | 최대 결과 수 |
+
 ### 코드 예제
 
 ```javascript
 // 이름 있는 창 열기 — 반복 호출해도 중복 창이 생기지 않음
 await mcpClient.callTool('open_markdown', {
   windowName: 'build-status',
-  title: '🔨 빌드 진행 중',
+  title: '빌드 진행 중',
   content: '# 빌드 중…\n컴파일을 시작합니다.',
   severity: 'info',
   progress: 0.0,
+  project: 'MyApp',
+  docName: '빌드 상태',
+  docType: 'log',
 });
 
 // 같은 창에 내용 추가(append) + 진행률 업데이트
 await mcpClient.callTool('update_markdown', {
   windowId: buildWindowId,
   appendMode: true,
-  content: '✅ 컴파일 완료. 테스트를 실행합니다…',
+  content: '컴파일 완료. 테스트를 실행합니다…',
   progress: 0.5,
 });
 
@@ -666,10 +851,31 @@ await mcpClient.callTool('update_markdown', {
 await mcpClient.callTool('update_markdown', {
   windowId: buildWindowId,
   severity: 'success',
-  title: '✅ 빌드 성공',
+  title: '빌드 성공',
+  content: '# 빌드 성공\n\n42개 테스트 모두 통과.',
   progress: -1,
   flash: true,
   autoCloseSeconds: 30,
+  docType: 'completion',
+});
+
+// 메타데이터가 포함된 최종 보고서 표시
+await mcpClient.callTool('open_markdown', {
+  content: '# 코드 리뷰 보고서\n\n## 요약\n...',
+  title: '코드 리뷰',
+  severity: 'success',
+  size: 'l',
+  project: 'MyApp',
+  docName: '스프린트 5 리뷰',
+  description: '스프린트 5 기능 브랜치 코드 리뷰 결과',
+  docType: 'review',
+});
+
+// 이전에 저장된 문서 검색
+await mcpClient.callTool('search_documents', {
+  query: '인증 버그 수정',
+  project: 'MyApp',
+  limit: 10,
 });
 ```
 
@@ -747,10 +953,28 @@ curl -X POST http://localhost:52580/mcp \
 |--------|------|
 | Windows (설치 파일) | `DocuLight-Setup-x.x.x.exe` |
 | Windows (포터블) | `DocuLight-Portable-x.x.x.exe` |
-| macOS (Apple Silicon) | `DocuLight-x.x.x-arm64.dmg` |
-| macOS (Intel) | `DocuLight-x.x.x-x64.dmg` |
+| macOS (Apple Silicon) | `DocuLight-x.x.x-arm64.dmg` 또는 `.zip` |
+| macOS (Intel) | `DocuLight-x.x.x-x64.dmg` 또는 `.zip` |
 | Linux (AppImage) | `DocuLight-x.x.x.AppImage` |
 | Linux (Debian/Ubuntu) | `DocuLight-x.x.x.deb` |
+
+### macOS — curl로 간편 설치 (권장)
+
+미서명 DMG 파일은 macOS Gatekeeper에 의해 차단되어 여러 단계의 보안 우회 조작이 필요합니다.
+**ZIP + curl** 방식을 사용하면 이 과정을 완전히 건너뛸 수 있습니다:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ice3x2/DocuLightViewer/main/install-mac.sh | bash
+```
+
+이 스크립트는:
+- 아키텍처(Apple Silicon / Intel)를 자동 감지합니다
+- GitHub에서 최신 ZIP 릴리스를 다운로드합니다
+- `/Applications/DocuLight.app`에 설치합니다
+- quarantine 속성을 제거하여 Gatekeeper 차단을 방지합니다
+- 업그레이드를 지원합니다 — 같은 명령을 다시 실행하면 최신 버전으로 업데이트됩니다
+
+삭제하려면 `/Applications/DocuLight.app`을 삭제하면 됩니다.
 
 ### 소스에서 실행
 

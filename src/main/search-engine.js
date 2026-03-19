@@ -100,16 +100,21 @@ class SearchEngine {
    * @param {{ limit?: number, project?: string }} [options]
    * @returns {Array<{ filePath, score, title, project, docName, description, date, snippet }>}
    */
-  search(query, { limit = 20, project } = {}) {
+  search(query, { limit = 20, project, docType } = {}) {
     if (!this.engine || this.docMeta.size < MIN_DOCS_FOR_CONSOLIDATE) {
       // Not enough docs for BM25 — fallback to simple token matching
-      return this._fallbackSearch(query, { limit, project });
+      return this._fallbackSearch(query, { limit, project, docType });
     }
 
     try {
-      const filterFn = project
-        ? (ov) => ov.project === project
-        : undefined;
+      let filterFn;
+      if (project && docType) {
+        filterFn = (ov) => ov.project === project && ov.docType === docType;
+      } else if (project) {
+        filterFn = (ov) => ov.project === project;
+      } else if (docType) {
+        filterFn = (ov) => ov.docType === docType;
+      }
 
       const results = this.engine.search(query, limit, filterFn);
 
@@ -121,6 +126,7 @@ class SearchEngine {
           title: meta.title || path.basename(docId, '.md'),
           project: meta.project || null,
           docName: meta.docName || null,
+          docType: meta.docType || null,
           description: meta.description || null,
           date: meta.date || null,
           snippet: meta.snippet || null
@@ -128,7 +134,7 @@ class SearchEngine {
       });
     } catch (err) {
       console.error('[doculight] BM25 search error:', err.message);
-      return this._fallbackSearch(query, { limit, project });
+      return this._fallbackSearch(query, { limit, project, docType });
     }
   }
 
@@ -216,11 +222,12 @@ class SearchEngine {
         title: 5,
         project: 4,
         docName: 3,
+        docType: 3,
         description: 2,
         body: 1
       },
       bm25Params: { k1: 1.2, b: 0.75, k: 1 },
-      ovFldNames: ['project', 'docName']
+      ovFldNames: ['project', 'docName', 'docType']
     });
 
     this.engine.definePrepTasks([tokenize]);
@@ -242,6 +249,7 @@ class SearchEngine {
       title: title,
       project: fmData.project || '',
       docName: fmData.docName || '',
+      docType: fmData.docType || '',
       description: fmData.description || '',
       body: body
     };
@@ -252,6 +260,7 @@ class SearchEngine {
       title,
       project: fmData.project || null,
       docName: fmData.docName || null,
+      docType: fmData.docType || null,
       description: fmData.description || null,
       date: fmData.date || null,
       snippet: body.replace(/\s+/g, ' ').trim().slice(0, 200)
@@ -267,13 +276,14 @@ class SearchEngine {
    * Fallback search for when BM25 index is not available (< 3 docs).
    * Uses simple token matching on docMeta.
    */
-  _fallbackSearch(query, { limit = 20, project } = {}) {
+  _fallbackSearch(query, { limit = 20, project, docType } = {}) {
     if (!query || !query.trim()) return [];
     const queryTokens = tokenize(query.toLowerCase());
     const results = [];
 
     for (const [docId, meta] of this.docMeta) {
       if (project && meta.project !== project) continue;
+      if (docType && meta.docType !== docType) continue;
 
       const target = `${meta.title || ''} ${meta.project || ''} ${meta.docName || ''} ${meta.description || ''} ${meta.snippet || ''}`.toLowerCase();
       const targetTokens = tokenize(target);
@@ -292,6 +302,7 @@ class SearchEngine {
           title: meta.title || path.basename(docId, '.md'),
           project: meta.project || null,
           docName: meta.docName || null,
+          docType: meta.docType || null,
           description: meta.description || null,
           date: meta.date || null,
           snippet: meta.snippet || null

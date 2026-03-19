@@ -500,6 +500,17 @@ html, body {
   font-size: 14px;
 }
 
+/* 링크 연결된 파일 아이콘 강조 */
+.tree-item.linked .tree-icon {
+  opacity: 1;
+}
+/* 외부 링크 섹션 구분선 */
+.tree-item.virtual-dir {
+  border-top: 1px solid var(--border-color, #e1e4e8);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

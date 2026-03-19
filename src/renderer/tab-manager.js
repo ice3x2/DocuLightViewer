@@ -33,6 +33,7 @@
     const originalNavigateTo = window.doclight ? window.doclight.navigateTo : null;
     if (window.DocuLight && window.DocuLight.fn) {
       window.DocuLight.fn.navigateToForTab = function (href) {
+        console.log('[doculight-tab] navigateToForTab called:', href, 'enableTabs:', enableTabs, 'tabBarEl:', !!tabBarEl, 'tabs:', tabs.length);
         if (!enableTabs) {
           if (originalNavigateTo) originalNavigateTo(href);
           return;
@@ -76,10 +77,17 @@
         if (window.doclight && window.doclight.readFileForTab) {
           window.doclight.readFileForTab(resolvedHref).then(function (data) {
             if (data.error) {
-              console.error('[doculight] tab read error:', data.error);
+              console.error('[doculight-tab] readFileForTab error:', data.error, 'href:', resolvedHref);
               // Fallback to main process navigation
               if (originalNavigateTo) originalNavigateTo(href);
               return;
+            }
+            console.log('[doculight-tab] creating new tab for:', data.filePath, 'tabs before:', tabs.length);
+            // 사이드바 트리 고정: 현재 활성 트리를 상속 (새 트리로 교체 방지)
+            var currentTree = window.DocuLight && window.DocuLight.state
+              ? window.DocuLight.state.sidebarTree : null;
+            if (currentTree) {
+              data.sidebarTree = currentTree;
             }
             createTab(data);
           });
@@ -321,6 +329,10 @@
     if (contentEl) tab.renderedHtml = contentEl.innerHTML;
     if (viewerContainer) tab.scrollTop = viewerContainer.scrollTop;
     tab.currentSidebarPath = window.DocuLight ? window.DocuLight.state.currentFilePath : null;
+    // sidebarTree 동기화: 비동기로 설정된 트리를 탭에 반영
+    if (window.DocuLight && window.DocuLight.state && window.DocuLight.state.sidebarTree) {
+      tab.sidebarTree = window.DocuLight.state.sidebarTree;
+    }
   }
 
   function renderTabBar() {

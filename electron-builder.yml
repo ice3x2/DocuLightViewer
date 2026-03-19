@@ -57,13 +57,18 @@ mac:
       arch:
         - x64
         - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   icon: assets/icon.png
   category: public.app-category.developer-tools
-  hardenedRuntime: true
+  identity: null
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  artifactName: DocuLight-${version}-${arch}.dmg
+  artifactName: DocuLight-${version}-${arch}.${ext}
 
 linux:
   target:

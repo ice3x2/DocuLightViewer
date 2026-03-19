@@ -28,9 +28,9 @@ function extractTitleFromContent(content) {
 
 /**
  * Resolve subdirectory format tokens into an actual path segment.
- * Supported tokens: {yyyy}, {mm}, {dd}, {yyyy-mm-dd}, {HH}, {MM}, {ss}, {project}, {severity}
+ * Supported tokens: {yyyy}, {mm}, {dd}, {yyyy-mm-dd}, {HH}, {MM}, {ss}, {project}, {severity}, {type}
  */
-function resolveSubDir(format, { project, severity } = {}) {
+function resolveSubDir(format, { project, severity, docType } = {}) {
   if (!format) return '';
   const now = new Date();
   const tokens = {
@@ -46,7 +46,8 @@ function resolveSubDir(format, { project, severity } = {}) {
     '{MM}': String(now.getMinutes()).padStart(2, '0'),
     '{ss}': String(now.getSeconds()).padStart(2, '0'),
     '{project}': sanitizeFilenameWithUrlEncode(project || 'default'),
-    '{severity}': sanitizeFilenameWithUrlEncode(severity || 'general')
+    '{severity}': sanitizeFilenameWithUrlEncode(severity || 'general'),
+    '{type}': sanitizeFilenameWithUrlEncode(docType || 'note')
   };
   let result = format;
   for (const [token, value] of Object.entries(tokens)) {
@@ -63,8 +64,8 @@ function resolveSubDir(format, { project, severity } = {}) {
  * Build destination path and filename — shared by saveMcpFile and mcpManualSave.
  * @returns {{ destDir: string, destPath: string, fileName: string }}
  */
-function buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity }) {
-  const subDir = resolveSubDir(subDirFormat, { project, severity });
+function buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity, docType }) {
+  const subDir = resolveSubDir(subDirFormat, { project, severity, docType });
   const now = new Date();
   const ts = [
     String(now.getHours()).padStart(2, '0'),
@@ -112,14 +113,14 @@ async function writeToDestPath(destDir, destPath, { filePath, content }) {
  * @param {{ content?: string, filePath?: string, title?: string, noSave?: boolean, project?: string }} opts
  * @returns {Promise<string|null>} Saved file path, or null if skipped
  */
-async function saveMcpFile(store, { content, filePath, title, noSave, project, severity }) {
+async function saveMcpFile(store, { content, filePath, title, noSave, project, severity, docType }) {
   if (noSave === true) return null;
   const enabled = store.get('mcpAutoSave', false);
   const basePath = store.get('mcpAutoSavePath', '');
   if (!enabled || !basePath) return null;
 
   const subDirFormat = store.get('mcpSaveSubDir', '');
-  const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity });
+  const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity, docType });
 
   try {
     const saved = await writeToDestPath(destDir, destPath, { filePath, content });
@@ -138,14 +139,14 @@ async function saveMcpFile(store, { content, filePath, title, noSave, project, s
  * @param {{ content?: string, filePath?: string, title?: string, project?: string }} opts
  * @returns {Promise<{success: boolean, filePath?: string, errorKey?: string, errorDetail?: string}>}
  */
-async function mcpManualSave(store, { content, filePath, title, project, severity }) {
+async function mcpManualSave(store, { content, filePath, title, project, severity, docType }) {
   const basePath = store.get('mcpAutoSavePath', '');
   if (!basePath) {
     return { success: false, errorKey: 'viewer.saveErrorNoDir' };
   }
 
   const subDirFormat = store.get('mcpSaveSubDir', '');
-  const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity });
+  const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity, docType });
 
   try {
     const saved = await writeToDestPath(destDir, destPath, { filePath, content });
