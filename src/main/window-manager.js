@@ -428,6 +428,14 @@ class WindowManager {
       }
     });
 
+    // Re-assert alwaysOnTop z-order when window gains focus (FR-5)
+    win.on('focus', () => {
+      const entry = this.windows.get(windowId);
+      if (entry && entry.meta.alwaysOnTop && !win.isDestroyed()) {
+        win.setAlwaysOnTop(true);
+      }
+    });
+
     win.on('closed', () => {
       const entry = this.windows.get(windowId);
       if (entry) {
@@ -1139,6 +1147,14 @@ class WindowManager {
         if (!win.isMaximized() && !win.isMinimized()) {
           this.store.set('lastWindowBounds', win.getBounds());
         }
+      }
+    });
+
+    // Re-assert alwaysOnTop z-order when window gains focus (FR-5)
+    win.on('focus', () => {
+      const entry = this.windows.get(windowId);
+      if (entry && entry.meta.alwaysOnTop && !win.isDestroyed()) {
+        win.setAlwaysOnTop(true);
       }
     });
 

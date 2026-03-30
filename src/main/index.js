@@ -1187,16 +1187,33 @@ function registerIpcHandlers() {
 
     try {
       if (scope === 'current') {
-        // Single file export
-        const currentFilePath = senderEntry.meta.filePath;
-        const defaultName = currentFilePath
-          ? path.basename(currentFilePath, path.extname(currentFilePath)) + '.pdf'
+        // Single file export — resolve content source before dialog (FR-2, FR-3)
+        const resolvedFilePath = senderEntry.meta.filePath || senderEntry.meta.savedFilePath;
+        let markdown;
+        if (resolvedFilePath) {
+          markdown = await fs.promises.readFile(resolvedFilePath, 'utf-8');
+        } else if (senderEntry.meta.lastRenderedContent) {
+          markdown = senderEntry.meta.lastRenderedContent;
+        } else {
+          return { error: 'No file to export' };
+        }
+
+        const defaultName = resolvedFilePath
+          ? path.basename(resolvedFilePath, path.extname(resolvedFilePath)) + '.pdf'
           : 'document.pdf';
 
-        const saveResult = await dialog.showSaveDialog(senderWin, {
-          defaultPath: defaultName,
-          filters: [{ name: 'PDF', extensions: ['pdf'] }]
-        });
+        // Temporarily release alwaysOnTop so native dialog appears above (FR-1)
+        const wasOnTop = senderWin.isAlwaysOnTop();
+        if (wasOnTop) senderWin.setAlwaysOnTop(false);
+        let saveResult;
+        try {
+          saveResult = await dialog.showSaveDialog(senderWin, {
+            defaultPath: defaultName,
+            filters: [{ name: 'PDF', extensions: ['pdf'] }]
+          });
+        } finally {
+          if (wasOnTop && !senderWin.isDestroyed()) senderWin.setAlwaysOnTop(true);
+        }
 
         if (saveResult.canceled || !saveResult.filePath) {
           return { cancelled: true };
@@ -1204,14 +1221,10 @@ function registerIpcHandlers() {
 
         const savePath = saveResult.filePath;
 
-        // Get the markdown content from the active window
-        const filePath = senderEntry.meta.filePath;
-        let markdown;
-        if (filePath) {
-          markdown = await fs.promises.readFile(filePath, 'utf-8');
-        } else {
-          return { error: 'No file to export' };
-        }
+        // Resolve imageBasePath
+        const imageBasePath = senderEntry.meta.tree
+          ? path.dirname(senderEntry.meta.tree.path).replace(/\\/g, '/')
+          : (resolvedFilePath ? path.dirname(resolvedFilePath).replace(/\\/g, '/') : null);
 
         // Create hidden BrowserWindow for PDF rendering
         const pdfWin = new BrowserWindow({
@@ -1229,11 +1242,17 @@ function registerIpcHandlers() {
         try {
           await pdfWin.loadFile(path.join(__dirname, '../renderer/viewer.html'));
 
-          // Wait for window-ready
-          await new Promise((resolve) => {
+          // Wait for window-ready with 15s timeout (FR-4)
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              ipcMain.removeListener('window-ready', readyHandler);
+              reject(new Error('PDF window ready timeout'));
+            }, 15000);
+
             const readyHandler = (readyEvent) => {
               const readyWin = BrowserWindow.fromWebContents(readyEvent.sender);
               if (readyWin === pdfWin) {
+                clearTimeout(timer);
                 ipcMain.removeListener('window-ready', readyHandler);
                 resolve();
               }
@@ -1254,12 +1273,9 @@ function registerIpcHandlers() {
           pdfWin.webContents.send('settings-changed', { fontSize, fontFamily, codeTheme, contentWidth, contentMaxWidth });
 
           // Send markdown with pdfMode flag
-          const imageBasePath = senderEntry.meta.tree
-            ? path.dirname(senderEntry.meta.tree.path).replace(/\\/g, '/')
-            : (filePath ? path.dirname(filePath).replace(/\\/g, '/') : null);
           pdfWin.webContents.send('render-markdown', {
             markdown,
-            filePath: filePath ? filePath.replace(/\\/g, '/') : null,
+            filePath: resolvedFilePath ? resolvedFilePath.replace(/\\/g, '/') : null,
             imageBasePath,
             platform: process.platform,
             pdfMode: true
@@ -1308,10 +1324,18 @@ function registerIpcHandlers() {
           return { error: 'No markdown files found' };
         }
 
-        const saveResult = await dialog.showSaveDialog(senderWin, {
-          defaultPath: 'all-documents.pdf',
-          filters: [{ name: 'PDF', extensions: ['pdf'] }]
-        });
+        // Temporarily release alwaysOnTop so native dialog appears above (FR-1)
+        const wasOnTopAll = senderWin.isAlwaysOnTop();
+        if (wasOnTopAll) senderWin.setAlwaysOnTop(false);
+        let saveResult;
+        try {
+          saveResult = await dialog.showSaveDialog(senderWin, {
+            defaultPath: 'all-documents.pdf',
+            filters: [{ name: 'PDF', extensions: ['pdf'] }]
+          });
+        } finally {
+          if (wasOnTopAll && !senderWin.isDestroyed()) senderWin.setAlwaysOnTop(true);
+        }
 
         if (saveResult.canceled || !saveResult.filePath) {
           return { cancelled: true };
@@ -1355,10 +1379,17 @@ function registerIpcHandlers() {
             try {
               await pdfWin.loadFile(path.join(__dirname, '../renderer/viewer.html'));
 
-              await new Promise((resolve) => {
+              // Wait for window-ready with 15s timeout (FR-4)
+              await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                  ipcMain.removeListener('window-ready', readyHandler);
+                  reject(new Error('PDF window ready timeout'));
+                }, 15000);
+
                 const readyHandler = (readyEvent) => {
                   const readyWin = BrowserWindow.fromWebContents(readyEvent.sender);
                   if (readyWin === pdfWin) {
+                    clearTimeout(timer);
                     ipcMain.removeListener('window-ready', readyHandler);
                     resolve();
                   }
