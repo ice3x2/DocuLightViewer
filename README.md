@@ -395,6 +395,25 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 > **AppImage users**: The MCP stdio path changes on each launch. Use HTTP transport instead:
 > `claude mcp add --transport http doclight http://localhost:52580/mcp`
 
+**HTTP transport (all platforms):**
+
+If you prefer the HTTP transport over stdio, use the URL-based configuration.
+The DocuLight app must be running for the HTTP endpoint to be available.
+
+```json
+{
+  "mcpServers": {
+    "doculight": {
+      "type": "url",
+      "url": "http://localhost:52580/mcp"
+    }
+  }
+}
+```
+
+> The default port is `52580`. If you changed it in Settings, replace the port number accordingly.
+> The actual bound port is written to `{userData}/mcp-port` at startup.
+
 ### Quick test via curl
 
 ```bash
