@@ -267,7 +267,8 @@ class WindowManager {
   async createWindow(opts = {}) {
     const { foreground, title: explicitTitle, size, windowName,
             severity, tags, flash, progress, autoCloseSeconds,
-            project, docName, description, docType } = opts;
+            project, docName, description, docType,
+            projectPath, gitRemote, gitBranch, gitLastCommit } = opts;
     let { content, filePath } = opts;
 
     // --- Named window upsert (FR-19-001 + FR-4-001 race guard) -------------
@@ -314,8 +315,11 @@ class WindowManager {
       content = await fs.promises.readFile(filePath, 'utf-8');
 
       // Inject frontmatter if metadata params provided (filePath mode)
-      if (project || docName || description || docType) {
-        content = injectFrontmatter(content, { project, docName, description, docType });
+      if (project || docName || description || docType || projectPath) {
+        content = injectFrontmatter(content, {
+          project, docName, description, docType,
+          projectPath, gitRemote, gitBranch, gitLastCommit
+        });
       }
     }
 
@@ -745,7 +749,8 @@ class WindowManager {
 
     let { content, filePath, title, appendMode, separator, foreground,
           severity, flash, progress, tags, autoCloseSeconds,
-          project, docName, description, docType } = opts;
+          project, docName, description, docType,
+          projectPath, gitRemote, gitBranch, gitLastCommit } = opts;
 
     // --- Append mode (FR-19-002) -------------------------------------------
     if (appendMode) {
@@ -772,8 +777,11 @@ class WindowManager {
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
       // Inject frontmatter metadata for filePath mode (Step 20)
-      if (project || docName || description || docType) {
-        content = injectFrontmatter(content, { project, docName, description, docType });
+      if (project || docName || description || docType || projectPath) {
+        content = injectFrontmatter(content, {
+          project, docName, description, docType,
+          projectPath, gitRemote, gitBranch, gitLastCommit
+        });
       }
     }
 

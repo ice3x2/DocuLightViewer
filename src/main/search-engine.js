@@ -227,7 +227,7 @@ class SearchEngine {
         body: 1
       },
       bm25Params: { k1: 1.2, b: 0.75, k: 1 },
-      ovFldNames: ['project', 'docName', 'docType']
+      ovFldNames: ['project', 'docName', 'docType', 'gitBranch', 'gitLastCommit']
     });
 
     this.engine.definePrepTasks([tokenize]);

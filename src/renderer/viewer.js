@@ -357,6 +357,10 @@
 
     const fieldLabels = {
       project: t('viewer.metaProject'),
+      projectPath: t('viewer.metaProjectPath'),
+      gitRemote: t('viewer.metaGitRemote'),
+      gitBranch: t('viewer.metaGitBranch'),
+      gitLastCommit: t('viewer.metaGitLastCommit'),
       docName: t('viewer.metaDocName'),
       docType: t('viewer.metaDocType'),
       description: t('viewer.metaDescription'),

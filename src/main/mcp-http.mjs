@@ -42,7 +42,8 @@ const TOOLS = [
         docName:          { type: 'string', description: '[Recommended] Document name or type for frontmatter metadata' },
         description:      { type: 'string', description: '[Recommended] One-line summary of document purpose. STRONGLY RECOMMENDED.' },
         noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' },
-        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' }
+        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' },
+        projectPath:      { type: 'string', description: 'Absolute path to project directory. Auto-collects git metadata when mcpGitInfo setting is enabled.' }
       }
     }
   },
@@ -65,7 +66,8 @@ const TOOLS = [
         docName:          { type: 'string', description: '[Recommended] Document name for frontmatter metadata' },
         description:      { type: 'string', description: '[Recommended] Document description for frontmatter metadata' },
         noSave:           { type: 'boolean', description: 'Skip auto-save for this call even if mcpAutoSave is enabled (default: false)' },
-        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' }
+        docType:          { type: 'string', enum: DOC_TYPE_VALUES, description: '[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)' },
+        projectPath:      { type: 'string', description: 'Absolute path to project directory. Auto-collects git metadata when mcpGitInfo setting is enabled.' }
       },
       required: ['windowId']
     }
@@ -126,13 +128,37 @@ function createToolHandlers(windowManager, store, searchEngine) {
   return {
     async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
                           windowName, severity, tags, progress, noSave,
-                          project, docName, description, docType }) {
+                          project, docName, description, docType,
+                          projectPath }) {
       if (!content && !filePath) {
         return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
       }
+
+      // Git info collection
+      let gitInfo = {};
+      if (projectPath && path.isAbsolute(projectPath)) {
+        const mcpGitInfo = store.get('mcpGitInfo', true);
+        if (mcpGitInfo) {
+          const { collectGitInfo } = _require('./git-info');
+          gitInfo = await collectGitInfo(projectPath);
+        } else {
+          gitInfo = { projectPath };
+        }
+      }
+
+      // project priority: explicit > git-derived
+      if (project) {
+        gitInfo.project = project;
+      } else if (gitInfo.project) {
+        project = gitInfo.project;
+      }
+
       // Frontmatter injection
-      if (content && (project || docName || description || docType)) {
-        content = injectFrontmatter(content, { project, docName, description, docType });
+      if (content && (project || docName || description || docType || gitInfo.projectPath)) {
+        content = injectFrontmatter(content, {
+          project, docName, description, docType,
+          ...gitInfo
+        });
       }
 
       const result = await windowManager.createWindow({
@@ -187,15 +213,38 @@ function createToolHandlers(windowManager, store, searchEngine) {
     },
 
     async update_markdown({ windowId, content, filePath, title, foreground, appendMode,
-                            severity, tags, progress,
-                            project, docName, description, docType }) {
+                            severity, tags, progress, noSave,
+                            project, docName, description, docType,
+                            projectPath }) {
       if (!windowId) {
         return { isError: true, content: [{ type: 'text', text: 'windowId is required.' }] };
       }
 
+      // Git info collection (skip for appendMode)
+      let gitInfo = {};
+      if (!appendMode && projectPath && path.isAbsolute(projectPath)) {
+        const mcpGitInfo = store.get('mcpGitInfo', true);
+        if (mcpGitInfo) {
+          const { collectGitInfo } = _require('./git-info');
+          gitInfo = await collectGitInfo(projectPath);
+        } else {
+          gitInfo = { projectPath };
+        }
+      }
+
+      // project priority: explicit > git-derived
+      if (project) {
+        gitInfo.project = project;
+      } else if (gitInfo.project) {
+        project = gitInfo.project;
+      }
+
       // Frontmatter injection (skip for appendMode)
-      if (content && !appendMode && (project || docName || description || docType)) {
-        content = injectFrontmatter(content, { project, docName, description, docType });
+      if (content && !appendMode && (project || docName || description || docType || gitInfo.projectPath)) {
+        content = injectFrontmatter(content, {
+          project, docName, description, docType,
+          ...gitInfo
+        });
       }
 
       const result = await windowManager.updateWindow(windowId, {

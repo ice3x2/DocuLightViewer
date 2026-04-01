@@ -58,7 +58,8 @@
     enableTabs: false,
     mcpAutoSave: false,
     mcpAutoSavePath: '',
-    mcpSaveSubDir: ''
+    mcpSaveSubDir: '',
+    mcpGitInfo: true
   };
 
   const VALIDATION = {
@@ -159,6 +160,8 @@
     if (mcpAutoSavePathEl) mcpAutoSavePathEl.value = settings.mcpAutoSavePath || '';
     const mcpSaveSubDirEl = document.getElementById('mcpSaveSubDir-input');
     if (mcpSaveSubDirEl) mcpSaveSubDirEl.value = settings.mcpSaveSubDir || '';
+    const mcpGitInfoEl = document.getElementById('mcpGitInfo-checkbox');
+    if (mcpGitInfoEl) mcpGitInfoEl.checked = settings.mcpGitInfo !== undefined ? settings.mcpGitInfo : DEFAULTS.mcpGitInfo;
     updateAutoSavePathState();
     updateMcpAddress(settings.mcpPort !== undefined ? settings.mcpPort : DEFAULTS.mcpPort);
   }
@@ -225,6 +228,8 @@
     values.mcpAutoSavePath = mcpAutoSavePathEl ? mcpAutoSavePathEl.value.trim() : DEFAULTS.mcpAutoSavePath;
     const mcpSaveSubDirEl = document.getElementById('mcpSaveSubDir-input');
     values.mcpSaveSubDir = mcpSaveSubDirEl ? mcpSaveSubDirEl.value.trim() : DEFAULTS.mcpSaveSubDir;
+    const mcpGitInfoEl = document.getElementById('mcpGitInfo-checkbox');
+    values.mcpGitInfo = mcpGitInfoEl ? mcpGitInfoEl.checked : DEFAULTS.mcpGitInfo;
 
     return values;
   }

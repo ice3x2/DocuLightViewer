@@ -9,6 +9,7 @@ const { WindowManager } = require('./window-manager');
 const Store = require('electron-store');
 const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
 const { SearchEngine } = require('./search-engine');
+const { injectFrontmatter } = require('./frontmatter');
 
 // === CLI locale override ===
 // --flags are consumed by Chromium (--lang) or npm (--locale, --language).
@@ -121,6 +122,7 @@ const store = new Store({
     mcpAutoSave: { type: 'boolean', default: false },
     mcpAutoSavePath: { type: 'string', default: '' },
     mcpSaveSubDir: { type: 'string', default: '{yyyy-mm-dd}' },
+    mcpGitInfo: { type: 'boolean', default: true },
     lastSaveAsDirectory: { type: 'string', default: '' }
   }
 });
@@ -606,8 +608,36 @@ async function handleIpcMessage(socket, msg) {
     let result;
 
     switch (action) {
-      case 'open_markdown':
-        result = await windowManager.createWindow(params);
+      case 'open_markdown': {
+        // Git info collection (stdio path — mcp-server.mjs passes projectPath via IPC)
+        let gitInfo = {};
+        if (params.projectPath && path.isAbsolute(params.projectPath)) {
+          const mcpGitInfo = store.get('mcpGitInfo', true);
+          if (mcpGitInfo) {
+            const { collectGitInfo } = require('./git-info');
+            gitInfo = await collectGitInfo(params.projectPath);
+          } else {
+            gitInfo = { projectPath: params.projectPath };
+          }
+        }
+
+        // project priority: explicit > git-derived
+        if (params.project) {
+          gitInfo.project = params.project;
+        } else if (gitInfo.project) {
+          params.project = gitInfo.project;
+        }
+
+        // Frontmatter injection with git fields
+        if (params.content && (params.project || params.docName || params.description || params.docType || gitInfo.projectPath)) {
+          params.content = injectFrontmatter(params.content, {
+            project: params.project, docName: params.docName,
+            description: params.description, docType: params.docType,
+            ...gitInfo
+          });
+        }
+
+        result = await windowManager.createWindow({ ...params, ...gitInfo });
         try {
           const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project, severity: params.severity, docType: params.docType });
           const entry = windowManager.getWindowEntry(result.windowId);
@@ -629,9 +659,38 @@ async function handleIpcMessage(socket, msg) {
           console.error('[doculight] saveMcpFile error:', err.message);
         }
         break;
+      }
 
-      case 'update_markdown':
-        result = await windowManager.updateWindow(params.windowId, params);
+      case 'update_markdown': {
+        // Git info collection (stdio path — skip for appendMode)
+        let gitInfo = {};
+        if (!params.appendMode && params.projectPath && path.isAbsolute(params.projectPath)) {
+          const mcpGitInfo = store.get('mcpGitInfo', true);
+          if (mcpGitInfo) {
+            const { collectGitInfo } = require('./git-info');
+            gitInfo = await collectGitInfo(params.projectPath);
+          } else {
+            gitInfo = { projectPath: params.projectPath };
+          }
+        }
+
+        // project priority: explicit > git-derived
+        if (params.project) {
+          gitInfo.project = params.project;
+        } else if (gitInfo.project) {
+          params.project = gitInfo.project;
+        }
+
+        // Frontmatter injection with git fields
+        if (params.content && !params.appendMode && (params.project || params.docName || params.description || params.docType || gitInfo.projectPath)) {
+          params.content = injectFrontmatter(params.content, {
+            project: params.project, docName: params.docName,
+            description: params.description, docType: params.docType,
+            ...gitInfo
+          });
+        }
+
+        result = await windowManager.updateWindow(params.windowId, { ...params, ...gitInfo });
         // Auto-save updated content (issue #6)
         try {
           const entry = windowManager.getWindowEntry(params.windowId);
@@ -663,6 +722,7 @@ async function handleIpcMessage(socket, msg) {
           console.warn('[doculight] update auto-save error:', e.message);
         }
         break;
+      }
 
       case 'close_viewer':
         result = windowManager.closeWindow(params?.windowId, { tag: params?.tag });

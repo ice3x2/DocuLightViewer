@@ -361,11 +361,12 @@ server.tool(
     docName:          z.string().optional().describe('[Recommended] Document name or type (e.g., "API Reference", "Bug Report", "Step 20 SRS"). Used for frontmatter metadata.'),
     description:      z.string().optional().describe('[Recommended] One-line summary of the document purpose and content. STRONGLY RECOMMENDED: Always provide a brief summary for better document organization.'),
     noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled'),
-    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)')
+    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)'),
+    projectPath:      z.string().optional().describe('Absolute path to project directory. Auto-collects git metadata when mcpGitInfo setting is enabled.')
   },
   async ({ content, filePath, title, foreground, size,
            windowName, severity, tags, progress,
-           project, docName, description, noSave, docType }) => {
+           project, docName, description, noSave, docType, projectPath }) => {
     try {
       // Validation: at least one of content or filePath is required
       if (!content && !filePath) {
@@ -387,7 +388,8 @@ server.tool(
       }
 
       // Frontmatter injection: prepend YAML metadata if any meta params provided
-      if (content && (project || docName || description || docType)) {
+      // Skip when projectPath is present — index.js handles git collection + frontmatter injection
+      if (content && !projectPath && (project || docName || description || docType)) {
         content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
@@ -396,7 +398,8 @@ server.tool(
         foreground: foreground ?? true,
         size: size ?? 'm',
         windowName, severity, tags, progress, noSave,
-        project, docName, description, docType
+        project, docName, description, docType,
+        projectPath
       });
 
       if (result.upserted) {
@@ -442,11 +445,12 @@ server.tool(
     docName:          z.string().optional().describe('[Recommended] Document name for frontmatter metadata'),
     description:      z.string().optional().describe('[Recommended] Document description for frontmatter metadata'),
     noSave:           z.boolean().default(false).describe('Skip auto-save for this call even if mcpAutoSave is enabled'),
-    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)')
+    docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)'),
+    projectPath:      z.string().optional().describe('Absolute path to project directory. Auto-collects git metadata when mcpGitInfo setting is enabled.')
   },
   async ({ windowId, content, filePath, title, foreground, appendMode,
            severity, tags, progress,
-           project, docName, description, noSave, docType }) => {
+           project, docName, description, noSave, docType, projectPath }) => {
     try {
       if (!windowId) {
         return {
@@ -467,14 +471,16 @@ server.tool(
       }
 
       // Frontmatter injection (skip for appendMode)
-      if (content && !appendMode && (project || docName || description || docType)) {
+      // Skip when projectPath is present — index.js handles git collection + frontmatter injection
+      if (content && !appendMode && !projectPath && (project || docName || description || docType)) {
         content = injectFrontmatter(content, { project, docName, description, docType });
       }
 
       const result = await sendIpcRequest('update_markdown', {
         windowId, content, filePath, title, foreground, appendMode,
         severity, tags, progress, noSave,
-        project, docName, description, docType
+        project, docName, description, docType,
+        projectPath
       });
 
       const action = appendMode ? 'Appended to' : 'Updated';

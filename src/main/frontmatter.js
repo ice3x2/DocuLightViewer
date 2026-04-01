@@ -35,9 +35,14 @@ const DOC_TYPE_VALUES = Object.keys(DOC_TYPES);
  * @param {string} [meta.docType] - Document type (default: 'note')
  * @returns {string} Content with frontmatter prepended/merged
  */
-function injectFrontmatter(content, { project, docName, description, docType }) {
+function injectFrontmatter(content, { project, docName, description, docType,
+                                      projectPath, gitRemote, gitBranch, gitLastCommit }) {
   const newFields = {};
   if (project) newFields.project = project;
+  if (projectPath) newFields.projectPath = projectPath;
+  if (gitRemote) newFields.gitRemote = gitRemote;
+  if (gitBranch) newFields.gitBranch = gitBranch;
+  if (gitLastCommit) newFields.gitLastCommit = gitLastCommit;
   if (docName) newFields.docName = docName;
   if (description) newFields.description = description;
   newFields.docType = (docType && DOC_TYPE_VALUES.includes(docType)) ? docType : 'note';
