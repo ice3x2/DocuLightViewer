@@ -1,0 +1,8 @@
+[
+  {"step": "spec-analysis", "status": "completed", "completed_at": "2026-04-01"},
+  {"step": "architecture", "status": "completed", "completed_at": "2026-04-01"},
+  {"step": "phase-generation", "status": "completed", "phases_count": 6, "completed_at": "2026-04-01"},
+  {"step": "evaluation", "status": "completed", "rounds": 1, "grade": "A+", "completed_at": "2026-04-01"},
+  {"step": "spec-verification", "status": "completed", "coverage": "100%", "completed_at": "2026-04-01"},
+  {"step": "plan-generation-complete", "status": "completed", "completed_at": "2026-04-01"}
+]
