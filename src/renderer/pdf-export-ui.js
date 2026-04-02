@@ -11,11 +11,13 @@
     const exportBtn = document.getElementById('btn-export-pdf');
     modal = document.getElementById('pdf-modal');
 
-    if (!exportBtn || !modal) return;
+    if (!modal) return;
 
-    exportBtn.addEventListener('click', () => {
-      openModal();
-    });
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        openModal();
+      });
+    }
 
     // Save button
     const saveBtn = modal.querySelector('.pdf-save-btn');
@@ -37,11 +39,6 @@
         closeModal();
       }
     });
-
-    // Handle pdfMode for hidden PDF rendering windows
-    if (window.doclight && window.doclight.onRenderMarkdown) {
-      // This is handled in the render-markdown listener in viewer.js
-    }
   }
 
   function openModal() {
