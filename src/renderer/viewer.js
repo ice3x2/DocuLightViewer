@@ -427,6 +427,18 @@
     // Step 3: Insert into DOM
     contentEl.innerHTML = cleanHtml;
 
+    // Step 3a: Generate slug-based IDs for headings (marked v17+ does not generate them)
+    contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading) => {
+      if (!heading.id) {
+        const slug = heading.textContent
+          .trim()
+          .toLowerCase()
+          .replace(/[^\w\s\u3131-\uD79D\u3000-\u9FFF-]/g, '')
+          .replace(/\s+/g, '-');
+        if (slug) heading.id = slug;
+      }
+    });
+
     // Step 3b: Convert local file:// image URLs to data URIs.
     // Electron's sandbox prevents the renderer from loading file:// resources
     // that reside outside the app directory (Chromium same-origin policy).
@@ -550,9 +562,11 @@
       }, 500);
     }
 
-    // Restore scroll position for same-file refresh (auto-refresh)
+    // Restore scroll position for same-file refresh, or reset for new documents
     if (isSameFile && viewerContainerEl) {
       viewerContainerEl.scrollTop = savedScrollTop;
+    } else if (viewerContainerEl) {
+      viewerContainerEl.scrollTop = 0;
     }
 
     // Scroll to search match if pending from sidebar content search
@@ -994,6 +1008,36 @@
         });
         menu.appendChild(selectBlockItem);
       }
+
+      // Copy Source (원문 복사)
+      const copySourceItem = document.createElement('div');
+      copySourceItem.className = 'ctx-menu-item';
+      copySourceItem.textContent = t('viewer.copySource');
+      copySourceItem.addEventListener('click', async () => {
+        menu.remove();
+        let markdown = originalContent;
+        if (!markdown) {
+          const filePath = currentFilePath || saveAsFilePath || savedFilePath;
+          if (filePath) {
+            try {
+              const result = await window.doclight.readFileForTab(filePath);
+              if (result && !result.error && result.markdown) {
+                markdown = result.markdown;
+              }
+            } catch (err) {
+              console.error('[doculight] Failed to read source:', err);
+            }
+          }
+        }
+        if (markdown) {
+          navigator.clipboard.writeText(markdown).then(() => {
+            showViewerToast(t('viewer.sourceCopied'));
+          }).catch((err) => {
+            console.error('[doculight] Failed to copy source:', err);
+          });
+        }
+      });
+      menu.appendChild(copySourceItem);
 
       // Separator
       const sep = document.createElement('div');

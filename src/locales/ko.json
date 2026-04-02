@@ -132,6 +132,8 @@
   "viewer.findNext": "다음 결과",
   "viewer.findNoResults": "결과 없음",
   "viewer.copy": "복사",
+  "viewer.copySource": "원문 복사",
+  "viewer.sourceCopied": "원문이 복사되었습니다",
 
   "viewer.metaboxTitle": "문서 정보",
   "viewer.metaProject": "프로젝트",

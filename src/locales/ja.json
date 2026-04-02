@@ -124,6 +124,8 @@
   "viewer.findNext": "次の一致",
   "viewer.findNoResults": "結果なし",
   "viewer.copy": "コピー",
+  "viewer.copySource": "ソースをコピー",
+  "viewer.sourceCopied": "ソースがコピーされまし���",
   "viewer.metaboxTitle": "ドキュメント情報",
   "viewer.metaProject": "プロジェクト",
   "viewer.metaDocName": "ドキュメント名",

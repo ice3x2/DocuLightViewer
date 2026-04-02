@@ -132,6 +132,8 @@
   "viewer.findNext": "Siguiente resultado",
   "viewer.findNoResults": "Sin resultados",
   "viewer.copy": "Copiar",
+  "viewer.copySource": "Copiar fuente",
+  "viewer.sourceCopied": "Fuente copiada",
 
   "viewer.metaboxTitle": "Información del documento",
   "viewer.metaProject": "Proyecto",
