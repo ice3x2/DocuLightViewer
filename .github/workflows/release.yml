@@ -64,7 +64,7 @@ jobs:
             dist/DocuLight-Portable-*.exe
           if-no-files-found: error
 
-  # ── macOS 빌드 (DMG — Intel x64 + Apple Silicon arm64) ──────────────────
+  # ── macOS 빌드 (Portable zip — Intel x64 + Apple Silicon arm64) ──────────
   build-macos:
     needs: prepare
     runs-on: macos-latest
@@ -88,9 +88,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
-          path: |
-            dist/DocuLight-*.dmg
-            dist/DocuLight-*.zip
+          path: dist/DocuLight-*.zip
           if-no-files-found: error
 
   # ── Linux 빌드 (AppImage + .deb — Ubuntu/Debian) ────────────────────────
@@ -157,7 +155,6 @@ jobs:
           body_path: ${{ steps.release-notes.outputs.path }}
           files: |
             artifacts/windows-artifacts/*.exe
-            artifacts/macos-artifacts/*.dmg
             artifacts/macos-artifacts/*.zip
             artifacts/linux-artifacts/*.AppImage
             artifacts/linux-artifacts/*.deb
@@ -170,7 +167,6 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/windows-artifacts/*.exe
-            artifacts/macos-artifacts/*.dmg
             artifacts/macos-artifacts/*.zip
             artifacts/linux-artifacts/*.AppImage
             artifacts/linux-artifacts/*.deb
