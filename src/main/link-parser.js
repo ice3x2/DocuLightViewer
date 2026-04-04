@@ -3,8 +3,8 @@ const fs = require('fs');
 
 // Constants
 const MAX_DEPTH = 10;
-const MAX_DIR_FILES = 50;    // 단일 디렉토리 최대 파일 수
-const MAX_TREE_FILES = 500;  // 전체 트리 최대 파일 수
+const MAX_DIR_FILES = 65535;  // 단일 디렉토리 최대 파일 수
+const MAX_TREE_FILES = 65535; // 전체 트리 최대 파일 수
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif']);
 const BINARY_EXTENSIONS = new Set(['.pdf', '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.dylib']);
