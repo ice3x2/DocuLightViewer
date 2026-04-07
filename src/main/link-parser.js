@@ -89,7 +89,24 @@ function buildDirectoryTree(rootDir, depth = 0, counter = { count: 0 }) {
     dirFileCount++;
     counter.count++;
     const filePath = path.join(rootDir, file.name);
-    children.push({ path: filePath, title: file.name, exists: true, isDirectory: false, children: [] });
+    // frontmatter name/title 파싱
+    let fmName = null;
+    try {
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+      const fmNameMatch = fileContent.match(/^---\s*\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/i);
+      if (fmNameMatch) {
+        const val = fmNameMatch[1].trim().replace(/^["']|["']$/g, '').trim();
+        if (val) fmName = val;
+      }
+      if (!fmName) {
+        const fmTitleMatch = fileContent.match(/^---\s*\n[\s\S]*?title:\s*(.+)\n[\s\S]*?---/i);
+        if (fmTitleMatch) {
+          const val = fmTitleMatch[1].trim().replace(/^["']|["']$/g, '').trim();
+          if (val) fmName = val;
+        }
+      }
+    } catch (_) { /* 읽기 실패 시 null 유지 */ }
+    children.push({ path: filePath, title: file.name, frontmatterName: fmName, exists: true, isDirectory: false, children: [] });
   }
 
   return {
@@ -209,12 +226,12 @@ function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, glo
   try {
     content = fs.readFileSync(normalized, 'utf-8');
   } catch {
-    return { path: normalized, title: path.basename(normalized), exists: false, isDirectory: false, children: [] };
+    return { path: normalized, title: path.basename(normalized), frontmatterName: null, exists: false, isDirectory: false, children: [] };
   }
 
-  // 제목 추출: frontmatter title: → 첫 H1 → basename
+  // 제목 추출: frontmatter title: → 첫 H1 → basename (대소문자 무시)
   let title = path.basename(normalized);
-  const frontmatterMatch = content.match(/^---\s*\n[\s\S]*?title:\s*(.+)\n[\s\S]*?---/);
+  const frontmatterMatch = content.match(/^---\s*\n[\s\S]*?title:\s*(.+)\n[\s\S]*?---/i);
   if (frontmatterMatch) {
     title = frontmatterMatch[1].trim().replace(/^["']|["']$/g, '');
   } else {
@@ -222,9 +239,21 @@ function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, glo
     if (h1Match) title = h1Match[1].trim();
   }
 
+  // name 필드 파싱 (대소문자 무시, name → title 우선순위)
+  let frontmatterName = null;
+  const nameMatch = content.match(/^---\s*\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/i);
+  if (nameMatch) {
+    const nameVal = nameMatch[1].trim().replace(/^["']|["']$/g, '').trim();
+    if (nameVal) frontmatterName = nameVal;
+  }
+  // name이 없으면 frontmatter title을 대체로 사용
+  if (!frontmatterName && frontmatterMatch) {
+    frontmatterName = title;
+  }
+
   // 이미 글로벌에서 확장했으면 leaf 노드로 반환 (중복 방지)
   if (globalSeen.has(normalized)) {
-    return { path: normalized, title, exists: true, isDirectory: false, children: [] };
+    return { path: normalized, title, frontmatterName, exists: true, isDirectory: false, children: [] };
   }
   globalSeen.add(normalized);
 
@@ -242,7 +271,7 @@ function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, glo
     }
   }
 
-  return { path: normalized, title, exists: true, isDirectory: false, children };
+  return { path: normalized, title, frontmatterName, exists: true, isDirectory: false, children };
 }
 
 /**

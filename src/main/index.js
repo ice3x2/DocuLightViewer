@@ -123,7 +123,8 @@ const store = new Store({
     mcpAutoSavePath: { type: 'string', default: '' },
     mcpSaveSubDir: { type: 'string', default: '{yyyy-mm-dd}' },
     mcpGitInfo: { type: 'boolean', default: true },
-    lastSaveAsDirectory: { type: 'string', default: '' }
+    lastSaveAsDirectory: { type: 'string', default: '' },
+    showDocNav: { type: 'boolean', default: true }
   }
 });
 
@@ -1282,9 +1283,9 @@ function registerIpcHandlers() {
         const savePath = saveResult.filePath;
 
         // Resolve imageBasePath
-        const imageBasePath = senderEntry.meta.tree
-          ? path.dirname(senderEntry.meta.tree.path).replace(/\\/g, '/')
-          : (resolvedFilePath ? path.dirname(resolvedFilePath).replace(/\\/g, '/') : null);
+        const imageBasePath = resolvedFilePath
+          ? path.dirname(resolvedFilePath).replace(/\\/g, '/')
+          : null;
 
         // Create hidden BrowserWindow for PDF rendering
         const pdfWin = new BrowserWindow({

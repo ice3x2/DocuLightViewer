@@ -59,7 +59,8 @@
     mcpAutoSave: false,
     mcpAutoSavePath: '',
     mcpSaveSubDir: '',
-    mcpGitInfo: true
+    mcpGitInfo: true,
+    showDocNav: true
   };
 
   const VALIDATION = {
@@ -154,6 +155,8 @@
     if (autoRefreshEl) autoRefreshEl.checked = settings.autoRefresh !== undefined ? settings.autoRefresh : DEFAULTS.autoRefresh;
     const enableTabsEl = document.getElementById('enableTabs-checkbox');
     if (enableTabsEl) enableTabsEl.checked = settings.enableTabs !== undefined ? settings.enableTabs : DEFAULTS.enableTabs;
+    const showDocNavEl = document.getElementById('showDocNav-checkbox');
+    if (showDocNavEl) showDocNavEl.checked = settings.showDocNav !== undefined ? settings.showDocNav : DEFAULTS.showDocNav;
     const mcpAutoSaveEl = document.getElementById('mcpAutoSave-checkbox');
     if (mcpAutoSaveEl) mcpAutoSaveEl.checked = settings.mcpAutoSave !== undefined ? settings.mcpAutoSave : DEFAULTS.mcpAutoSave;
     const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
@@ -222,6 +225,8 @@
     values.autoRefresh = autoRefreshEl ? autoRefreshEl.checked : DEFAULTS.autoRefresh;
     const enableTabsEl = document.getElementById('enableTabs-checkbox');
     values.enableTabs = enableTabsEl ? enableTabsEl.checked : DEFAULTS.enableTabs;
+    const showDocNavEl = document.getElementById('showDocNav-checkbox');
+    values.showDocNav = showDocNavEl ? showDocNavEl.checked : DEFAULTS.showDocNav;
     const mcpAutoSaveEl = document.getElementById('mcpAutoSave-checkbox');
     values.mcpAutoSave = mcpAutoSaveEl ? mcpAutoSaveEl.checked : DEFAULTS.mcpAutoSave;
     const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');

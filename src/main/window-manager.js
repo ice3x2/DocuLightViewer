@@ -161,9 +161,7 @@ class WindowManager {
             const currentEntry = this.windows.get(windowId);
             if (!currentEntry || currentEntry.win.isDestroyed()) return;
 
-            const imageBasePath = currentEntry.meta.tree
-              ? path.dirname(currentEntry.meta.tree.path).replace(/\\/g, '/')
-              : path.dirname(filePath).replace(/\\/g, '/');
+            const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
 
             currentEntry.win.webContents.send('render-markdown', {
               markdown,
@@ -531,9 +529,7 @@ class WindowManager {
     if (content != null) {
       // Normal window: send initial content to the renderer
       const imageBasePath = filePath
-        ? (entry.meta.tree
-          ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
-          : path.dirname(filePath).replace(/\\/g, '/'))
+        ? path.dirname(filePath).replace(/\\/g, '/')
         : null;
       entry.win.webContents.send('render-markdown', {
         markdown: content,
@@ -637,9 +633,7 @@ class WindowManager {
     // 파일 기반 윈도우: 디스크에서 재읽기
     try {
       const content = await fs.promises.readFile(filePath, 'utf-8');
-      const imageBasePath = entry.meta.tree
-        ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
-        : path.dirname(filePath).replace(/\\/g, '/');
+      const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
 
       entry.win.webContents.send('render-markdown', {
         markdown: content,
@@ -971,9 +965,7 @@ class WindowManager {
     entry.meta.history.push(filePath);
 
     // Send content to renderer
-    const imageBasePath = entry.meta.tree
-      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
-      : path.dirname(filePath).replace(/\\/g, '/');
+    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
       filePath: filePath.replace(/\\/g, '/'),
@@ -1020,9 +1012,7 @@ class WindowManager {
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
 
-    const imageBasePath = entry.meta.tree
-      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
-      : path.dirname(filePath).replace(/\\/g, '/');
+    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
       filePath: filePath.replace(/\\/g, '/'),
@@ -1054,9 +1044,7 @@ class WindowManager {
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
 
-    const imageBasePath = entry.meta.tree
-      ? path.dirname(entry.meta.tree.path).replace(/\\/g, '/')
-      : path.dirname(filePath).replace(/\\/g, '/');
+    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
     entry.win.webContents.send('render-markdown', {
       markdown: content,
       filePath: filePath.replace(/\\/g, '/'),

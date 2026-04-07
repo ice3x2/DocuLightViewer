@@ -83,6 +83,7 @@
     }
     searchInput.value = '';
     searchInput.focus();
+    document.dispatchEvent(new CustomEvent('doculight:searchmode', { detail: { active: true } }));
   }
 
   function exitSearchMode() {
@@ -102,6 +103,7 @@
     if (searchInput) {
       searchInput.value = '';
     }
+    document.dispatchEvent(new CustomEvent('doculight:searchmode', { detail: { active: false } }));
   }
 
   /**

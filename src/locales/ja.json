@@ -153,5 +153,14 @@
   "viewer.saveErrorGeneric": "保存に失敗しました",
   "viewer.pathCopied": "パスがコピーされました ({path})",
   "viewer.saveFirstToCopyPath": "先にドキュメントを保存してください",
-  "sidebar.externalLinks": "外部リンク"
+  "sidebar.externalLinks": "外部リンク",
+  "sidebar.nameToggleTitle": "フロントマター名表示切替",
+  "sidebar.nameToggleAriaLabel": "表示名切替",
+  "docNav.prev": "前へ",
+  "docNav.next": "次へ",
+  "docNav.prevAriaLabel": "前: {name}",
+  "docNav.nextAriaLabel": "次: {name}",
+  "docNav.ariaLabel": "ドキュメントナビゲーション",
+  "settings.showDocNav": "ドキュメントナビゲーション",
+  "settings.showDocNavHint": "ドキュメント下部に前/次のファイルナビゲーションを表示"
 }

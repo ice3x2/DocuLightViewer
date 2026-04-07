@@ -7,15 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **DocuLight** is a lightweight Markdown document viewer built with Electron. External processes (AI assistants like Claude Desktop) communicate via an MCP (Model Context Protocol) server. The app continues running in the system tray when all windows are closed.
 
 ### Key Capabilities
-- Desktop Markdown viewer with GitHub-flavored rendering (marked → DOMPurify → highlight.js → Mermaid)
-- Link-based sidebar navigation (auto-generated from markdown links)
+- Desktop Markdown viewer with GitHub-flavored rendering (marked v17 → DOMPurify → highlight.js → Mermaid)
+- Merged sidebar: link-based tree + directory tree with linked-node marking
 - Multiple viewer windows with cascading positions
 - Light/dark theme support with i18n (ko, en, ja, es)
-- Navigation history (back/forward buttons)
 - Tab-based multi-document view (optional, disabled by default)
 - PDF export via pdf-lib
 - BM25 full-text search across saved documents (Korean + English, wink-bm25-text-search)
 - MCP server for external tool integration (stdio + HTTP JSON-RPC)
+- Auto-save MCP documents with configurable subdirectory templates
+- Git metadata auto-collection (remote, branch, last commit) via projectPath
 
 ## Development Commands
 
@@ -24,9 +25,10 @@ npm start              # Run Electron app
 npm run dev            # Development mode (--dev flag)
 npm run dev -- locale ja   # Override locale (ko/en/ja/es)
 npm run mcp            # Run stdio MCP server standalone (for testing)
-npm run build:win      # Windows installer (.exe)
-npm run build:mac      # macOS DMG
-npm run build:linux    # Linux AppImage
+npm run bundle:mcp     # ESBuild bundle mcp-server.mjs → mcp-server.bundle.mjs
+npm run build:win      # Windows installer (.exe) + Portable
+npm run build:mac      # macOS zip (portable, no DMG)
+npm run build:linux    # Linux AppImage + .deb
 ```
 
 ```bash
@@ -49,19 +51,23 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 **`window-manager.js`** — BrowserWindow lifecycle, cascading positions (30px offset), navigation history, window state tracking
 
-**`link-parser.js`** — Recursive markdown link parser building sidebar tree. Supports `[text](url)` and `[[wikilink]]`. Uses synchronous file I/O; recursion depth-limited.
+**`link-parser.js`** — Sidebar tree builder. Two modes: (1) link-based tree from markdown `[text](url)` / `[[wikilink]]` links, (2) directory tree from filesystem. Merges both by marking linked nodes in the directory tree. Constants: `MAX_DIR_FILES = 65535`, `MAX_TREE_FILES = 65535`, `MAX_DEPTH = 10`.
 
 **`strings.js`** — i18n system. Loads `src/locales/{locale}.json` after `app.isReady()`. Supported: `ko`, `en`, `ja`, `es`. Falls back to `en`.
 
-**`mcp-server.mjs`** (ESM) — Standalone stdio MCP server. Connects to Electron via IPC socket. Uses `@modelcontextprotocol/sdk` + Zod validation.
+**`mcp-server.mjs`** (ESM) — Standalone stdio MCP server. Connects to Electron via IPC socket. Uses `@modelcontextprotocol/sdk` + Zod validation. Bundled to `mcp-server.bundle.mjs` via ESBuild for packaging.
 
 **`mcp-http.mjs`** (ESM) — HTTP JSON-RPC 2.0 MCP server embedded in Electron main process. No external SDK. Loaded via dynamic `import()` from `index.js` (CJS→ESM bridge). Writes bound port to `{userData}/mcp-port` on startup.
 
-**`frontmatter.js`** — YAML frontmatter injection utility (CJS). Shared by MCP servers and window-manager. Includes `parseFrontmatter()` for extracting frontmatter from content.
+**`frontmatter.js`** — YAML frontmatter injection utility (CJS). Shared by MCP servers and window-manager. Includes `parseFrontmatter()` for extracting frontmatter from content. Supports `docType` classification (10 types: note, plan, report, completion, issue, review, log, reference, guide, spec).
 
-**`search-engine.js`** — BM25 full-text search engine (CJS). Uses `wink-bm25-text-search` with Korean composite tokenizer (word-level + suffix stripping + character bi-gram). Indexes saved markdown documents with frontmatter metadata. Supports index serialization to JSON.
+**`git-info.js`** — Git metadata collector (CJS). When `projectPath` is provided and `mcpGitInfo` setting is enabled, collects `gitRemote`, `gitBranch`, `gitLastCommit` via git CLI commands. 5-second timeout per command, safe-fail.
 
-**`tokenizer.js`** — Korean + English composite tokenizer (CJS). Three-layer approach: word split, Korean suffix removal, character bi-gram. Used by search-engine.js.
+**`mcp-save.js`** — Auto-save manager for MCP documents (CJS). Handles `saveMcpFile()` (auto) and `mcpManualSave()` (manual). Subdirectory templating with tokens: `{yyyy-mm-dd}`, `{HH}`, `{MM}`, `{ss}`, `{project}`, `{severity}`, `{type}`.
+
+**`search-engine.js`** — BM25 full-text search engine (CJS). Uses `wink-bm25-text-search` with Korean composite tokenizer.
+
+**`tokenizer.js`** — Korean + English composite tokenizer (CJS). Three-layer approach: word split, Korean suffix removal, character bi-gram.
 
 **`file-association.js`** — Windows `.md` ProgID registration (`DocuLight.Markdown`). Packaged apps only.
 
@@ -71,13 +77,24 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 | Module | Purpose |
 |--------|---------|
-| `viewer.html/js/css` | Main viewer: markdown rendering pipeline, sidebar, themes |
+| `viewer.html/js/css` | Main viewer: markdown rendering pipeline, sidebar, themes, context menu |
 | `settings.html/js/css` | Settings editor UI |
 | `tab-manager.js` | Tab-based multi-document view |
 | `sidebar-search.js` | Sidebar file search/filter |
-| `pdf-export-ui.js` | PDF export modal |
-| `image-resolver.js` | Relative image path resolution |
+| `pdf-export-ui.js` | PDF export modal (IIFE module, initialized after DOM load) |
+| `image-resolver.js` | Relative image path resolution via IPC (file:// → data URI) |
 | `lib/` | Vendored: marked v17, DOMPurify, highlight.js, mermaid |
+
+### Rendering Pipeline (viewer.js)
+
+1. **Parse**: `marked.parse(body)` — marked v17 does NOT generate heading IDs
+2. **Sanitize**: `DOMPurify.sanitize(html, { USE_PROFILES: {html: true}, ADD_TAGS: ['details','summary'], ADD_ATTR: ['open'] })`
+3. **Insert**: `contentEl.innerHTML = cleanHtml`
+4. **Heading IDs**: Auto-generate slug-based IDs for all `h1`–`h6` (supports CJK characters)
+5. **Images**: Resolve local `file://` URLs to data URIs via IPC
+6. **Mermaid**: Render mermaid diagrams
+7. **Highlight**: `hljs.highlightElement()` on all `pre code` blocks
+8. **TOC**: Build table of contents from headings
 
 ### IPC Communication
 
@@ -102,47 +119,32 @@ E2E tests use Playwright with Electron integration. Tests run serially (`workers
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop`, `windowName`, `severity` (info/success/warning/error), `tags` (string[]), `flash`, `progress` (-1~1.0), `autoCloseSeconds` (1~3600), `project`, `docName`, `description` | Open or upsert named viewer window |
-| `update_markdown` | `windowId`, `content` OR `filePath`, `title`, `appendMode`, `separator`, `severity`, `tags`, `flash`, `progress`, `autoCloseSeconds`, `project`, `docName`, `description` | Update existing window content and/or metadata |
+| `open_markdown` | `content` OR `filePath`, `title`, `size` (s/m/l/f), `foreground`, `alwaysOnTop`, `windowName`, `severity`, `tags`, `flash`, `progress` (-1~1.0), `autoCloseSeconds`, `project`, `docName`, `description`, `docType`, `projectPath`, `noSave` | Open or upsert named viewer window |
+| `update_markdown` | `windowId`, `content` OR `filePath`, `title`, `appendMode`, `separator`, `severity`, `tags`, `flash`, `progress`, `autoCloseSeconds`, `project`, `docName`, `description`, `docType`, `projectPath` | Update existing window content and/or metadata |
 | `close_viewer` | `windowId` (optional), `tag` (optional) | Close specific window, all windows with tag, or all windows |
-| `list_viewers` | `tag` (optional) | List open windows; filter by tag; shows windowName, severity, tags, progress |
-| `search_documents` | `query` (required), `limit` (optional, default 20), `project` (optional) | BM25 full-text search across saved documents (body + frontmatter). Requires mcpAutoSave enabled. |
-| `search_projects` | `query` (optional), `limit` (optional, default 20) | Search or list projects from saved document frontmatter metadata. Requires mcpAutoSave enabled. |
+| `list_viewers` | `tag` (optional) | List open windows; filter by tag |
+| `search_documents` | `query` (required), `limit` (optional, default 20), `project` (optional) | BM25 full-text search across saved documents. Requires mcpAutoSave enabled. |
+| `search_projects` | `query` (optional), `limit` (optional, default 20) | Search or list projects from saved document frontmatter metadata. |
 
 MCP tools operate at the **window level**. `open_markdown` upserts if `windowName` already exists; otherwise creates a new window. `windowId` refers to a `BrowserWindow` ID, not a tab.
 
-### Frontmatter Metadata Parameters (Step 20)
+### Frontmatter Metadata
 
 `open_markdown` and `update_markdown` accept optional frontmatter metadata:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `project` | `string` (optional) | Project name this document belongs to |
-| `docName` | `string` (optional) | Document name/identifier |
-| `description` | `string` (optional) | Brief description of the document |
+| `project` | `string` | Project name |
+| `docName` | `string` | Document name/identifier |
+| `description` | `string` | Brief description |
+| `docType` | `string` | One of: note, plan, report, completion, issue, review, log, reference, guide, spec |
+| `projectPath` | `string` | Absolute project directory path — triggers git metadata collection if `mcpGitInfo` enabled |
 
-When any of these parameters are provided, the MCP server auto-assembles a YAML frontmatter block and prepends it to the content. A `date` field (ISO 8601) is automatically added. If the content already has frontmatter, existing fields are merged (new values override).
-
-The viewer parses frontmatter and displays it in a collapsible metabox above the content. Frontmatter is stripped before markdown rendering.
+When provided, the MCP server auto-assembles a YAML frontmatter block. A `date` field (ISO 8601) is automatically added. If `projectPath` is provided and `mcpGitInfo` is enabled, `gitRemote`, `gitBranch`, and `gitLastCommit` are injected.
 
 **IMPORTANT — open_markdown call guidelines:**
-- Always provide `project`, `docName`, and `description` when the context is known.
-- `project`: The project or repository name (e.g., "DocuLightViewer").
-- `docName`: A short document identifier (e.g., "API Reference", "Error Log").
-- `description`: A one-sentence summary of the document's purpose.
+- Always provide `project`, `docName`, `description`, and `docType` when the context is known.
 - These are optional for backward compatibility, but strongly recommended for all new calls.
-
-### WindowEntry.meta New Fields (Step 19)
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `windowName` | `string\|null` | Named window key for upsert |
-| `tags` | `string[]` | Window tags for grouping |
-| `severity` | `string\|null` | Severity theme: info/success/warning/error |
-| `autoCloseTimer` | `Timeout\|undefined` | Auto-close timer handle |
-| `autoCloseSeconds` | `number\|undefined` | Auto-close duration in seconds |
-| `progress` | `number\|undefined` | Taskbar progress value (-1~1.0) |
-| `lastRenderedContent` | `string\|undefined` | Last rendered content for append mode |
 
 ### MCP Client Configuration (Claude Desktop)
 
@@ -155,37 +157,6 @@ The viewer parses frontmatter and displays it in a collapsible metabox above the
     }
   }
 }
-```
-
-## Directory Structure
-
-```
-src/
-├── main/
-│   ├── index.js          # Entry point + IPC socket server
-│   ├── preload.js        # contextBridge API
-│   ├── window-manager.js # Window lifecycle + cascading
-│   ├── link-parser.js    # Markdown link parser + sidebar tree
-│   ├── strings.js        # i18n loader
-│   ├── frontmatter.js    # YAML frontmatter injection utility (CJS)
-│   ├── search-engine.js  # BM25 full-text search engine (CJS)
-│   ├── tokenizer.js      # Korean+English composite tokenizer (CJS)
-│   ├── file-association.js # .md file association (Windows, packaged only)
-│   ├── mcp-server.mjs    # MCP stdio bridge (ESM)
-│   └── mcp-http.mjs      # MCP HTTP JSON-RPC bridge (ESM)
-├── renderer/
-│   ├── viewer.{html,js,css}   # Main viewer
-│   ├── settings.{html,js,css} # Settings UI
-│   ├── tab-manager.js
-│   ├── sidebar-search.js
-│   ├── pdf-export-ui.js
-│   ├── image-resolver.js
-│   └── lib/              # Vendored libraries
-└── locales/
-    ├── en.json           # English (default fallback)
-    ├── ko.json
-    ├── ja.json
-    └── es.json
 ```
 
 ## Key Dependencies
@@ -220,6 +191,11 @@ Config location: `%APPDATA%\doclight\config.json` (Windows) / `~/Library/Applica
 | `autoRefresh` | `true` | boolean | Auto-refresh on file change |
 | `enableTabs` | `false` | boolean | Tab-based multi-document view |
 | `recentFiles` | `[]` | string[] | Recently opened files (max 7) |
+| `mcpAutoSave` | `false` | boolean | Auto-save MCP documents to disk |
+| `mcpAutoSavePath` | `''` | string | Base directory for auto-saved files |
+| `mcpSaveSubDir` | `'{yyyy-mm-dd}'` | string | Subdirectory template with tokens |
+| `mcpGitInfo` | `true` | boolean | Auto-collect git info for MCP documents |
+| `lastSaveAsDirectory` | `''` | string | Last "Save As" directory |
 
 ## Keyboard Shortcuts
 
@@ -235,6 +211,7 @@ Config location: `%APPDATA%\doclight\config.json` (Windows) / `~/Library/Applica
 | `Ctrl+F` / `Cmd+F` | Find in page |
 | `Ctrl+W` / `Cmd+W` | Close tab or window |
 | `Ctrl+T` / `Cmd+T` | Open new tab (tabs enabled) |
+| `Ctrl+P` / `Cmd+P` | PDF export modal |
 | `Escape` | Close PDF modal → Exit sidebar search → Release always-on-top |
 
 ## Development Workflow
@@ -266,6 +243,10 @@ Config location: `%APPDATA%\doclight\config.json` (Windows) / `~/Library/Applica
 2. Update settings UI in `settings.html` + `settings.js`
 3. Update the Settings table in this file
 
+### Adding i18n Keys
+
+All 4 locale files must be updated simultaneously: `src/locales/{ko,en,ja,es}.json`
+
 ## Important Conventions
 
 ### Git Workflow
@@ -279,3 +260,9 @@ Config location: `%APPDATA%\doclight\config.json` (Windows) / `~/Library/Applica
 **NEVER use `taskkill /F /IM node.exe` or `taskkill /F /IM electron.exe`.**
 - These kill ALL Node.js/Electron processes including the current Claude Code session
 - Instead: Close via system tray → Quit, or Ctrl+C in terminal
+
+### Rendering Quirks
+
+- **marked v17** does not generate heading IDs — viewer.js Step 3a adds slug-based IDs post-render
+- **DOMPurify** with `USE_PROFILES: {html: true}` preserves `id` attributes but strips custom data attributes
+- **pdf-export-ui.js** `init()` must not depend on elements outside the modal — the export trigger button may not exist in HTML

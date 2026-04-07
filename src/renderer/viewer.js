@@ -38,6 +38,13 @@
         el.setAttribute('title', translated);
       }
     });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+      const key = el.getAttribute('data-i18n-aria-label');
+      const translated = t(key);
+      if (translated !== key) {
+        el.setAttribute('aria-label', translated);
+      }
+    });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
       const key = el.getAttribute('data-i18n-placeholder');
       const translated = t(key);
@@ -609,6 +616,9 @@
     if (findBarVisible && findQuery) {
       setTimeout(() => performFind(findQuery), 300);
     }
+
+    // 하단 이전/다음 파일 박스 업데이트
+    updateDocNavBox();
   }));
 
   // update-markdown: content update for existing window
@@ -632,6 +642,7 @@
 
   // sidebar-tree: tree data for sidebar
   cleanups.push(window.doclight.onSidebarTree((data) => {
+    const nameToggleBtn = document.getElementById('btn-sidebar-name-toggle');
     if (data.tree && data.tree.children && data.tree.children.length > 0) {
       renderSidebarTree(data.tree);
       if (window.DocuLight) {
@@ -640,8 +651,11 @@
       if (!savedPrefs || savedPrefs.sidebarVisible !== false) {
         showSidebar();
       }
+      if (nameToggleBtn) nameToggleBtn.disabled = false;
+      updateDocNavBox();
     } else {
       hideSidebar();
+      if (nameToggleBtn) nameToggleBtn.disabled = true;
     }
   }));
 
@@ -1569,6 +1583,159 @@
     savePanelPrefs(getCurrentPanelPrefs());
   }
 
+  /**
+   * 이름 토글 상태에 따라 파일 노드 표시명 반환
+   * isDirectory/isVirtual 노드는 caller(renderTreeNode, updateDocNavBox)에서 제외 후 호출
+   * @param {Object} node - 파일 노드 (isDirectory: false)
+   * @returns {string} 표시명
+   */
+  function getDisplayName(node) {
+    const state = window.DocuLight && window.DocuLight.state;
+    if (state && state.showFrontmatterName &&
+        node.frontmatterName && node.frontmatterName.trim() !== '') {
+      return node.frontmatterName;
+    }
+    return node.title || '';
+  }
+
+  /**
+   * 사이드바 트리를 DFS 순회하여 모든 파일 노드를 순서대로 수집
+   * 가상 노드(isVirtual, __external_links__)와 그 하위는 제외
+   * @param {Object} node - 트리 노드
+   * @returns {Array} 파일 노드 배열 (정렬 순서 유지)
+   */
+  function collectNavFiles(node) {
+    if (!node) return [];
+    if (node.isVirtual || node.title === '__external_links__') return [];
+    if (!node.isDirectory) return [node];
+    const result = [];
+    if (node.children) {
+      for (const child of node.children) {
+        result.push(...collectNavFiles(child));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * #doc-nav-box DOM 요소가 없으면 생성하고, 있으면 재사용 (display 복원)
+   * #content 다음 형제로 삽입 (NFR-26-001: DOM 재사용)
+   */
+  function ensureDocNavBox() {
+    let box = document.getElementById('doc-nav-box');
+    if (box) {
+      box.style.display = '';
+      return;
+    }
+    const contentEl = document.getElementById('content');
+    if (!contentEl) return;
+
+    box = document.createElement('nav');
+    box.id = 'doc-nav-box';
+    box.setAttribute('role', 'navigation');
+    box.setAttribute('aria-label', t('docNav.ariaLabel') || '문서 네비게이션');
+
+    const prevEl = document.createElement('a');
+    prevEl.id = 'doc-nav-prev';
+    prevEl.className = 'doc-nav-item doc-nav-prev';
+    prevEl.setAttribute('tabindex', '0');
+    prevEl.innerHTML = '<span class="doc-nav-arrow">\u2190</span>' +
+      '<span class="doc-nav-label">' + (t('docNav.prev') || '이전') + '</span>' +
+      '<span class="doc-nav-title"></span>';
+
+    const nextEl = document.createElement('a');
+    nextEl.id = 'doc-nav-next';
+    nextEl.className = 'doc-nav-item doc-nav-next';
+    nextEl.setAttribute('tabindex', '0');
+    nextEl.innerHTML = '<span class="doc-nav-title"></span>' +
+      '<span class="doc-nav-label">' + (t('docNav.next') || '다음') + '</span>' +
+      '<span class="doc-nav-arrow">\u2192</span>';
+
+    box.appendChild(prevEl);
+    box.appendChild(nextEl);
+    contentEl.insertAdjacentElement('afterend', box);
+
+    // 클릭/키보드 이벤트 (한 번만 등록)
+    [prevEl, nextEl].forEach(function(el) {
+      el.addEventListener('click', function() {
+        const targetPath = el.dataset.path;
+        if (!targetPath) return;
+        // 탭 모드 처리 (L1652-1659 패턴 재사용, SRS 제약사항 4조)
+        if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+          window.DocuLight.fn.navigateToForTab(targetPath);
+        } else {
+          window.doclight.navigateTo(targetPath);
+        }
+      });
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          el.click();
+        }
+      });
+    });
+  }
+
+  function updateNavItem(el, node, direction) {
+    if (!el) return;
+    if (!node) {
+      el.style.display = 'none';
+      el.removeAttribute('data-path');
+      return;
+    }
+    el.style.display = '';
+    const name = getDisplayName(node);
+    const titleEl = el.querySelector('.doc-nav-title');
+    if (titleEl) titleEl.textContent = name;
+    const label = direction === 'prev'
+      ? (t('docNav.prevAriaLabel', { name: name }) || ('\uC774\uC804: ' + name))
+      : (t('docNav.nextAriaLabel', { name: name }) || ('\uB2E4\uC74C: ' + name));
+    el.setAttribute('aria-label', label);
+    el.dataset.path = node.path;
+  }
+
+  /**
+   * 뷰어 하단 이전/다음 파일 박스 업데이트 (NFR-26-001: DOM 재사용)
+   */
+  function updateDocNavBox() {
+    const state = window.DocuLight && window.DocuLight.state;
+    // 설정에서 비활성화된 경우 숨김
+    if (state && state.settings && state.settings.showDocNav === false) {
+      var box = document.getElementById('doc-nav-box');
+      if (box) box.style.display = 'none';
+      return;
+    }
+    if (!state || !state.sidebarTree || !state.currentFilePath) {
+      var box = document.getElementById('doc-nav-box');
+      if (box) box.style.display = 'none';
+      return;
+    }
+
+    var files = collectNavFiles(state.sidebarTree);
+    var currentNorm = state.currentFilePath.replace(/\\/g, '/').toLowerCase();
+    var idx = files.findIndex(function(f) {
+      return f.path.replace(/\\/g, '/').toLowerCase() === currentNorm;
+    });
+    if (idx < 0) {
+      const box = document.getElementById('doc-nav-box');
+      if (box) box.style.display = 'none';
+      return;
+    }
+
+    const prev = idx > 0 ? files[idx - 1] : null;
+    const next = idx < files.length - 1 ? files[idx + 1] : null;
+
+    if (!prev && !next) {
+      const box = document.getElementById('doc-nav-box');
+      if (box) box.style.display = 'none';
+      return;
+    }
+
+    ensureDocNavBox();
+    updateNavItem(document.getElementById('doc-nav-prev'), prev, 'prev');
+    updateNavItem(document.getElementById('doc-nav-next'), next, 'next');
+  }
+
   function renderSidebarTree(tree) {
     const container = document.getElementById('sidebar-tree');
     if (!container) return;
@@ -1633,7 +1800,7 @@
     label.className = 'tree-label';
     const displayTitle = (node.title === '__external_links__')
       ? (t('sidebar.externalLinks') || '외부 링크')
-      : (node.title || t('viewer.untitled'));
+      : (!node.isDirectory ? getDisplayName(node) : node.title) || t('viewer.untitled');
     label.textContent = displayTitle;
     label.title = node.path || '';
     item.appendChild(label);
@@ -2141,6 +2308,39 @@
     });
   }
 
+  // === Sidebar Name Toggle ===
+  document.addEventListener('DOMContentLoaded', () => {
+    const nameToggleBtn = document.getElementById('btn-sidebar-name-toggle');
+    if (nameToggleBtn) {
+      nameToggleBtn.addEventListener('click', () => {
+        const state = window.DocuLight.state;
+        // 검색 모드 중이면 무시
+        const searchModule = window.DocuLight.modules && window.DocuLight.modules.sidebarSearch;
+        if (searchModule && typeof searchModule.isActive === 'function' && searchModule.isActive()) return;
+
+        state.showFrontmatterName = !state.showFrontmatterName;
+        nameToggleBtn.setAttribute('aria-pressed', String(state.showFrontmatterName));
+        nameToggleBtn.classList.toggle('active', state.showFrontmatterName);
+
+        // 사이드바 재렌더링
+        if (state.sidebarTree) {
+          try {
+            renderSidebarTree(state.sidebarTree);
+          } catch (e) {
+            console.error('[NameToggle] 재렌더링 오류:', e);
+          }
+        }
+        // 하단 박스 표시명 업데이트 (Phase 3에서 정의됨, 가드 필요)
+        if (typeof updateDocNavBox === 'function') updateDocNavBox();
+      });
+
+      // 검색 모드 변경 이벤트 구독 (doculight:searchmode)
+      document.addEventListener('doculight:searchmode', (e) => {
+        nameToggleBtn.disabled = e.detail.active;
+      });
+    }
+  });
+
   // === Floating Button Handlers ===
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-toggle-sidebar')?.addEventListener('click', () => {
@@ -2168,7 +2368,8 @@
         tabs: [],
         activeTabIndex: 0,
         settings: {},
-        platform: null
+        platform: null,
+        showFrontmatterName: false
       },
       dom: {
         content: document.getElementById('content'),

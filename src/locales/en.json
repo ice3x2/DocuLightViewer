@@ -164,5 +164,14 @@
   "viewer.pathCopied": "Path copied ({path})",
   "viewer.saveFirstToCopyPath": "Please save the document first",
 
-  "sidebar.externalLinks": "External Links"
+  "sidebar.externalLinks": "External Links",
+  "sidebar.nameToggleTitle": "Toggle frontmatter name",
+  "sidebar.nameToggleAriaLabel": "Toggle display name",
+  "docNav.prev": "Previous",
+  "docNav.next": "Next",
+  "docNav.prevAriaLabel": "Previous: {name}",
+  "docNav.nextAriaLabel": "Next: {name}",
+  "docNav.ariaLabel": "Document navigation",
+  "settings.showDocNav": "Document Navigation",
+  "settings.showDocNavHint": "Show prev/next file navigation at bottom of document"
 }

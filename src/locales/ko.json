@@ -164,5 +164,14 @@
   "viewer.pathCopied": "경로가 복사되었습니다 ({path})",
   "viewer.saveFirstToCopyPath": "먼저 문서를 저장해주세요",
 
-  "sidebar.externalLinks": "외부 링크"
+  "sidebar.externalLinks": "외부 링크",
+  "sidebar.nameToggleTitle": "프론트매터 이름 표시 전환",
+  "sidebar.nameToggleAriaLabel": "파일명 표시 전환",
+  "docNav.prev": "이전",
+  "docNav.next": "다음",
+  "docNav.prevAriaLabel": "이전: {name}",
+  "docNav.nextAriaLabel": "다음: {name}",
+  "docNav.ariaLabel": "문서 네비게이션",
+  "settings.showDocNav": "문서 네비게이션",
+  "settings.showDocNavHint": "문서 하단에 이전/다음 파일 네비게이션 표시"
 }

@@ -164,5 +164,14 @@
   "viewer.pathCopied": "Ruta copiada ({path})",
   "viewer.saveFirstToCopyPath": "Guarde el documento primero",
 
-  "sidebar.externalLinks": "Enlaces externos"
+  "sidebar.externalLinks": "Enlaces externos",
+  "sidebar.nameToggleTitle": "Alternar nombre frontmatter",
+  "sidebar.nameToggleAriaLabel": "Alternar nombre de visualización",
+  "docNav.prev": "Anterior",
+  "docNav.next": "Siguiente",
+  "docNav.prevAriaLabel": "Anterior: {name}",
+  "docNav.nextAriaLabel": "Siguiente: {name}",
+  "docNav.ariaLabel": "Navegación de documentos",
+  "settings.showDocNav": "Navegación de documentos",
+  "settings.showDocNavHint": "Mostrar navegación anterior/siguiente en la parte inferior del documento"
 }

@@ -11,7 +11,7 @@
         gfm: true,
         breaks: true,
         renderer: {
-          image({ href, title, text }) {
+          image(href, title, text) {
             const resolvedHref = resolveImagePath(href);
             const titleAttr = title ? ' title="' + escapeHtml(title) + '"' : '';
             const altAttr = text ? escapeHtml(text) : '';
