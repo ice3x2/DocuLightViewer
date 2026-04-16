@@ -14,7 +14,7 @@ const _require = createRequire(import.meta.url);
 const { injectFrontmatter, DOC_TYPE_VALUES } = _require('./frontmatter.js');
 const { saveMcpFile } = _require('./mcp-save.js');
 
-const PROTOCOL_VERSION = '2025-03-26';
+const PROTOCOL_VERSION = '2025-11-25';
 const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
 
 // ============================================================================
@@ -459,13 +459,23 @@ export async function startMcpHttpServer(windowManager, store, userDataPath, sea
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Session-Id'
+        'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization, Mcp-Session-Id'
       });
       res.end();
       return;
     }
 
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+    // OAuth discovery probing — return JSON 404 to prevent Claude Code parse errors.
+    // Claude Code proactively probes these endpoints on all HTTP MCP servers
+    // (anthropics/claude-code#34008). Non-JSON 404 causes SyntaxError in the client.
+    if (url.pathname.startsWith('/.well-known/oauth-') ||
+        url.pathname === '/.well-known/openid-configuration') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'not_found' }));
+      return;
+    }
 
     // GET /mcp — SSE stream for server-to-client notifications (MCP Streamable HTTP spec)
     // Claude Code HTTP transport requires this endpoint to be available.
