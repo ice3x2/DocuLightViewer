@@ -5,9 +5,32 @@ const fs = require('fs');
 const MAX_DEPTH = 10;
 const MAX_DIR_FILES = 65535;  // 단일 디렉토리 최대 파일 수
 const MAX_TREE_FILES = 65535; // 전체 트리 최대 파일 수
+const BATCH_SIZE = 50;        // 디렉토리 스캔 배치 스트리밍 단위 (step28 Phase 1)
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif']);
 const BINARY_EXTENSIONS = new Set(['.pdf', '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.dylib']);
+
+// Web 표준 DOMException 호환 AbortError 생성 (err.name === 'AbortError')
+function makeAbortError() {
+  const err = new Error('Aborted');
+  err.name = 'AbortError';
+  return err;
+}
+
+// frontmatter name 또는 title 추출 (name 우선)
+function parseFrontmatterName(content) {
+  const nameMatch = content.match(/^---\s*\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/i);
+  if (nameMatch) {
+    const val = nameMatch[1].trim().replace(/^["']|["']$/g, '').trim();
+    if (val) return val;
+  }
+  const titleMatch = content.match(/^---\s*\n[\s\S]*?title:\s*(.+)\n[\s\S]*?---/i);
+  if (titleMatch) {
+    const val = titleMatch[1].trim().replace(/^["']|["']$/g, '').trim();
+    if (val) return val;
+  }
+  return null;
+}
 
 /**
  * 계층적 번호 파일명 비교 (예: 00.index.md < 00-1.arch.md < 01.phase1.md)
@@ -48,65 +71,69 @@ function compareFileNames(a, b) {
 }
 
 /**
- * 디렉토리 구조 기반 .md 파일 트리 구성
+ * 디렉토리 구조 기반 .md 파일 트리 구성 (비동기 + 배치 스트리밍)
  * @param {string} rootDir - 탐색 시작 디렉토리 절대 경로
  * @param {number} [depth=0] - 현재 깊이
  * @param {Object} [counter={count:0}] - 파일 수 카운터
- * @returns {Object} - 트리 노드 { path, title, exists, isDirectory, children }
+ * @param {Object} [options={}] - { onBatch?: (nodes) => void, signal?: AbortSignal, batchSize?: number }
+ * @returns {Promise<Object>} - 트리 노드 { path, title, exists, isDirectory, children }
  */
-function buildDirectoryTree(rootDir, depth = 0, counter = { count: 0 }) {
+async function buildDirectoryTree(rootDir, depth = 0, counter = { count: 0 }, options = {}) {
+  if (options.signal && options.signal.aborted) throw makeAbortError();
   if (depth > MAX_DEPTH || counter.count >= MAX_TREE_FILES) {
     return { path: rootDir, title: path.basename(rootDir), exists: true, isDirectory: true, children: [] };
   }
 
   let entries;
   try {
-    entries = fs.readdirSync(rootDir, { withFileTypes: true });
+    entries = await fs.promises.readdir(rootDir, { withFileTypes: true });
   } catch {
     return { path: rootDir, title: path.basename(rootDir), exists: false, isDirectory: true, children: [] };
   }
 
   // 디렉토리와 .md 파일만 필터
   const dirs = entries.filter(e => e.isDirectory() && !e.name.startsWith('.')).sort((a, b) => compareFileNames(a.name, b.name));
-  const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md')).sort((a, b) => compareFileNames(a.name, b.name));
+  const mdFiles = entries.filter(e => e.isFile() && e.name.toLowerCase().endsWith('.md')).sort((a, b) => compareFileNames(a.name, b.name));
 
   const children = [];
 
-  // 디렉토리 먼저 (재귀)
+  // 디렉토리 먼저 (재귀) — counter 공유 상태 보호를 위해 순차 처리, options 전파
   for (const dir of dirs) {
+    if (options.signal && options.signal.aborted) throw makeAbortError();
     const dirPath = path.join(rootDir, dir.name);
-    const childNode = buildDirectoryTree(dirPath, depth + 1, counter);
+    const childNode = await buildDirectoryTree(dirPath, depth + 1, counter, options);
     // .md 파일이 하나도 없는 빈 디렉토리 → 생략
     if (hasMdFiles(childNode)) {
       children.push(childNode);
     }
   }
 
-  // .md 파일 (디렉토리별 예산 제한)
-  let dirFileCount = 0;
-  for (const file of mdFiles) {
-    if (dirFileCount >= MAX_DIR_FILES || counter.count >= MAX_TREE_FILES) break;
-    dirFileCount++;
-    counter.count++;
-    const filePath = path.join(rootDir, file.name);
-    // frontmatter name/title 파싱
-    let fmName = null;
-    try {
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      const fmNameMatch = fileContent.match(/^---\s*\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/i);
-      if (fmNameMatch) {
-        const val = fmNameMatch[1].trim().replace(/^["']|["']$/g, '').trim();
-        if (val) fmName = val;
-      }
-      if (!fmName) {
-        const fmTitleMatch = fileContent.match(/^---\s*\n[\s\S]*?title:\s*(.+)\n[\s\S]*?---/i);
-        if (fmTitleMatch) {
-          const val = fmTitleMatch[1].trim().replace(/^["']|["']$/g, '').trim();
-          if (val) fmName = val;
-        }
-      }
-    } catch (_) { /* 읽기 실패 시 null 유지 */ }
-    children.push({ path: filePath, title: file.name, frontmatterName: fmName, exists: true, isDirectory: false, children: [] });
+  // .md 파일 처리: BATCH_SIZE 청크 단위로 Promise.all 병렬 읽기 + onBatch yield
+  const batchSize = options.batchSize || BATCH_SIZE;
+  const available = Math.max(0, Math.min(MAX_DIR_FILES, MAX_TREE_FILES - counter.count));
+  const limited = mdFiles.slice(0, available);
+  counter.count += limited.length;
+
+  for (let i = 0; i < limited.length; i += batchSize) {
+    if (options.signal && options.signal.aborted) throw makeAbortError();
+    const chunk = limited.slice(i, i + batchSize);
+    const batchNodes = await Promise.all(chunk.map(async (file) => {
+      const filePath = path.join(rootDir, file.name);
+      let fmName = null;
+      try {
+        const fileContent = await fs.promises.readFile(filePath, 'utf-8');
+        fmName = parseFrontmatterName(fileContent);
+      } catch (_) { /* 읽기 실패 시 null 유지 */ }
+      return { path: filePath, title: file.name, frontmatterName: fmName, exists: true, isDirectory: false, children: [] };
+    }));
+    for (const node of batchNodes) children.push(node);
+
+    // 배치 yield — 자식 디렉토리 재귀에서 이미 부모 options로 호출되므로
+    // 여기서는 현재 디렉토리의 파일 배치만 전달 (중복 호출 방지)
+    if (typeof options.onBatch === 'function') {
+      try { options.onBatch(batchNodes); }
+      catch (cbErr) { console.warn('[doculight] onBatch callback error:', cbErr && cbErr.message); }
+    }
   }
 
   return {
@@ -204,15 +231,17 @@ function processLink(href, title, basePath, seen, results) {
 }
 
 /**
- * 마크다운 링크를 따라 트리 빌드
+ * 마크다운 링크를 따라 트리 빌드 (비동기, AbortSignal 협력)
  * @param {string} filePath - 시작 파일 절대 경로
  * @param {Set} [visited] - 분기별 visited 셋 (순환 참조 방지)
  * @param {number} [depth=0] - 현재 재귀 깊이
  * @param {Object} [counter={count:0}] - 글로벌 파일 카운터
  * @param {Set} [globalSeen] - 글로벌 seen 셋 (중복 확장 방지)
- * @returns {Object|null} 트리 노드
+ * @param {Object} [options={}] - { signal?: AbortSignal } (onBatch는 디렉토리 스캔에만 적용)
+ * @returns {Promise<Object|null>} 트리 노드
  */
-function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, globalSeen) {
+async function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, globalSeen, options = {}) {
+  if (options.signal && options.signal.aborted) throw makeAbortError();
   if (!visited) visited = new Set();
   if (!globalSeen) globalSeen = new Set();
 
@@ -224,10 +253,11 @@ function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, glo
   // 파일 읽기 시도
   let content;
   try {
-    content = fs.readFileSync(normalized, 'utf-8');
+    content = await fs.promises.readFile(normalized, 'utf-8');
   } catch {
     return { path: normalized, title: path.basename(normalized), frontmatterName: null, exists: false, isDirectory: false, children: [] };
   }
+  if (options.signal && options.signal.aborted) throw makeAbortError();
 
   // 제목 추출: frontmatter title: → 첫 H1 → basename (대소문자 무시)
   let title = path.basename(normalized);
@@ -257,15 +287,16 @@ function buildLinkTree(filePath, visited, depth = 0, counter = { count: 0 }, glo
   }
   globalSeen.add(normalized);
 
-  // 링크 추출 및 재귀
+  // 링크 추출 및 재귀 — globalSeen 공유 상태 보호를 위해 반드시 순차 처리 (병렬화 금지)
   const links = extractMarkdownLinks(content, path.dirname(normalized));
   const children = [];
 
   visited.add(normalized);
   for (const link of links) {
+    if (options.signal && options.signal.aborted) throw makeAbortError();
     counter.count++;
     if (counter.count > MAX_TREE_FILES) break;
-    const childNode = buildLinkTree(link.resolvedPath, new Set(visited), depth + 1, counter, globalSeen);
+    const childNode = await buildLinkTree(link.resolvedPath, new Set(visited), depth + 1, counter, globalSeen, options);
     if (childNode) {
       children.push(childNode);
     }
@@ -345,20 +376,33 @@ function buildExternalNodes(linkTree, remainingPaths) {
 }
 
 /**
- * 사이드바 트리 빌드: 링크 트리와 디렉토리 트리를 머지
+ * 사이드바 트리 빌드: 링크 트리와 디렉토리 트리를 머지 (비동기, 배치/Abort 협력)
  * @param {string} filePath - 열린 파일의 절대 경로
- * @returns {Object} treeType 속성 포함 트리 ('merged' 또는 'directory')
+ * @param {Object} [options={}] - { onBatch?: (nodes) => void, signal?: AbortSignal, batchSize?: number }
+ * @returns {Promise<Object>} treeType 속성 포함 트리 ('merged' 또는 'directory')
  */
-function buildSidebarTree(filePath) {
+async function buildSidebarTree(filePath, options = {}) {
+  if (options.signal && options.signal.aborted) throw makeAbortError();
   const normalized = path.normalize(filePath);
   const dirRoot = path.dirname(normalized);
 
-  // 1. 링크 트리 빌드
-  const linkTree = buildLinkTree(normalized);
+  // 1. 링크 트리 + 디렉토리 트리 병렬 빌드 (globalSeen/counter 공유 없음 → 병렬 안전)
+  //    onBatch는 디렉토리 스캔에만 전달 (링크 트리는 개별 파일 단위)
+  //    allSettled: abort 발생 시 한쪽이 먼저 throw해도 다른 쪽의 rejection 고립(unhandled) 방지
+  const results = await Promise.allSettled([
+    buildLinkTree(normalized, undefined, 0, { count: 0 }, undefined, { signal: options.signal }),
+    buildDirectoryTree(dirRoot, 0, { count: 0 }, options)
+  ]);
+  // 우선 abort 에러는 그대로 상위로 전파, 그 외 rejection은 첫 번째만 throw
+  for (const r of results) {
+    if (r.status === 'rejected' && r.reason && r.reason.name === 'AbortError') throw r.reason;
+  }
+  for (const r of results) {
+    if (r.status === 'rejected') throw r.reason;
+  }
+  const linkTree = results[0].value;
+  const dirTree = results[1].value;
   const totalLinks = countTreeFiles(linkTree);
-
-  // 2. 디렉토리 트리 빌드 (항상)
-  const dirTree = buildDirectoryTree(dirRoot);
 
   if (totalLinks <= 1) {
     // 링크 없음 → 순수 디렉토리 트리
@@ -366,7 +410,7 @@ function buildSidebarTree(filePath) {
     return dirTree;
   }
 
-  // 3. 머지: 링크된 경로 수집 → dirTree에 마킹 → 외부 링크 추가
+  // 2. 머지: 링크된 경로 수집 → dirTree에 마킹 → 외부 링크 추가
   const linkedPaths = collectLinkedPaths(linkTree);
   markLinkedNodes(dirTree, linkedPaths);
 

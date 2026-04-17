@@ -25,12 +25,35 @@ contextBridge.exposeInMainWorld('doclight', {
     return () => ipcRenderer.removeListener('update-markdown', handler);
   },
 
-  // Called when main sends sidebar tree data
+  // Called when main sends sidebar tree data (유지: 호환 경로 및 캐시 히트 fallback)
   onSidebarTree: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('sidebar-tree', handler);
     return () => ipcRenderer.removeListener('sidebar-tree', handler);
   },
+
+  // step28 Phase 2: 사이드바 배치 스트리밍 이벤트 (start/batch/done/error)
+  onSidebarTreeStart: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('sidebar-tree-start', handler);
+    return () => ipcRenderer.removeListener('sidebar-tree-start', handler);
+  },
+  onSidebarTreeBatch: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('sidebar-tree-batch', handler);
+    return () => ipcRenderer.removeListener('sidebar-tree-batch', handler);
+  },
+  onSidebarTreeDone: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('sidebar-tree-done', handler);
+    return () => ipcRenderer.removeListener('sidebar-tree-done', handler);
+  },
+  onSidebarTreeError: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('sidebar-tree-error', handler);
+    return () => ipcRenderer.removeListener('sidebar-tree-error', handler);
+  },
+  cancelSidebarTreeLoad: (loadId) => ipcRenderer.invoke('cancel-sidebar-tree-load', { loadId }),
 
   // Called when sidebar highlight should change (navigation within same tree)
   onSidebarHighlight: (callback) => {

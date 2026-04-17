@@ -9,6 +9,10 @@ const { buildSidebarTree } = require('./link-parser');
 const { t } = require('./strings');
 const { injectFrontmatter } = require('./frontmatter');
 
+// step28 Phase 4: 사이드바 트리 TTL 캐시 설정
+const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;  // 5분
+const SIDEBAR_CACHE_MAX_SIZE = 32;            // LRU 상한
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -89,6 +93,23 @@ class WindowManager {
      * @type {Map<string, { resolve: Function, content: string, filePath: string|null, title: string }>}
      */
     this.pendingReady = new Map();
+
+    /**
+     * step28 Phase 2: 창별 진행 중인 사이드바 트리 로드 상태.
+     * windowId → { loadId, controller }. 폴더 전환 시 이전 로드 abort용.
+     * @type {Map<string, { loadId: number, controller: AbortController }>}
+     */
+    this._currentLoadIds = new Map();
+
+    /** step28 Phase 2: 전역 트리 로드 ID 카운터 */
+    this._treeLoadCounter = 0;
+
+    /**
+     * step28 Phase 4: 루트 디렉토리별 트리 TTL 캐시.
+     * rootPath → { tree, timestamp }
+     * @type {Map<string, { tree: object, timestamp: number }>}
+     */
+    this.sidebarTreeCache = new Map();
 
     /** @type {import('electron-store')|null} */
     this.store = null;
@@ -449,6 +470,12 @@ class WindowManager {
           entry.meta.autoCloseTimer = undefined;
         }
       }
+      // step28 Phase 2: 창 종료 시 진행 중인 사이드바 트리 로드 abort
+      const live = this._currentLoadIds.get(windowId);
+      if (live) {
+        try { live.controller.abort(); } catch { /* ignore */ }
+        this._currentLoadIds.delete(windowId);
+      }
       this.stopFileWatcher(windowId);
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);
@@ -503,6 +530,120 @@ class WindowManager {
   }
 
   // -----------------------------------------------------------------------
+  // _startSidebarTreeLoad — 사이드바 트리 로드 단일 진입점 (step28 Phase 2)
+  // -----------------------------------------------------------------------
+
+  /**
+   * 사이드바 트리를 비동기로 로드하며 IPC 배치 이벤트를 렌더러로 스트리밍한다.
+   * 이전 로드가 진행 중이면 abort 후 새 loadId 발급.
+   * fire-and-forget 패턴: 호출자는 await하지 않아도 됨.
+   *
+   * IPC 이벤트 흐름:
+   *   start → batch × N → done (+ 기존 sidebar-tree 호환 이벤트)
+   *   또는 start → (batch × N) → error { reason: 'aborted' | 'error' }
+   *
+   * @param {string} windowId
+   * @param {string} filePath - 열린 파일 절대 경로
+   */
+  _startSidebarTreeLoad(windowId, filePath) {
+    const entry = this.windows.get(windowId);
+    if (!entry || entry.win.isDestroyed()) return;
+    if (!filePath) return;
+
+    // 이전 로드 즉시 취소 (폴더 전환 시 경합 방지)
+    const prev = this._currentLoadIds.get(windowId);
+    if (prev) {
+      try { prev.controller.abort(); } catch { /* ignore */ }
+    }
+
+    const loadId = ++this._treeLoadCounter;
+    const controller = new AbortController();
+    this._currentLoadIds.set(windowId, { loadId, controller });
+
+    const rootPath = path.resolve(path.dirname(filePath));
+
+    // step28 Phase 4: TTL 캐시 조회 (히트 시 스피너 없이 즉시 done)
+    const cached = this.sidebarTreeCache.get(rootPath);
+    const now = Date.now();
+    if (cached && (now - cached.timestamp) < SIDEBAR_CACHE_TTL_MS) {
+      try {
+        if (!entry.win.isDestroyed()) {
+          entry.win.webContents.send('sidebar-tree-start', { loadId, rootPath, fromCache: true });
+          entry.meta.tree = cached.tree;
+          entry.win.webContents.send('sidebar-tree-done', { loadId, tree: cached.tree });
+          entry.win.webContents.send('sidebar-tree', { tree: cached.tree });  // 호환
+          entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
+        }
+      } catch { /* ignore */ }
+      this._currentLoadIds.delete(windowId);
+      return;
+    }
+
+    // start 이벤트 (정상 스캔 경로)
+    if (!entry.win.isDestroyed()) {
+      try { entry.win.webContents.send('sidebar-tree-start', { loadId, rootPath, fromCache: false }); }
+      catch { /* isDestroyed 레이스 무시 */ }
+    }
+
+    const onBatch = (nodes) => {
+      // loadId 경합 가드: 폴더 전환 후 잔여 이벤트 차단
+      const cur = this._currentLoadIds.get(windowId);
+      if (!cur || cur.loadId !== loadId) return;
+      if (entry.win.isDestroyed()) return;
+      try { entry.win.webContents.send('sidebar-tree-batch', { loadId, nodes }); }
+      catch { /* ignore */ }
+    };
+
+    const { buildSidebarTree } = require('./link-parser');
+
+    (async () => {
+      try {
+        const tree = await buildSidebarTree(filePath, { onBatch, signal: controller.signal });
+        // done 전송 직전 loadId 재확인 (레이스 방지)
+        const cur = this._currentLoadIds.get(windowId);
+        if (!cur || cur.loadId !== loadId) return;
+        if (entry.win.isDestroyed()) return;
+
+        entry.meta.tree = tree;
+        entry.win.webContents.send('sidebar-tree-done', { loadId, tree });
+        // 기존 sidebar-tree 이벤트 호환 유지 (renderer의 기존 수신 경로 보호)
+        entry.win.webContents.send('sidebar-tree', { tree });
+        entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
+
+        // step28 Phase 4: 캐시 저장 (LRU 상한 방어)
+        this.sidebarTreeCache.set(rootPath, { tree, timestamp: Date.now() });
+        if (this.sidebarTreeCache.size > SIDEBAR_CACHE_MAX_SIZE) {
+          // 가장 오래된 엔트리 제거
+          let oldestKey = null;
+          let oldestTs = Infinity;
+          for (const [key, val] of this.sidebarTreeCache) {
+            if (val.timestamp < oldestTs) { oldestTs = val.timestamp; oldestKey = key; }
+          }
+          if (oldestKey !== null) this.sidebarTreeCache.delete(oldestKey);
+        }
+      } catch (err) {
+        if (entry.win.isDestroyed()) return;
+        const reason = (err && err.name === 'AbortError') ? 'aborted' : 'error';
+        try {
+          entry.win.webContents.send('sidebar-tree-error', {
+            loadId, reason, message: err && err.message
+          });
+          if (reason === 'error') {
+            // IMPL-036 호환: 예외(비-abort) 시 빈 사이드바도 전송
+            entry.win.webContents.send('sidebar-tree', { tree: null });
+          }
+        } catch { /* ignore */ }
+      } finally {
+        // 현재 loadId인 경우에만 상태 정리 (새 로드가 이미 시작된 경우 삭제 금지)
+        const cur = this._currentLoadIds.get(windowId);
+        if (cur && cur.loadId === loadId) {
+          this._currentLoadIds.delete(windowId);
+        }
+      }
+    })();
+  }
+
+  // -----------------------------------------------------------------------
   // onWindowReady — called when renderer sends 'window-ready' IPC
   // -----------------------------------------------------------------------
 
@@ -512,14 +653,14 @@ class WindowManager {
    *
    * @param {string} windowId
    */
-  onWindowReady(windowId) {
+  async onWindowReady(windowId) {
     const pending = this.pendingReady.get(windowId);
     const entry = this.windows.get(windowId);
     if (!entry) return;
 
     if (!pending) {
       // 새로고침: pendingReady가 이미 소비됨 → 캐시된 상태 재전송
-      this._resendWindowState(windowId, entry);
+      await this._resendWindowState(windowId, entry);
       return;
     }
 
@@ -539,16 +680,9 @@ class WindowManager {
         platform: process.platform
       });
 
-      // Build sidebar tree for filePath-based windows
+      // Build sidebar tree for filePath-based windows (step28 Phase 2: 배치 스트리밍)
       if (filePath) {
-        try {
-          const tree = buildSidebarTree(filePath);
-          entry.meta.tree = tree;
-          entry.win.webContents.send('sidebar-tree', { tree });
-          entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
-        } catch (err) {
-          console.error(`[doculight] Failed to build link tree: ${err.message}`);
-        }
+        this._startSidebarTreeLoad(windowId, filePath);
       }
 
       // Severity theme (FR-19-003)
@@ -641,12 +775,9 @@ class WindowManager {
         windowId, imageBasePath, platform: process.platform
       });
 
-      // ★ 핵심: rootFilePath 기준으로 트리 재빌드
+      // ★ 핵심: rootFilePath 기준으로 트리 재빌드 (step28 Phase 2: 배치 스트리밍)
       const rootPath = entry.meta.rootFilePath || filePath;
-      const tree = buildSidebarTree(rootPath);
-      entry.meta.tree = tree;
-      entry.win.webContents.send('sidebar-tree', { tree });
-      entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
+      this._startSidebarTreeLoad(windowId, rootPath);
 
       // severity 복원
       if (entry.meta.severity) {
@@ -1155,6 +1286,12 @@ class WindowManager {
     });
 
     win.on('closed', () => {
+      // step28 Phase 2: 창 종료 시 진행 중인 사이드바 트리 로드 abort
+      const live = this._currentLoadIds.get(windowId);
+      if (live) {
+        try { live.controller.abort(); } catch { /* ignore */ }
+        this._currentLoadIds.delete(windowId);
+      }
       this.stopFileWatcher(windowId);
       this.windows.delete(windowId);
       this.pendingReady.delete(windowId);

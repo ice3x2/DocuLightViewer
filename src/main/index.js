@@ -247,6 +247,14 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  // step28 Phase 2: 앱 종료 시 모든 진행 중 사이드바 트리 로드 abort
+  try {
+    for (const [, v] of windowManager._currentLoadIds) {
+      try { v.controller.abort(); } catch { /* ignore */ }
+    }
+    windowManager._currentLoadIds.clear();
+  } catch { /* ignore */ }
+
   // Stop all file watchers
   windowManager.stopAllFileWatchers();
 
@@ -989,7 +997,10 @@ function registerIpcHandlers() {
     const win = BrowserWindow.fromWebContents(event.sender);
     const windowId = windowManager.findWindowId(win);
     if (windowId) {
-      windowManager.onWindowReady(windowId);
+      // onWindowReady는 async (Phase 2 비동기 전환) — unhandled rejection 방지
+      Promise.resolve(windowManager.onWindowReady(windowId)).catch(err => {
+        console.error(`[doculight] onWindowReady error: ${err && err.message}`);
+      });
       // Send initial settings to newly opened window
       const theme = store.get('theme');
       const codeTheme = store.get('codeTheme');
@@ -1130,16 +1141,8 @@ function registerIpcHandlers() {
         platform: process.platform
       });
 
-      // Build sidebar tree
-      try {
-        const { buildSidebarTree } = require('./link-parser');
-        const tree = buildSidebarTree(filePath);
-        entry.meta.tree = tree;
-        entry.win.webContents.send('sidebar-tree', { tree });
-        entry.win.webContents.send('sidebar-highlight', { currentPath: filePath });
-      } catch (treeErr) {
-        console.error(`[doculight] Failed to build link tree: ${treeErr.message}`);
-      }
+      // step28 Phase 2: 배치 스트리밍 로드 단일 진입점으로 통합
+      windowManager._startSidebarTreeLoad(windowId, filePath);
 
       // Update tray menu with new title
       if (typeof windowManager.onTrayUpdate === 'function') {
@@ -1564,13 +1567,18 @@ function registerIpcHandlers() {
 
       const markdown = await fs.promises.readFile(filePath, 'utf-8');
 
-      // Build sidebar tree from file's directory
-      let sidebarTree = null;
+      // step28 Phase 2: 사이드바 트리는 fire-and-forget으로 배치 스트리밍 전송.
+      // 동기 응답에는 sidebarTree: null. IPC 이벤트(sidebar-tree-start/batch/done)로
+      // 렌더러가 점진적으로 수신. tab-manager는 currentTree 상속 패턴으로 이미 내성 있음.
+      const sidebarTree = null;
       try {
-        const { buildSidebarTree } = require('./link-parser');
-        sidebarTree = buildSidebarTree(filePath);
+        const win = BrowserWindow.fromWebContents(_event.sender);
+        const windowId = win ? windowManager.findWindowId(win) : null;
+        if (windowId) {
+          windowManager._startSidebarTreeLoad(windowId, filePath);
+        }
       } catch (err) {
-        console.error(`[doculight] Failed to build tree for tab: ${err.message}`);
+        console.error(`[doculight] Failed to start tree load for tab: ${err.message}`);
       }
 
       // Extract title (first H1)
@@ -1604,6 +1612,27 @@ function registerIpcHandlers() {
       return { mtime: stat.mtimeMs, exists: true };
     } catch {
       return { mtime: 0, exists: false };
+    }
+  });
+
+  // step28 Phase 2: 사이드바 트리 로드 취소 요청 (폴더 전환 시 렌더러에서 호출)
+  ipcMain.handle('cancel-sidebar-tree-load', (event, payload = {}) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return { cancelled: false };
+      const windowId = windowManager.findWindowId(win);
+      if (!windowId) return { cancelled: false };
+      const cur = windowManager._currentLoadIds.get(windowId);
+      if (!cur) return { cancelled: false };
+      // loadId가 숫자로 명시됐고 불일치하면 취소하지 않음 (구 이벤트 기반 요청 보호)
+      const { loadId } = payload;
+      if (typeof loadId === 'number' && cur.loadId !== loadId) {
+        return { cancelled: false };
+      }
+      try { cur.controller.abort(); } catch { /* ignore */ }
+      return { cancelled: true };
+    } catch {
+      return { cancelled: false };
     }
   });
 

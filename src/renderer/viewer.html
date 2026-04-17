@@ -33,6 +33,14 @@
                autocomplete="off" maxlength="100">
         <button class="sidebar-search-clear" aria-label="Clear search">✕</button>
       </div>
+      <!-- step28 Phase 3: 사이드바 로딩 스피너 (회색 원 3점 펄스) -->
+      <div id="sidebar-loading-spinner" class="sidebar-loading-spinner" style="display: none;" aria-hidden="true">
+        <div class="spinner-dots">
+          <div class="spinner-dot"></div>
+          <div class="spinner-dot"></div>
+          <div class="spinner-dot"></div>
+        </div>
+      </div>
       <div id="sidebar-tree"></div>
     </div>
     <div id="resize-handle" class="hidden"></div>

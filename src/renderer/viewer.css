@@ -658,6 +658,32 @@ html, body {
   font-size: 13px;
 }
 
+/* step28 Phase 3: 사이드바 로딩 스피너 (회색 원 3점 펄스) */
+.sidebar-loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
+  min-height: 80px;
+}
+.spinner-dots {
+  display: inline-flex;
+  gap: 8px;
+}
+.spinner-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted, var(--muted-text, #888));
+  animation: spinner-pulse 1.4s infinite ease-in-out;
+}
+.spinner-dot:nth-child(2) { animation-delay: 0.2s; }
+.spinner-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes spinner-pulse {
+  0%, 100% { transform: scale(0.6); opacity: 0.4; }
+  50%      { transform: scale(1.2); opacity: 1; }
+}
+
 .search-result-snippet {
   display: flex;
   align-items: baseline;

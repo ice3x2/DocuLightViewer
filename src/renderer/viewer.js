@@ -640,8 +640,107 @@
     }
   }));
 
-  // sidebar-tree: tree data for sidebar
+  // step28 Phase 2~3: 진행 중 사이드바 트리 로드 ID + 스피너 refCount
+  let _currentTreeLoadId = 0;
+  let _spinnerRefCount = 0;
+
+  function showSidebarSpinner() {
+    const el = document.getElementById('sidebar-loading-spinner');
+    if (!el) return;
+    _spinnerRefCount++;
+    el.style.display = 'flex';
+    el.setAttribute('aria-hidden', 'false');
+  }
+  function hideSidebarSpinner() {
+    const el = document.getElementById('sidebar-loading-spinner');
+    if (!el) return;
+    _spinnerRefCount = Math.max(0, _spinnerRefCount - 1);
+    if (_spinnerRefCount === 0) {
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+    }
+  }
+  function forceHideSidebarSpinner() {
+    const el = document.getElementById('sidebar-loading-spinner');
+    if (!el) return;
+    _spinnerRefCount = 0;
+    el.style.display = 'none';
+    el.setAttribute('aria-hidden', 'true');
+  }
+
+  // step28 Phase 2: 현재 로드 취소 헬퍼 (Phase 4에서 폴더 전환 시 호출)
+  async function cancelCurrentTreeLoadIfAny() {
+    if (_currentTreeLoadId > 0) {
+      try { await window.doclight.cancelSidebarTreeLoad(_currentTreeLoadId); }
+      catch { /* ignore */ }
+      _currentTreeLoadId = 0;
+    }
+  }
+
+  // step28 Phase 3: 배치 IPC 이벤트 → 스피너/증분 렌더 연결
+  cleanups.push(window.doclight.onSidebarTreeStart((data) => {
+    if (!data) return;
+    _currentTreeLoadId = (typeof data.loadId === 'number') ? data.loadId : 0;
+    if (!data.fromCache) showSidebarSpinner();
+    const container = document.getElementById('sidebar-tree');
+    if (container) container.innerHTML = '';
+  }));
+
+  cleanups.push(window.doclight.onSidebarTreeBatch((data) => {
+    if (!data || data.loadId !== _currentTreeLoadId) return;  // 구 로드 잔여 드롭
+    appendPartialNodesToSidebar(data.nodes);
+  }));
+
+  cleanups.push(window.doclight.onSidebarTreeDone((data) => {
+    if (!data || data.loadId !== _currentTreeLoadId) return;
+    // 완성 트리로 깨끗하게 재렌더 (정렬/링크마킹/외부노드 반영)
+    if (data.tree) {
+      renderSidebarTree(data.tree);
+      if (window.DocuLight) window.DocuLight.state.sidebarTree = data.tree;
+    }
+    hideSidebarSpinner();
+    _currentTreeLoadId = 0;
+  }));
+
+  cleanups.push(window.doclight.onSidebarTreeError((data) => {
+    if (!data || data.loadId !== _currentTreeLoadId) return;
+    hideSidebarSpinner();
+    if (data.reason === 'aborted') {
+      // 전환 중이므로 DOM 유지 (곧 새 start가 innerHTML=''로 리셋)
+    } else {
+      // 실제 에러 → 빈 사이드바
+      const container = document.getElementById('sidebar-tree');
+      if (container) container.innerHTML = '';
+    }
+    _currentTreeLoadId = 0;
+  }));
+
+  // 헬퍼 전역 export (Phase 4에서 폴더 전환 경로에서 사용)
+  if (!window.DocuLight) window.DocuLight = {};
+  if (!window.DocuLight.fn) window.DocuLight.fn = {};
+  window.DocuLight.fn.cancelCurrentTreeLoadIfAny = cancelCurrentTreeLoadIfAny;
+  window.DocuLight.fn.showSidebarSpinner = showSidebarSpinner;
+  window.DocuLight.fn.hideSidebarSpinner = hideSidebarSpinner;
+  window.DocuLight.fn.forceHideSidebarSpinner = forceHideSidebarSpinner;
+
+  // sidebar-tree: tree data for sidebar (기존 호환 경로)
+  //   step28 Phase 3: 스트리밍 로드 진행 중이면 중복 렌더 방지
   cleanups.push(window.doclight.onSidebarTree((data) => {
+    if (_currentTreeLoadId !== 0) {
+      // 스트리밍 done이 처리 예정 → 기존 이벤트 렌더링 생략 (중복 방지)
+      // 단, sidebar 토글 관련 상태만 업데이트
+      const nameToggleBtn = document.getElementById('btn-sidebar-name-toggle');
+      if (data.tree && data.tree.children && data.tree.children.length > 0) {
+        if (window.DocuLight) window.DocuLight.state.sidebarTree = data.tree;
+        if (!savedPrefs || savedPrefs.sidebarVisible !== false) showSidebar();
+        if (nameToggleBtn) nameToggleBtn.disabled = false;
+        updateDocNavBox();
+      } else {
+        hideSidebar();
+        if (nameToggleBtn) nameToggleBtn.disabled = true;
+      }
+      return;
+    }
     const nameToggleBtn = document.getElementById('btn-sidebar-name-toggle');
     if (data.tree && data.tree.children && data.tree.children.length > 0) {
       renderSidebarTree(data.tree);
@@ -1754,9 +1853,12 @@
     }
   }
 
-  function renderTreeNode(node, container, depth) {
-    if (!node) return;
-
+  /**
+   * step28 Phase 3: 단일 사이드바 노드 DOM 생성 (재귀 없음, children 제외).
+   *   재귀 렌더와 배치 증분 렌더 양쪽에서 재사용.
+   *   반환값: { item, toggle } — 호출자가 children 섹션 이어붙이기 용도로 toggle 참조.
+   */
+  function buildSidebarNodeElement(node, depth) {
     const normalizedNodePath = (node.path || '').replace(/\\/g, '/');
     const normalizedCurrent = (currentFilePath || '').replace(/\\/g, '/');
     const item = document.createElement('div');
@@ -1836,6 +1938,13 @@
       });
     }
 
+    return item;
+  }
+
+  function renderTreeNode(node, container, depth) {
+    if (!node) return;
+
+    const item = buildSidebarNodeElement(node, depth);
     container.appendChild(item);
 
     // Children
@@ -1847,6 +1956,24 @@
       }
       container.appendChild(childrenEl);
     }
+  }
+
+  /**
+   * step28 Phase 3: 배치 노드 증분 추가 (DocumentFragment로 리페인트 최소화).
+   *   배치는 "루트 디렉토리 직계 .md 파일" 단위 (buildDirectoryTree 배치 규칙).
+   *   done 이벤트에서 renderSidebarTree가 완성 트리로 재렌더하므로 정렬/링크마킹은 그때 반영.
+   */
+  function appendPartialNodesToSidebar(nodes) {
+    if (!Array.isArray(nodes) || nodes.length === 0) return;
+    const container = document.getElementById('sidebar-tree');
+    if (!container) return;
+    const frag = document.createDocumentFragment();
+    for (const n of nodes) {
+      if (!n) continue;
+      const el = buildSidebarNodeElement(n, 0);
+      if (el) frag.appendChild(el);
+    }
+    container.appendChild(frag);
   }
 
   function updateSidebarHighlight(currentPath) {
