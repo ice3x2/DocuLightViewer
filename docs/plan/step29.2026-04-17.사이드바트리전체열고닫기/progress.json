@@ -1,0 +1,12 @@
+[
+  {"step": "normalization", "status": "completed", "completed_at": "2026-04-17"},
+  {"step": "analysis", "status": "completed", "completed_at": "2026-04-17"},
+  {"step": "phase-generation", "status": "completed", "phases_count": 3, "impl_items_count": 12, "completed_at": "2026-04-17"},
+  {"step": "zero-tolerance-gate", "status": "completed", "result": "PASS", "completed_at": "2026-04-17"},
+  {"step": "severity-evaluation", "status": "completed", "rounds": 1, "critical": 0, "high": 0, "medium": 2, "low": 3, "completed_at": "2026-04-17"},
+  {"step": "plan-generation-complete", "status": "completed", "completed_at": "2026-04-17"},
+  {"phase": 1, "status": "completed", "completed_at": "2026-04-17", "impls": ["IMPL-29-001","IMPL-29-002","IMPL-29-003","IMPL-29-004","IMPL-29-005"], "zt_gate": "PASS", "critical": 0, "high": 0, "medium": 1, "low": 8, "medium_fixed_inline": 1},
+  {"phase": 2, "status": "completed", "completed_at": "2026-04-17", "impls": ["IMPL-29-004","IMPL-29-005","IMPL-29-006","IMPL-29-007","IMPL-29-008","IMPL-29-009"], "zt_gate": "PASS", "critical": 0, "high": 0, "medium": 0, "low": 2, "regression_passed": 4},
+  {"phase": 3, "status": "completed", "completed_at": "2026-04-17", "impls": ["IMPL-29-010","IMPL-29-011"], "zt_gate": "—", "regression_total": 78, "mock_usage": 0, "i18n_keys": "16/16", "deferred": ["manual AC-001~013", "Playwright E2E (optional)"]},
+  {"step": "implementation-complete", "status": "completed", "completed_at": "2026-04-17"}
+]

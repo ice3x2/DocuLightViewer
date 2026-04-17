@@ -643,6 +643,8 @@
   // step28 Phase 2~3: 진행 중 사이드바 트리 로드 ID + 스피너 refCount
   let _currentTreeLoadId = 0;
   let _spinnerRefCount = 0;
+  // step29 Phase 2: 사이드바 검색 모드 활성 여부 (doculight:searchmode CustomEvent로 추적)
+  let _sidebarSearchModeActive = false;
 
   function showSidebarSpinner() {
     const el = document.getElementById('sidebar-loading-spinner');
@@ -668,6 +670,53 @@
     el.setAttribute('aria-hidden', 'true');
   }
 
+  // step29 Phase 2: 사이드바 트리 전체 접기 — 모든 .tree-children 숨김 + toggle 문자 '▶'
+  function collapseAllSidebarDirs() {
+    const container = document.getElementById('sidebar-tree');
+    if (!container) return;
+    const childrenEls = container.querySelectorAll('.tree-children');
+    for (const el of childrenEls) {
+      el.style.display = 'none';
+      const item = el.previousElementSibling;
+      if (item && item.classList.contains('tree-item')) {
+        const tog = item.querySelector('.tree-toggle');
+        if (tog && tog.textContent) tog.textContent = '▶';
+      }
+    }
+  }
+
+  // step29 Phase 2: 사이드바 트리 전체 펼치기 — 모든 .tree-children 표시 + toggle 문자 '▼'
+  function expandAllSidebarDirs() {
+    const container = document.getElementById('sidebar-tree');
+    if (!container) return;
+    const childrenEls = container.querySelectorAll('.tree-children');
+    for (const el of childrenEls) {
+      el.style.display = 'block';
+      const item = el.previousElementSibling;
+      if (item && item.classList.contains('tree-item')) {
+        const tog = item.querySelector('.tree-toggle');
+        if (tog && tog.textContent) tog.textContent = '▼';
+      }
+    }
+  }
+
+  // step29 Phase 2: 접기/펼치기 버튼 disabled 상태 통합 관리
+  //   disabled = 검색모드 || 로딩 || 트리부재 (OR 논리, AC-012)
+  function updateSidebarToggleButtons() {
+    const collapseBtn = document.getElementById('btn-sidebar-collapse-all');
+    const expandBtn  = document.getElementById('btn-sidebar-expand-all');
+    if (!collapseBtn || !expandBtn) return;
+
+    const treeState = (window.DocuLight && window.DocuLight.state)
+      ? window.DocuLight.state.sidebarTree : null;
+    const treeEmpty = !treeState || !treeState.children || treeState.children.length === 0;
+    const loading = _currentTreeLoadId !== 0;
+    const disabled = _sidebarSearchModeActive || loading || treeEmpty;
+
+    collapseBtn.disabled = disabled;
+    expandBtn.disabled   = disabled;
+  }
+
   // step28 Phase 2: 현재 로드 취소 헬퍼 (Phase 4에서 폴더 전환 시 호출)
   async function cancelCurrentTreeLoadIfAny() {
     if (_currentTreeLoadId > 0) {
@@ -684,6 +733,7 @@
     if (!data.fromCache) showSidebarSpinner();
     const container = document.getElementById('sidebar-tree');
     if (container) container.innerHTML = '';
+    updateSidebarToggleButtons();
   }));
 
   cleanups.push(window.doclight.onSidebarTreeBatch((data) => {
@@ -700,6 +750,7 @@
     }
     hideSidebarSpinner();
     _currentTreeLoadId = 0;
+    updateSidebarToggleButtons();
   }));
 
   cleanups.push(window.doclight.onSidebarTreeError((data) => {
@@ -713,6 +764,7 @@
       if (container) container.innerHTML = '';
     }
     _currentTreeLoadId = 0;
+    updateSidebarToggleButtons();
   }));
 
   // 헬퍼 전역 export (Phase 4에서 폴더 전환 경로에서 사용)
@@ -722,6 +774,36 @@
   window.DocuLight.fn.showSidebarSpinner = showSidebarSpinner;
   window.DocuLight.fn.hideSidebarSpinner = hideSidebarSpinner;
   window.DocuLight.fn.forceHideSidebarSpinner = forceHideSidebarSpinner;
+  // step29 Phase 2: 3함수 export (테스트/디버그용)
+  window.DocuLight.fn.collapseAllSidebarDirs = collapseAllSidebarDirs;
+  window.DocuLight.fn.expandAllSidebarDirs = expandAllSidebarDirs;
+  window.DocuLight.fn.updateSidebarToggleButtons = updateSidebarToggleButtons;
+
+  // step29 Phase 2: 사이드바 검색 모드 전환 감지 → 버튼 disabled 갱신
+  const _sidebarSearchmodeHandler = (e) => {
+    _sidebarSearchModeActive = !!(e && e.detail && e.detail.active);
+    updateSidebarToggleButtons();
+  };
+  document.addEventListener('doculight:searchmode', _sidebarSearchmodeHandler);
+  cleanups.push(() => document.removeEventListener('doculight:searchmode', _sidebarSearchmodeHandler));
+
+  // step29 Phase 2: 접기/펼치기 버튼 click 이벤트 바인딩
+  const _collapseAllBtn = document.getElementById('btn-sidebar-collapse-all');
+  const _expandAllBtn = document.getElementById('btn-sidebar-expand-all');
+  if (_collapseAllBtn) {
+    _collapseAllBtn.addEventListener('click', () => {
+      if (_collapseAllBtn.disabled) return;
+      collapseAllSidebarDirs();
+    });
+  }
+  if (_expandAllBtn) {
+    _expandAllBtn.addEventListener('click', () => {
+      if (_expandAllBtn.disabled) return;
+      expandAllSidebarDirs();
+    });
+  }
+  // 초기 상태 확정 (트리 부재 → disabled)
+  updateSidebarToggleButtons();
 
   // sidebar-tree: tree data for sidebar (기존 호환 경로)
   //   step28 Phase 3: 스트리밍 로드 진행 중이면 중복 렌더 방지
@@ -739,6 +821,7 @@
         hideSidebar();
         if (nameToggleBtn) nameToggleBtn.disabled = true;
       }
+      updateSidebarToggleButtons();
       return;
     }
     const nameToggleBtn = document.getElementById('btn-sidebar-name-toggle');
@@ -756,6 +839,7 @@
       hideSidebar();
       if (nameToggleBtn) nameToggleBtn.disabled = true;
     }
+    updateSidebarToggleButtons();
   }));
 
   // sidebar-highlight: update active item in tree

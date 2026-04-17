@@ -25,6 +25,31 @@
                 title="프론트매터 이름 표시 전환">🏷️</button>
         <button id="btn-sidebar-search" aria-label="Search files" data-i18n-title="viewer.sidebarSearch"
                 aria-expanded="false" aria-controls="sidebar-search-container">🔍</button>
+        <!-- 사이드바 트리 전체 접기/펼치기 버튼 (JS가 활성화/동작 제어) -->
+        <button id="btn-sidebar-collapse-all"
+                aria-label="Collapse all"
+                data-i18n-aria-label="sidebar.collapseAll"
+                data-i18n-title="sidebar.collapseAllTitle"
+                title="모두 접기"
+                disabled>
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <!-- ∨∧ 모임 = 접기 -->
+            <polyline points="6 5 12 9 18 5" fill="none" stroke="currentColor" stroke-width="2"/>
+            <polyline points="6 19 12 15 18 19" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
+        <button id="btn-sidebar-expand-all"
+                aria-label="Expand all"
+                data-i18n-aria-label="sidebar.expandAll"
+                data-i18n-title="sidebar.expandAllTitle"
+                title="모두 펼치기"
+                disabled>
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+            <!-- ∧∨ 벌어짐 = 펼치기 -->
+            <polyline points="6 9 12 5 18 9" fill="none" stroke="currentColor" stroke-width="2"/>
+            <polyline points="6 15 12 19 18 15" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
       </div>
       <div id="sidebar-search-container" class="sidebar-search-container hidden">
         <input type="text" class="sidebar-search-input"

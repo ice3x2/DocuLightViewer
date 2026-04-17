@@ -600,7 +600,9 @@ html, body {
   cursor: default;
 }
 
-#btn-sidebar-search {
+#btn-sidebar-search,
+#btn-sidebar-collapse-all,
+#btn-sidebar-expand-all {
   background: none;
   border: none;
   cursor: pointer;
@@ -608,11 +610,24 @@ html, body {
   padding: 2px 6px;
   border-radius: 3px;
   opacity: 0.7;
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-#btn-sidebar-search:hover {
+#btn-sidebar-search:hover:not(:disabled),
+#btn-sidebar-collapse-all:hover:not(:disabled),
+#btn-sidebar-expand-all:hover:not(:disabled) {
   opacity: 1;
   background: var(--hover-bg, rgba(0, 0, 0, 0.07));
+}
+
+/* step29: 사이드바 트리 전체 접기/펼치기 버튼 disabled 상태 */
+#btn-sidebar-collapse-all:disabled,
+#btn-sidebar-expand-all:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .search-result-item {
