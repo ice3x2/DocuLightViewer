@@ -29,6 +29,10 @@ body {
   margin: 0 auto;
 }
 
+.settings-view.hidden {
+  display: none;
+}
+
 h1 {
   font-size: 20px;
   font-weight: 600;
@@ -98,7 +102,7 @@ h1 {
 #save-button {
   flex: 1;
   padding: 10px 16px;
-  background: #24292e;
+  background: var(--button-bg);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -251,6 +255,240 @@ h1 {
 .path-input-group button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.indexing-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: #586069;
+}
+
+.indexing-manage-button {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 12px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.indexing-manage-button:hover {
+  opacity: 0.92;
+}
+
+.indexing-management-view {
+  min-height: calc(100vh - 48px);
+  padding-bottom: 32px;
+}
+
+.indexing-management-header {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.indexing-management-view .hint {
+  display: block;
+  font-size: 12px;
+  color: #586069;
+  line-height: 1.45;
+}
+
+.indexing-message-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.indexing-message-stack .status-indicator {
+  margin-top: 0;
+}
+
+.indexing-message-stack .indexing-stats {
+  margin: 0;
+}
+
+.indexing-diagnostic.visible {
+  display: block;
+  padding: 8px 10px;
+  border-left: 3px solid #d73a49;
+  background: #fff5f7;
+  color: #b31d3b !important;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.indexing-diagnostic.visible.notice {
+  border-left-color: #2f6f4e;
+  background: #edf7f2;
+  color: #1f5138 !important;
+}
+
+.indexing-safety-note {
+  display: block;
+  padding: 7px 10px;
+  border-left: 3px solid #b08800;
+  background: #fff8c5;
+  color: #6a4b00 !important;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.indexing-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.indexing-action-item {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.indexing-action-item button {
+  min-height: 30px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.indexing-action-item small {
+  display: block;
+  color: #586069;
+  font-size: 11px;
+  line-height: 1.45;
+  padding-top: 1px;
+}
+
+.indexing-action-item button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.indexing-action-item .danger-button {
+  background: #ffeef0;
+  color: #cb2431;
+  border-color: #f9c6cc;
+}
+
+.danger-action small {
+  color: #8a2632;
+}
+
+.indexing-back-area {
+  position: sticky;
+  bottom: 0;
+  margin-top: 22px;
+  padding: 14px 0 24px;
+  background: var(--bg-color);
+}
+
+#indexing-back-btn {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+#indexing-back-btn:hover {
+  opacity: 0.92;
+}
+
+@media (max-width: 420px) {
+  .indexing-action-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .indexing-action-item button {
+    text-align: left;
+  }
+}
+
+.embedding-status.connected,
+.status-indicator.embedding-connected {
+  background: #dcffe4;
+  color: #176f2c;
+}
+
+.embedding-status.unreachable,
+.embedding-status.failed,
+.status-indicator.embedding-error {
+  background: #ffeef4;
+  color: #c9194a;
+}
+
+.embedding-status.unset {
+  background: #f6f8fa;
+  color: #586069;
+}
+
+.embedding-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.embedding-actions button,
+#embedding-connect-btn,
+#embedding-cancel-btn {
+  min-height: 30px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#embedding-connect-btn {
+  background: var(--button-bg);
+  color: #ffffff;
+}
+
+.embedding-actions button:disabled,
+#embedding-connect-btn:disabled,
+#embedding-cancel-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.embedding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.modal-button-group {
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 /* Scrollbar styling (same as viewer) */

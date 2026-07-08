@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { buildSidebarTree } = require('./link-parser');
 const { t } = require('./strings');
-const { injectFrontmatter } = require('./frontmatter');
+const { injectFrontmatter, parseFrontmatter, DOC_TYPE_VALUES } = require('./frontmatter');
 
 // step28 Phase 4: 사이드바 트리 TTL 캐시 설정
 const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;  // 5분
@@ -119,6 +119,9 @@ class WindowManager {
 
     /** Callback invoked when a file is opened (for recent files tracking) */
     this.onRecentFile = null;
+
+    /** Callback invoked for user-opened Markdown registration into the knowledge store */
+    this.onRegisterOpenedMarkdown = null;
 
     /** Named window map: windowName → windowId (FR-19-001) */
     this.nameToId = new Map();
@@ -287,7 +290,8 @@ class WindowManager {
     const { foreground, title: explicitTitle, size, windowName,
             severity, tags, flash, progress, autoCloseSeconds,
             project, docName, description, docType,
-            projectPath, gitRemote, gitBranch, gitLastCommit } = opts;
+            projectPath, gitRemote, gitBranch, gitLastCommit,
+            registerOpenedMarkdown = false } = opts;
     let { content, filePath } = opts;
 
     // --- Named window upsert (FR-19-001 + FR-4-001 race guard) -------------
@@ -328,7 +332,8 @@ class WindowManager {
 
     // If filePath is supplied, read from disk
     if (filePath) {
-      if (path.extname(filePath).toLowerCase() !== '.md') {
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext !== '.md' && ext !== '.markdown') {
         throw new Error(t('error.mdOnly', { filePath }));
       }
       content = await fs.promises.readFile(filePath, 'utf-8');
@@ -376,6 +381,13 @@ class WindowManager {
       (filePath ? path.basename(filePath, '.md') : null) ||
       'DocuLight';
     const displayTitle = this.formatWindowTitle(resolvedTitle, filePath, null);
+    const fmData = content ? parseFrontmatter(content).data : {};
+    const resolvedProjectMeta = project || fmData.project || null;
+    const resolvedDocNameMeta = docName || fmData.docName || null;
+    const resolvedDescriptionMeta = description || fmData.description || null;
+    const resolvedDocTypeMeta =
+      docType ||
+      (fmData.docType && DOC_TYPE_VALUES.includes(fmData.docType) ? fmData.docType : null);
 
     // --- Create BrowserWindow ----------------------------------------------
     const win = new BrowserWindow({
@@ -431,7 +443,10 @@ class WindowManager {
         autoCloseTimer: undefined,
         progress: (progress !== undefined && progress !== null) ? progress : undefined,
         lastRenderedContent: filePath ? undefined : (content || ''),
-        docType: docType || null
+        project: resolvedProjectMeta,
+        docName: resolvedDocNameMeta,
+        description: resolvedDescriptionMeta,
+        docType: resolvedDocTypeMeta
       }
     });
 
@@ -506,6 +521,9 @@ class WindowManager {
     // Track in recent files
     if (filePath && typeof this.onRecentFile === 'function') {
       this.onRecentFile(filePath);
+    }
+    if (filePath && registerOpenedMarkdown === true && typeof this.onRegisterOpenedMarkdown === 'function') {
+      this.onRegisterOpenedMarkdown(filePath);
     }
 
     // --- Return promise that resolves on window-ready IPC ------------------
@@ -912,6 +930,15 @@ class WindowManager {
 
     // --- Content update ----------------------------------------------------
     if (content != null) {
+      const fmData = parseFrontmatter(content).data;
+      const resolvedProjectMeta = project || fmData.project || entry.meta.project || null;
+      const resolvedDocNameMeta = docName || fmData.docName || entry.meta.docName || null;
+      const resolvedDescriptionMeta = description || fmData.description || entry.meta.description || null;
+      const resolvedDocTypeMeta =
+        docType ||
+        (fmData.docType && DOC_TYPE_VALUES.includes(fmData.docType) ? fmData.docType : null) ||
+        entry.meta.docType ||
+        null;
       const resolvedTitle =
         title ||
         this.extractTitle(content) ||
@@ -927,7 +954,7 @@ class WindowManager {
       entry.meta.title = resolvedTitle;
       if (filePath) {
         entry.meta.filePath = filePath;
-        entry.meta.lastRenderedContent = undefined; // becomes file-based
+        entry.meta.lastRenderedContent = content;
         this.startFileWatcher(windowId);
       } else {
         // Update lastRenderedContent for content-based windows
@@ -935,11 +962,21 @@ class WindowManager {
           entry.meta.lastRenderedContent = content;
         }
       }
+      entry.meta.project = resolvedProjectMeta;
+      entry.meta.docName = resolvedDocNameMeta;
+      entry.meta.description = resolvedDescriptionMeta;
+      entry.meta.docType = resolvedDocTypeMeta;
       entry.win.setTitle(this.formatWindowTitle(resolvedTitle, entry.meta.filePath, entry.meta.savedFilePath));
     } else if (title) {
       // Title-only update
       entry.meta.title = title;
       entry.win.setTitle(this.formatWindowTitle(title, entry.meta.filePath, entry.meta.savedFilePath));
+    }
+
+    if (content == null) {
+      if (project !== undefined) entry.meta.project = project || null;
+      if (docName !== undefined) entry.meta.docName = docName || null;
+      if (description !== undefined) entry.meta.description = description || null;
     }
 
     // --- Severity theme (FR-19-003) ----------------------------------------
@@ -1085,8 +1122,8 @@ class WindowManager {
       filePath = path.resolve(path.dirname(entry.meta.filePath), rawPath);
     }
 
-    // Ensure .md extension
-    if (!filePath.endsWith('.md')) {
+    // Ensure Markdown extension
+    if (!filePath.toLowerCase().endsWith('.md') && !filePath.toLowerCase().endsWith('.markdown')) {
       filePath += '.md';
     }
 
@@ -1116,6 +1153,9 @@ class WindowManager {
     // Track in recent files
     if (typeof this.onRecentFile === 'function') {
       this.onRecentFile(filePath);
+    }
+    if (typeof this.onRegisterOpenedMarkdown === 'function') {
+      this.onRegisterOpenedMarkdown(filePath);
     }
 
     // Restart file watcher for new file

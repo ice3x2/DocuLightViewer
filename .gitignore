@@ -20,6 +20,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+model-api.txt
 
 # Test coverage
 coverage/

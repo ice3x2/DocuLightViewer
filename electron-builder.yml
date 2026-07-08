@@ -17,6 +17,8 @@ files:
 
 asarUnpack:
   - "src/main/mcp-server.bundle.mjs"
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/hnswlib-node/**"
 
 extraResources:
   - from: "assets/icon.png"

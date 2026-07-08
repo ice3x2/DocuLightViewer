@@ -56,12 +56,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Package smoke
+        run: npm run smoke:package
+        env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
           path: |
             dist/DocuLight-Setup-*.exe
             dist/DocuLight-Portable-*.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package-smoke
+          path: package-smoke-artifacts/*.json
           if-no-files-found: error
 
   # ── macOS 빌드 (Portable zip — Intel x64 + Apple Silicon arm64) ──────────
@@ -85,10 +96,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Package smoke
+        run: npm run smoke:package
+        env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
           path: dist/DocuLight-*.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-package-smoke
+          path: package-smoke-artifacts/*.json
           if-no-files-found: error
 
   # ── Linux 빌드 (AppImage + .deb — Ubuntu/Debian) ────────────────────────
@@ -111,12 +133,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Package smoke
+        run: npm run smoke:package
+        env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
           path: |
             dist/DocuLight-*.AppImage
             dist/DocuLight-*.deb
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-package-smoke
+          path: package-smoke-artifacts/*.json
           if-no-files-found: error
 
   # ── GitHub Release 생성 및 아티팩트 업로드 ──────────────────────────────

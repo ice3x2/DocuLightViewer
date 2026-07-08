@@ -185,6 +185,24 @@ function getViewer() {
   return app.windows().find(w => w.url().includes('viewer.html'));
 }
 
+async function getViewerContaining(text, maxAttempts = 20) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const viewers = app.windows().filter(w => w.url().includes('viewer.html'));
+    for (const viewer of viewers) {
+      try {
+        const found = await viewer.evaluate((expected) => {
+        return document.body.textContent.includes(expected);
+        }, text);
+        if (found) return viewer;
+      } catch {
+        // Window may close while tests are enumerating viewer pages.
+      }
+    }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return null;
+}
+
 // ============================================================================
 // Test Suite
 // ============================================================================
@@ -541,7 +559,7 @@ test.describe('MCP HTTP E2E Tests', () => {
     await new Promise(r => setTimeout(r, 1500));
 
     // Check viewer DOM for metabox
-    const viewer = getViewer();
+    const viewer = await getViewerContaining('TestProject');
     expect(viewer).toBeTruthy();
 
     const metaboxExists = await viewer.evaluate(() => {
@@ -632,7 +650,7 @@ test.describe('MCP HTTP E2E Tests', () => {
     await new Promise(r => setTimeout(r, 500));
 
     // Check viewer DOM for new content
-    const viewer = getViewer();
+    const viewer = await getViewerContaining('Replaced Content');
     expect(viewer).toBeTruthy();
     const heading = await viewer.textContent('#content h1');
     expect(heading).toBe('Replaced Content');
@@ -671,7 +689,7 @@ test.describe('MCP HTTP E2E Tests', () => {
     await new Promise(r => setTimeout(r, 500));
 
     // Check viewer DOM for both parts
-    const viewer = getViewer();
+    const viewer = await getViewerContaining('Second part appended');
     expect(viewer).toBeTruthy();
     const text = await viewer.evaluate(() => {
       const el = document.getElementById('content');

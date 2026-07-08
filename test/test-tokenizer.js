@@ -194,13 +194,14 @@ console.log('\n=== SearchEngine: basic lifecycle ===');
   const r5 = se2.search('API');
   assert(r5.length > 0, 'search works after index load');
 
-  // Test markDirty + ensureFresh
-  console.log('\n=== SearchEngine: dirty/fresh ===');
+  // Test markDirty + ensureFresh compatibility
+  console.log('\n=== SearchEngine: dirty/stale compatibility ===');
 
   se2.markDirty();
   assertEq(se2.dirty, true, 'markDirty sets dirty flag');
-  await se2.ensureFresh();
-  assertEq(se2.dirty, false, 'ensureFresh clears dirty flag');
+  const freshStatus = await se2.ensureFresh();
+  assertEq(freshStatus.rebuilt, false, 'ensureFresh does not rebuild implicitly');
+  assertEq(se2.dirty, true, 'ensureFresh keeps dirty flag for explicit Settings rebuild');
 
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true });

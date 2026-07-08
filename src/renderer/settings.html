@@ -10,9 +10,10 @@
 </head>
 <body>
   <div id="settings-container">
-    <h1 data-i18n="settings.heading">Settings</h1>
+    <h1 id="settings-title" data-i18n="settings.heading">Settings</h1>
 
     <form id="settings-form">
+      <div id="settings-main-view" class="settings-view">
       <div class="form-group">
         <label for="theme-select" data-i18n="settings.theme">Theme</label>
         <select id="theme-select">
@@ -156,12 +157,101 @@
         </div>
       </div>
 
+      <div class="section-divider"></div>
+      <div class="form-group" id="embedding-section">
+        <label class="section-label" data-i18n="settings.embeddingModel">Embedding Model</label>
+        <div id="embedding-model-status" class="status-indicator embedding-status info"></div>
+        <small class="hint" id="embedding-model-progress"></small>
+        <div class="embedding-actions">
+          <button type="button" id="embedding-register-btn" data-i18n="settings.embeddingModelRegister">Register embedding model</button>
+          <button type="button" id="embedding-clear-btn" class="secondary-button" data-i18n="settings.embeddingModelRemove">Remove</button>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+      <div class="form-group" id="indexing-section">
+        <label class="section-label" data-i18n="settings.indexing">Search Index</label>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="registerOpenedMarkdown-checkbox">
+            <span data-i18n="settings.registerOpenedMarkdown">Register opened local Markdown</span>
+          </label>
+          <small class="hint" data-i18n="settings.registerOpenedMarkdownHint">
+            Copy local Markdown opened by the user into the document store when needed, then index it in the background.
+          </small>
+          <small class="hint hidden" id="registerOpenedMarkdown-unavailable" data-i18n="settings.registerOpenedMarkdownUnavailable">
+            Set a document store path before enabling opened Markdown registration.
+          </small>
+        </div>
+        <button type="button" id="indexing-manage-btn" class="indexing-manage-button" data-i18n="settings.indexingManage">
+          Manage search index
+        </button>
+        <small class="hint" data-i18n="settings.indexingManageHint">
+          Check indexing status, repair the search database, and import linked local Markdown files.
+        </small>
+      </div>
+
       <div class="button-group">
         <button type="button" id="reset-button" data-i18n="settings.resetButton">Reset to Defaults</button>
         <button type="button" id="save-button" data-i18n="settings.saveButton">Save</button>
       </div>
 
       <div id="save-message" class="hidden" data-i18n="settings.savedMessage">Settings saved</div>
+      </div>
+
+      <section id="indexing-management-view" class="settings-view indexing-management-view hidden" aria-labelledby="settings-title">
+        <div class="indexing-management-header">
+          <small class="hint" data-i18n="settings.indexingSummaryHint">
+            These actions affect only the search index. Your Markdown documents are not deleted.
+          </small>
+        </div>
+
+        <div class="indexing-message-stack">
+          <div id="indexing-status" class="status-indicator info"></div>
+          <div class="indexing-stats">
+            <span><strong data-i18n="settings.indexingIndexed">Indexed</strong>: <span id="indexing-indexed-count">0</span></span>
+            <span><strong data-i18n="settings.indexingPending">Pending</strong>: <span id="indexing-pending-count">0</span></span>
+            <span><strong data-i18n="settings.indexingFailed">Failed</strong>: <span id="indexing-failed-count">0</span></span>
+          </div>
+          <small class="hint" id="indexing-phase"></small>
+          <small class="hint indexing-diagnostic" id="indexing-error"></small>
+          <small class="hint indexing-safety-note" id="indexing-backup-warning" data-i18n="settings.indexingBackupWarning">
+            Delete backs up existing index files. Clean rewrites the saved index database.
+          </small>
+        </div>
+
+        <div class="indexing-actions">
+          <div class="indexing-action-item">
+            <button type="button" id="indexing-rebuild-btn" data-i18n="settings.indexingRebuild">Rebuild search index</button>
+            <small data-i18n="settings.indexingRebuildDescription">Read the document store again and recreate the search database.</small>
+          </div>
+          <div class="indexing-action-item">
+            <button type="button" id="indexing-cancel-btn" data-i18n="settings.indexingCancel">Stop current indexing</button>
+            <small data-i18n="settings.indexingCancelDescription">Stop the rebuild job that is currently running.</small>
+          </div>
+          <div class="indexing-action-item">
+            <button type="button" id="indexing-retry-btn" data-i18n="settings.indexingRetry">Retry failed documents</button>
+            <small data-i18n="settings.indexingRetryDescription">Try again for documents that failed during reading or indexing.</small>
+          </div>
+          <div class="indexing-action-item">
+            <button type="button" id="indexing-compact-btn" data-i18n="settings.indexingCompact">Clean index database</button>
+            <small data-i18n="settings.indexingCompactDescription">Recover unused database space after deletes or updates. Search results are kept.</small>
+          </div>
+          <div class="indexing-action-item">
+            <button type="button" id="indexing-open-dir-btn" data-i18n="settings.indexingOpenDir">Open index folder</button>
+            <small data-i18n="settings.indexingOpenDirDescription">Open the folder that stores search database and diagnostic files.</small>
+          </div>
+          <div class="indexing-action-item">
+            <button type="button" id="linked-import-btn" data-i18n="settings.linkedImport">Import linked Markdown</button>
+            <small data-i18n="settings.linkedImportDescription">Choose a local Markdown file and import linked Markdown files within safe limits.</small>
+          </div>
+        </div>
+        <small class="hint" id="linked-import-status"></small>
+
+        <div class="indexing-back-area">
+          <button type="button" id="indexing-back-btn" data-i18n="settings.indexingBack">Back to settings</button>
+        </div>
+      </section>
     </form>
   </div>
 
@@ -174,6 +264,60 @@
   </div>
 
   <div id="mcp-copy-toast" class="mcp-toast"></div>
+
+  <div id="embedding-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-small">
+      <h3 data-i18n="settings.embeddingModelRegister">Register embedding model</h3>
+      <div class="form-group">
+        <label for="embedding-url-input" data-i18n="settings.embeddingModelUrl">URL</label>
+        <input type="url" id="embedding-url-input" placeholder="https://provider.example/v1">
+      </div>
+      <div class="form-group">
+        <label for="embedding-key-input" data-i18n="settings.embeddingModelKey">API key</label>
+        <input type="password" id="embedding-key-input" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="embedding-model-input" data-i18n="settings.embeddingModelName">Model name</label>
+        <input type="text" id="embedding-model-input">
+      </div>
+      <div class="embedding-grid">
+        <div class="form-group">
+          <label for="embedding-chunk-size-input" data-i18n="settings.embeddingChunkSize">Chunk size</label>
+          <input type="number" id="embedding-chunk-size-input" min="1" value="900">
+        </div>
+        <div class="form-group">
+          <label for="embedding-chunk-overlap-input" data-i18n="settings.embeddingChunkOverlap">Chunk overlap</label>
+          <input type="number" id="embedding-chunk-overlap-input" min="0" value="120">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="embedding-project-policy-mode" data-i18n="settings.embeddingProjectPolicy">Project policy</label>
+        <select id="embedding-project-policy-mode">
+          <option value="allow-all" data-i18n="settings.embeddingProjectPolicyAllowAll">Allow all projects</option>
+          <option value="allow-list" data-i18n="settings.embeddingProjectPolicyAllowList">Allow listed projects only</option>
+          <option value="deny-list" data-i18n="settings.embeddingProjectPolicyDenyList">Block listed projects</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="embedding-project-policy-list" data-i18n="settings.embeddingProjectPolicyList">Project names</label>
+        <textarea id="embedding-project-policy-list" rows="2" data-i18n-placeholder="settings.embeddingProjectPolicyListPlaceholder"></textarea>
+      </div>
+      <label class="checkbox-label">
+        <input type="checkbox" id="embedding-offline-only-checkbox">
+        <span data-i18n="settings.embeddingOfflineOnly">Offline-only mode: do not send document chunks to a remote embedding provider.</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="embedding-policy-confirm-checkbox">
+        <span data-i18n="settings.embeddingPolicyConfirm">I understand remote embeddings can send document chunks to the configured provider and may incur provider retention, cost, or quota impact.</span>
+      </label>
+      <div id="embedding-dialog-status" class="status-indicator hidden"></div>
+      <div class="button-group modal-button-group">
+        <button type="button" id="embedding-cancel-btn" data-i18n="settings.embeddingModelCancel">Cancel</button>
+        <button type="button" id="embedding-connect-btn" data-i18n="settings.embeddingModelConnect">Connect</button>
+      </div>
+    </div>
+  </div>
+
   <script src="./settings.js"></script>
 </body>
 </html>

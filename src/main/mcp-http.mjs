@@ -12,19 +12,70 @@ import { createRequire } from 'node:module';
 
 const _require = createRequire(import.meta.url);
 const { injectFrontmatter, DOC_TYPE_VALUES } = _require('./frontmatter.js');
-const { saveMcpFile } = _require('./mcp-save.js');
+const { saveMcpFile, saveMcpUpdatedContent, saveDocumentToStore } = _require('./mcp-save.js');
+const { buildSmartSearchToolResult } = _require('./smart-search-response.js');
 
 const PROTOCOL_VERSION = '2025-11-25';
 const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
+
+const SAVE_DOCUMENT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    content: { type: 'string', minLength: 1, maxLength: 10485760, description: 'Markdown content to save to DocuLight persistent document metadata. Required.' },
+    title: { type: 'string', minLength: 1, maxLength: 200, description: 'Optional title and filename hint.' },
+    project: { type: 'string', minLength: 1, maxLength: 120, description: 'Optional persistent project metadata.' },
+    docName: { type: 'string', minLength: 1, maxLength: 160, description: 'Optional persistent document name and preferred filename hint.' },
+    description: { type: 'string', minLength: 0, maxLength: 1000, description: 'Optional persistent document description.' },
+    docType: { type: 'string', enum: DOC_TYPE_VALUES, description: 'Optional persistent document type.' },
+    category: { type: 'string', minLength: 1, maxLength: 120, description: 'Optional persistent knowledge category metadata.' },
+    documentTags: { type: 'array', maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 64 }, description: 'Optional persistent document metadata tags. Viewer/window grouping tags are named tags and are not accepted by save_document.' },
+    gitContextPath: { type: 'string', minLength: 1, maxLength: 1024, description: 'Optional local-only filesystem path used only to collect git metadata. It is not a destination path or save root override.' }
+  },
+  required: ['content']
+};
+
+const SMART_SEARCH_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    query: { type: 'string', minLength: 1, maxLength: 500, description: 'Search query.' },
+    mode: { type: 'string', enum: ['auto', 'keyword', 'hybrid'], default: 'auto', description: 'Retrieval mode. auto chooses the best available non-control path.' },
+    limit: { type: 'integer', minimum: 1, maximum: 50, default: 20, description: 'Maximum results. Omit for 20; increase only when more results are needed, up to 50.' },
+    linkedTo: { type: 'string', maxLength: 256, description: 'Top-level resolved documentId filter accepted by runtime; equivalent to filters.linkedTo.' },
+    linkedFrom: { type: 'string', maxLength: 256, description: 'Top-level resolved documentId filter accepted by runtime; equivalent to filters.linkedFrom.' },
+    filters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        project: { type: 'string' },
+        docType: { type: 'string', enum: DOC_TYPE_VALUES },
+        category: { type: 'string' },
+        documentTags: { type: 'array', items: { type: 'string' } },
+        tagMode: { type: 'string', enum: ['any', 'all'], default: 'any' },
+        pathPrefix: { type: 'string', maxLength: 512, description: 'Source-relative path prefix filter. Absolute paths, UNC paths, home paths, traversal, URLs, and credentials are rejected with a redacted validation error.' },
+        linkedTo: { type: 'string', description: 'Resolved documentId filter only.' },
+        linkedFrom: { type: 'string', description: 'Resolved documentId filter only.' },
+        includeStale: { type: 'boolean', default: false }
+      }
+    },
+    includeSnippets: { type: 'boolean', default: true },
+    includeScores: { type: 'boolean', default: false },
+    includeTrace: { type: 'boolean', default: false },
+    includeDiagnostics: { type: 'boolean', default: false },
+    allowDegraded: { type: 'boolean', default: true }
+  },
+  required: ['query']
+};
 
 // ============================================================================
 // Tool definitions (MCP tools/list format)
 // ============================================================================
 
-const TOOLS = [
+export const TOOLS = [
   {
     name: 'open_markdown',
-    description: 'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, description, and docType when the context is known.',
+    description: 'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide either content or filePath. Returns windowId for future viewer updates.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -49,7 +100,7 @@ const TOOLS = [
   },
   {
     name: 'update_markdown',
-    description: 'Update the content of an existing DocuLight viewer window.',
+    description: 'Update the content of an existing visible DocuLight viewer window by windowId.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,7 +146,7 @@ const TOOLS = [
   },
   {
     name: 'search_documents',
-    description: 'Search saved markdown documents using BM25 full-text search. Searches across document body and frontmatter metadata (title, project, description). Requires mcpAutoSave to be enabled with a configured save path.',
+    description: 'Search existing saved markdown documents using keyword full-text search. This tool does not save new content. Requires mcpAutoSave to be enabled with a configured save path.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -117,6 +168,16 @@ const TOOLS = [
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default: 20)' }
       }
     }
+  },
+  {
+    name: 'save_document',
+    description: "Save Markdown content to DocuLight's persistent document store for future retrieval by search_documents and smart_search. This document-only tool does not open, show, focus, update, or close any viewer window.",
+    inputSchema: SAVE_DOCUMENT_SCHEMA
+  },
+  {
+    name: 'smart_search',
+    description: 'Search existing saved documents with read-only smart retrieval. This tool does not save content or perform indexing controls. limit defaults to 20 and may be increased to 50 only when more results are needed.',
+    inputSchema: SMART_SEARCH_SCHEMA
   }
 ];
 
@@ -124,7 +185,9 @@ const TOOLS = [
 // Tool handlers
 // ============================================================================
 
-function createToolHandlers(windowManager, store, searchEngine) {
+export function createToolHandlers(windowManager, store, searchEngine) {
+  const searchUnavailable = () => getSearchUnavailableResult(store, searchEngine);
+
   return {
     async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
                           windowName, severity, tags, progress, noSave,
@@ -166,18 +229,33 @@ function createToolHandlers(windowManager, store, searchEngine) {
         foreground: foreground ?? true,
         size: size ?? 'm',
         windowName, severity, tags, progress,
-        project, docName, description, docType
+        project, docName, description, docType,
+        registerOpenedMarkdown: false
       });
+      const entry = windowManager.getWindowEntry(result.windowId);
 
       let savedPath = null;
       try {
-        savedPath = await saveMcpFile(store, { content, filePath, title, noSave, severity, docType });
-        if (savedPath && searchEngine) searchEngine.markDirty();
+        savedPath = await saveMcpFile(store, {
+          content,
+          filePath,
+          title,
+          noSave,
+          project: project || entry?.meta?.project,
+          severity,
+          docType: docType || entry?.meta?.docType
+        });
+        if (savedPath && searchEngine) {
+          searchEngine.markDirty({
+            filePath: savedPath,
+            content,
+            requestedBy: 'mcp.http.open_markdown'
+          });
+        }
       } catch (err) {
         console.error('[doculight] MCP auto-save error:', err.message);
       }
 
-      const entry = windowManager.getWindowEntry(result.windowId);
       if (entry) {
         // Store savedFilePath in meta and notify renderer (FR-21-001)
         if (savedPath) {
@@ -253,6 +331,18 @@ function createToolHandlers(windowManager, store, searchEngine) {
         project, docName, description, docType
       });
 
+      try {
+        const entry = windowManager.getWindowEntry(windowId);
+        const { savedPath } = await saveMcpUpdatedContent(store, entry, {
+          content, filePath, title, noSave, project, severity, docType
+        }, searchEngine);
+        if (entry && savedPath && !entry.win.isDestroyed()) {
+          entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
+        }
+      } catch (err) {
+        console.error('[doculight] MCP HTTP update auto-save error:', err.message);
+      }
+
       const action = appendMode ? 'Appended to' : 'Updated';
       return {
         content: [{ type: 'text', text: `${action} window ${windowId}.\n  title: ${result.title}` }]
@@ -289,19 +379,26 @@ function createToolHandlers(windowManager, store, searchEngine) {
       };
     },
 
+    async save_document(args = {}) {
+      return saveDocumentToStore(store, args, searchEngine);
+    },
+
     async search_documents({ query, limit, project, docType }) {
       if (!query) {
         return { isError: true, content: [{ type: 'text', text: 'query is required.' }] };
       }
-      if (!searchEngine) {
-        return { isError: true, content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }] };
+      const unavailable = searchUnavailable();
+      if (unavailable) return unavailable;
+      if (typeof searchEngine.ensureFresh === 'function') {
+        await searchEngine.ensureFresh();
       }
-      await searchEngine.ensureFresh();
       const results = searchEngine.search(query, { limit: limit || 20, project, docType });
       const totalIndexed = searchEngine.docMeta.size;
+      const indexStatus = searchEngine.getStatus ? searchEngine.getStatus() : null;
 
       if (results.length === 0) {
-        return { content: [{ type: 'text', text: `No results found for "${query}". (${totalIndexed} documents indexed)` }] };
+        const suffix = indexStatus && indexStatus.state !== 'ready' ? `, index ${indexStatus.state}` : '';
+        return { content: [{ type: 'text', text: `No results found for "${query}". (${totalIndexed} documents indexed${suffix})` }] };
       }
 
       const lines = results.map((r, i) =>
@@ -310,16 +407,14 @@ function createToolHandlers(windowManager, store, searchEngine) {
       return {
         content: [{
           type: 'text',
-          text: `Found ${results.length} result(s) for "${query}" (${totalIndexed} indexed):\n\n${lines.join('\n\n')}`
+          text: `Found ${results.length} result(s) for "${query}" (${totalIndexed} indexed${indexStatus && indexStatus.state !== 'ready' ? `, index ${indexStatus.state}` : ''}):\n\n${lines.join('\n\n')}`
         }]
       };
     },
 
     async search_projects({ query, limit } = {}) {
-      if (!searchEngine) {
-        return { isError: true, content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }] };
-      }
-      await searchEngine.ensureFresh();
+      const unavailable = searchUnavailable();
+      if (unavailable) return unavailable;
       const projects = searchEngine.searchProjects(query, limit || 20);
 
       if (projects.length === 0) {
@@ -335,8 +430,28 @@ function createToolHandlers(windowManager, store, searchEngine) {
           text: `${query ? `Projects matching "${query}"` : 'All projects'} (${projects.length}):\n\n${lines.join('\n')}`
         }]
       };
+    },
+
+    async smart_search(args = {}) {
+      return await buildSmartSearchToolResult(args, { searchEngine, store });
     }
   };
+}
+
+function getSearchUnavailableResult(store, searchEngine) {
+  if (!store.get('mcpAutoSave', false) || !store.get('mcpAutoSavePath', '')) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: 'Search requires mcpAutoSave to be enabled with a configured mcpAutoSavePath.' }]
+    };
+  }
+  if (!searchEngine) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: 'Search engine not available. Ensure mcpAutoSave is enabled.' }]
+    };
+  }
+  return null;
 }
 
 // ============================================================================

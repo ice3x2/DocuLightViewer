@@ -36,6 +36,7 @@ const DOC_TYPE_VALUES = Object.keys(DOC_TYPES);
  * @returns {string} Content with frontmatter prepended/merged
  */
 function injectFrontmatter(content, { project, docName, description, docType,
+                                      category, documentTags,
                                       projectPath, gitRemote, gitBranch, gitLastCommit }) {
   const newFields = {};
   if (project) newFields.project = project;
@@ -46,6 +47,8 @@ function injectFrontmatter(content, { project, docName, description, docType,
   if (docName) newFields.docName = docName;
   if (description) newFields.description = description;
   newFields.docType = (docType && DOC_TYPE_VALUES.includes(docType)) ? docType : 'note';
+  if (category) newFields.category = category;
+  if (Array.isArray(documentTags) && documentTags.length > 0) newFields.documentTags = documentTags;
   newFields.date = new Date().toISOString().replace(/\.\d{3}Z$/, '');
 
   // Check if content already has frontmatter
@@ -73,20 +76,41 @@ function injectFrontmatter(content, { project, docName, description, docType,
  */
 function parseSimpleYaml(yaml) {
   const result = {};
-  for (const line of yaml.split(/\r?\n/)) {
+  const lines = yaml.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
     const m = line.match(/^(\w+)\s*:\s*(.*)$/);
     if (m) {
       const key = m[1];
       let value = m[2].trim();
-      // Remove surrounding quotes if present
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
+      if (!value) {
+        const items = [];
+        let j = i + 1;
+        while (j < lines.length) {
+          const itemMatch = lines[j].match(/^\s*-\s*(.*)$/);
+          if (!itemMatch) break;
+          items.push(unquoteYamlValue(itemMatch[1].trim()));
+          j += 1;
+        }
+        if (items.length > 0) {
+          result[key] = items;
+          i = j - 1;
+          continue;
+        }
       }
-      result[key] = value;
+      // Remove surrounding quotes if present
+      result[key] = unquoteYamlValue(value);
     }
   }
   return result;
+}
+
+function unquoteYamlValue(value) {
+  if ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 /**
@@ -99,6 +123,15 @@ function buildYamlBlock(fields) {
   const lines = ['---'];
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      if (value.length === 0) continue;
+      lines.push(`${key}:`);
+      for (const item of value) {
+        if (item === undefined || item === null || item === '') continue;
+        lines.push(`  - ${String(item).replace(/\r?\n/g, ' ')}`);
+      }
+      continue;
+    }
     // Quote values that contain special YAML characters
     const needsQuote = /[:#\[\]{}&*!|>'"`,@%]/.test(String(value)) ||
                        String(value).includes('\n');

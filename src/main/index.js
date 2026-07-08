@@ -1,15 +1,50 @@
 // src/main/index.js — Electron App Entry Point + IPC Socket Server
 // CommonJS module for Electron main process
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog, safeStorage } = require('electron');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { Worker } = require('worker_threads');
 const { WindowManager } = require('./window-manager');
 const Store = require('electron-store');
 const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
 const { SearchEngine } = require('./search-engine');
+const { SQLiteKeywordIndex, SQLITE_INDEX_FILENAME } = require('./search-sqlite-store');
+const { createKeywordTokenizer } = require('./search-tokenizer');
+const { loadHnswlib } = require('./hnsw-index');
+const { createOpenAICompatibleEmbeddingProvider } = require('./embedding-provider');
+const { createRedactor } = require('./redaction');
+const { createLinkedImporter } = require('./linked-import');
+const { createOpenedMarkdownRegistrar } = require('./opened-markdown-registrar');
+const { createNativeRebuildManager } = require('./native-rebuild-manager');
+const {
+  createEmbeddingActivationRecord,
+  migratePlaintextEmbeddingApiKey,
+  normalizeEmbeddingActivationRecord,
+  normalizeEmbeddingProjectPolicy,
+  normalizeSecretMigrationState
+} = require('./embedding-settings');
 const { injectFrontmatter } = require('./frontmatter');
+const { resolveRuntimeProfile } = require('./runtime-profile');
+
+const PACKAGE_SMOKE_REQUESTED = process.env.DOCULIGHT_PACKAGE_SMOKE === '1' || process.argv.includes('--package-smoke');
+const runtimeProfile = resolveRuntimeProfile({
+  argv: process.argv,
+  env: process.env,
+  platform: process.platform,
+  appDataDir: app.getPath('appData'),
+  defaultUserDataDir: app.getPath('userData')
+});
+
+if (!PACKAGE_SMOKE_REQUESTED && runtimeProfile.shouldSetUserData) {
+  fs.mkdirSync(runtimeProfile.userDataDir, { recursive: true });
+  fs.mkdirSync(runtimeProfile.sessionDataDir, { recursive: true });
+  app.setName(runtimeProfile.appName);
+  app.setPath('userData', runtimeProfile.userDataDir);
+  app.setPath('sessionData', runtimeProfile.sessionDataDir);
+}
 
 // === CLI locale override ===
 // --flags are consumed by Chromium (--lang) or npm (--locale, --language).
@@ -27,9 +62,7 @@ const _langOverride = (() => {
 })();
 
 // === Constants ===
-const PIPE_PATH = process.platform === 'win32'
-  ? '\\\\.\\pipe\\doculight-ipc'
-  : '/tmp/doculight-ipc.sock';
+const PIPE_PATH = runtimeProfile.ipcPath;
 
 const ICON_PATH = process.platform === 'win32'
   ? path.join(__dirname, '..', '..', 'assets', 'icon.ico')
@@ -38,6 +71,9 @@ const TRAY_ICON_PATH = process.platform === 'darwin'
   ? path.join(__dirname, '..', '..', 'assets', 'tray-iconTemplate.png')
   : ICON_PATH;
 const MAX_TRAY_ITEMS = 10;
+const EMBEDDING_DEFAULT_CHUNK_SIZE = 900;
+const EMBEDDING_DEFAULT_CHUNK_OVERLAP = 120;
+const EMBEDDING_RETENTION_CONFIRMATION_VERSION = 'remote-embedding-v1';
 
 // === Global State ===
 let tray = null;
@@ -48,10 +84,22 @@ let pendingOpenFile = null; // macOS: buffers open-file events before app.isRead
 let isExporting = false;
 const windowManager = new WindowManager();
 let searchEngine = null; // Initialized after store is created
+let openedMarkdownRegistrar = null;
+let nativeRebuildManager = null;
 
 // =============================================================================
 // File argument helpers
 // =============================================================================
+
+function isMarkdownFilePath(filePath) {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  return ext === '.md' || ext === '.markdown';
+}
+
+function scheduleOpenedMarkdownRegistration(filePath) {
+  if (!openedMarkdownRegistrar || !isMarkdownFilePath(filePath)) return;
+  openedMarkdownRegistrar.schedule(filePath);
+}
 
 /**
  * Extract .md file paths from command-line arguments.
@@ -64,7 +112,7 @@ function extractMdPathsFromArgv(argv) {
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith('--') || arg === '.') continue;
-    if (arg.toLowerCase().endsWith('.md')) {
+    if (isMarkdownFilePath(arg)) {
       paths.push(path.resolve(arg));
     }
   }
@@ -79,14 +127,14 @@ function extractMdPathsFromArgv(argv) {
 function openFileFromPath(filePath) {
   if (!filePath) return;
   const resolved = path.resolve(filePath);
-  if (path.extname(resolved).toLowerCase() !== '.md') return;
+  if (!isMarkdownFilePath(resolved)) return;
   try {
     fs.accessSync(resolved, fs.constants.R_OK);
   } catch {
     console.error(`[doculight] Cannot read file: ${resolved}`);
     return;
   }
-  windowManager.createWindow({ filePath: resolved });
+  windowManager.createWindow({ filePath: resolved, registerOpenedMarkdown: true });
   addRecentFile(resolved);
 }
 
@@ -96,7 +144,7 @@ const store = new Store({
     fontSize: { type: 'number', minimum: 8, maximum: 32, default: 16 },
     fontFamily: { type: 'string', minLength: 1, default: 'system-ui, -apple-system, sans-serif' },
     codeTheme: { type: 'string', default: 'github' },
-    mcpPort: { type: 'number', minimum: 1, maximum: 65535, default: 32580 },
+    mcpPort: { type: 'number', minimum: 1, maximum: 65535, default: runtimeProfile.mcpPortDefault },
     defaultWindowSize: {
       type: 'string',
       enum: ['auto', 's', 'm', 'l', 'f'],
@@ -121,15 +169,96 @@ const store = new Store({
     contentMaxWidth: { type: 'string', default: '900px' },
     mcpAutoSave: { type: 'boolean', default: false },
     mcpAutoSavePath: { type: 'string', default: '' },
+    registerOpenedMarkdown: { type: 'boolean', default: false },
     mcpSaveSubDir: { type: 'string', default: '{yyyy-mm-dd}' },
     mcpGitInfo: { type: 'boolean', default: true },
     lastSaveAsDirectory: { type: 'string', default: '' },
-    showDocNav: { type: 'boolean', default: true }
+    showDocNav: { type: 'boolean', default: true },
+    embeddingApiKeyCiphertext: { type: 'string', default: '' },
+    semanticSearch: {
+      type: 'object',
+      default: {
+        enabled: false,
+        provider: 'openai-compatible',
+        baseURL: '',
+        model: '',
+        dimensions: null,
+        batchSize: 16,
+        maxConcurrency: 2,
+        timeout: 30000,
+        retryPolicy: { retries: 2, backoffMs: 500 },
+        apiKeyStorage: 'none',
+        hasApiKey: false,
+        hnsw: { m: 16, efConstruction: 200, efSearch: 64 },
+        chunker: { chunkSize: EMBEDDING_DEFAULT_CHUNK_SIZE, chunkOverlap: EMBEDDING_DEFAULT_CHUNK_OVERLAP },
+        modelFingerprint: null,
+        status: 'unset',
+        statusReason: null,
+        lastValidatedAt: null,
+        offlineOnly: false,
+        retentionCostConfirmationVersion: null,
+        endpointPolicy: 'https-or-approved-local',
+        projectPolicy: { mode: 'allow-all', projects: [] },
+        activationRecord: null,
+        secretMigration: null,
+        semanticIndexing: { status: 'idle', progress_current: 0, progress_total: 0 }
+      },
+      additionalProperties: true,
+      properties: {
+        enabled: { type: 'boolean' },
+        provider: { type: 'string' },
+        baseURL: { type: 'string' },
+        model: { type: 'string' },
+        dimensions: { type: ['number', 'null'] },
+        batchSize: { type: 'number' },
+        maxConcurrency: { type: 'number' },
+        timeout: { type: 'number' },
+        retryPolicy: { type: 'object', additionalProperties: true },
+        apiKeyStorage: { type: 'string' },
+        hasApiKey: { type: 'boolean' },
+        hnsw: { type: 'object', additionalProperties: true },
+        chunker: { type: 'object', additionalProperties: true },
+        modelFingerprint: { type: ['string', 'null'] },
+        status: { type: 'string' },
+        statusReason: { type: ['string', 'null'] },
+        lastValidatedAt: { type: ['string', 'null'] },
+        offlineOnly: { type: 'boolean' },
+        retentionCostConfirmationVersion: { type: ['string', 'null'] },
+        endpointPolicy: { type: 'string' },
+        projectPolicy: { type: 'object', additionalProperties: true },
+        activationRecord: { type: ['object', 'null'], additionalProperties: true },
+        secretMigration: { type: ['object', 'null'], additionalProperties: true },
+        semanticIndexing: { type: 'object', additionalProperties: true }
+      }
+    }
   }
 });
 
+// Remove or migrate legacy plaintext embedding credentials before any settings payload is read.
+migratePlaintextEmbeddingApiKey({
+  store,
+  safeStorage,
+  envKey: process.env.DOCULIGHT_EMBEDDING_API_KEY
+});
+
 // Initialize search engine after store is ready
-searchEngine = new SearchEngine(store);
+searchEngine = new SearchEngine(store, {
+  indexBackend: 'sqlite',
+  indexDataDir: runtimeProfile.indexDataDir,
+  embeddingConfigProvider: () => getStoredEmbeddingSettings(),
+  embeddingApiKeyProvider: () => getEmbeddingApiKey().key,
+  embeddingProvider: createOpenAICompatibleEmbeddingProvider({
+    getEmbeddingConfig: () => getStoredEmbeddingSettings(),
+    getApiKey: () => getEmbeddingApiKey().key
+  })
+});
+openedMarkdownRegistrar = createOpenedMarkdownRegistrar({ store, searchEngine });
+nativeRebuildManager = createNativeRebuildManager({
+  rootDir: path.resolve(__dirname, '..', '..'),
+  statusDir: runtimeProfile.nativeRebuildStatusDir,
+  execPath: process.execPath,
+  isPackaged: app.isPackaged
+});
 
 // =============================================================================
 // macOS open-file event (fires before app.isReady())
@@ -146,8 +275,7 @@ app.on('open-file', (event, filePath) => {
 // =============================================================================
 // Single Instance Lock
 // =============================================================================
-const isDev = !app.isPackaged;
-const gotTheLock = isDev ? true : app.requestSingleInstanceLock();
+const gotTheLock = PACKAGE_SMOKE_REQUESTED ? true : app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
@@ -178,7 +306,12 @@ if (!gotTheLock) {
 // App Lifecycle
 // =============================================================================
 app.on('ready', async () => {
-  app.setAppUserModelId('com.doculight.app');
+  if (PACKAGE_SMOKE_REQUESTED) {
+    await runPackageSmoke();
+    return;
+  }
+
+  app.setAppUserModelId(runtimeProfile.appUserModelId);
   // Use pre-parsed --lang value from module scope
   initStrings(_langOverride);
   Menu.setApplicationMenu(null);
@@ -195,21 +328,20 @@ app.on('ready', async () => {
 
   // Wire up recent file tracking
   windowManager.onRecentFile = addRecentFile;
+  windowManager.onRegisterOpenedMarkdown = scheduleOpenedMarkdownRegistration;
+
+  startNativeRepairIfNeeded();
 
   // Re-register file association on startup (fixes path changes after app updates)
   const fileAssoc = require('./file-association');
-  if (store.get('fileAssociation', false) && fileAssoc.isSupported()) {
+  if (!runtimeProfile.isDev && store.get('fileAssociation', false) && fileAssoc.isSupported()) {
     fileAssoc.register().catch(err => {
       console.error('[doculight] Failed to re-register file association:', err.message);
     });
   }
 
   // Initialize search engine (background, non-blocking)
-  if (store.get('mcpAutoSave', false) && store.get('mcpAutoSavePath', '')) {
-    searchEngine.initialize().catch(err => {
-      console.error('[doculight] Search engine init error:', err.message);
-    });
-  }
+  initializeSearchEngineIfConfigured();
 
   // Open .md files passed via command-line arguments
   const mdPaths = extractMdPathsFromArgv(process.argv);
@@ -240,6 +372,1016 @@ app.on('ready', async () => {
   // DevTools disabled — use Ctrl+Shift+I manually if needed
 });
 
+async function runPackageSmoke() {
+  const smokeRoot = fs.mkdtempSync(path.join(app.getPath('temp'), 'doculight-package-smoke-'));
+  const nativeIndexDataDir = path.join(smokeRoot, 'native-index');
+  const runtimeIndexDataDir = path.join(smokeRoot, 'runtime-index');
+  const indexPath = path.join(nativeIndexDataDir, SQLITE_INDEX_FILENAME);
+  const userDataPath = path.join(smokeRoot, 'user-data');
+  const smokeRedactor = createRedactor({
+    userDataDir: userDataPath,
+    indexDir: nativeIndexDataDir,
+    dbPath: indexPath,
+    sourceRoots: [smokeRoot],
+    extraPaths: [runtimeIndexDataDir]
+  });
+  const tokenizer = createKeywordTokenizer({ provider: 'garu' });
+  await tokenizer.initialize();
+  const sqliteIndex = new SQLiteKeywordIndex({ dbPath: indexPath, sourceRoot: smokeRoot, tokenizer });
+  const packageSmokeStore = createPackageSmokeStore({
+    mcpAutoSave: true,
+    mcpAutoSavePath: smokeRoot,
+    mcpSaveSubDir: '',
+    mcpGitInfo: false,
+    userDataPath
+  });
+  const runtimeSearchEngine = new SearchEngine(packageSmokeStore, {
+    indexBackend: 'sqlite',
+    indexDataDir: runtimeIndexDataDir,
+    keywordTokenizer: createKeywordTokenizer({ provider: 'garu' })
+  });
+  let artifact = {
+    ok: false,
+    backend: 'sqlite-fts5',
+    tokenizer: tokenizer.getStatus(),
+    resultCount: 0,
+    koreanResultCount: 0,
+    saveToSearch: {
+      saved: false,
+      searchDocumentsFound: 0,
+      smartSearchFound: 0,
+      identityMatched: false,
+      indexingJobIdPresent: false,
+      indexingJobIdDiagnosticOnly: false
+    },
+    saveDocumentInvalid: {
+      forbiddenFieldRejected: false,
+      unknownFieldRejected: false,
+      multipleUnknownFieldsRejected: false,
+      gitContextPathRejected: false,
+      canonicalErrorEnvelope: false,
+      rawEchoFree: false,
+      writeFailedCode: null
+    },
+    nativeFailure: {
+      loadReason: null,
+      smartSearchDegradationReasons: []
+    },
+    workerNative: {
+      runtime: 'worker_threads search-index-worker compatible',
+      betterSqlite3: { state: 'native_unavailable' },
+      hnswlibNode: { state: 'native_unavailable' },
+      electronAbi: process.versions.modules || null,
+      nodeAbi: process.versions.modules || null,
+      searchIndexWorkerJob: {
+        queued: false,
+        completed: false,
+        documentIndexed: false
+      }
+    },
+    redactionFixture: {
+      classes: [],
+      allClassesCovered: false,
+      rawEchoFree: false
+    },
+    clientProfileOracle: readPackageSmokeClientProfileOracleSummary(),
+    indexPath: smokeRedactor.redactPath(indexPath)
+  };
+
+  try {
+    sqliteIndex.rebuild([{
+      filePath: path.join(smokeRoot, 'smoke.md'),
+      meta: {
+        title: 'Package Smoke',
+        project: 'DocuLight',
+        docName: 'package-smoke',
+        docType: 'test',
+        description: 'SQLite native package smoke',
+        snippet: 'native smoke sqlite package'
+      },
+      body: 'native smoke sqlite package',
+      contentHash: 'package-smoke',
+      textHash: 'package-smoke'
+    }, {
+      filePath: path.join(smokeRoot, 'korean.md'),
+      meta: {
+        title: 'Korean Smoke',
+        project: 'DocuLight',
+        docName: 'package-smoke-korean',
+        docType: 'test',
+        description: 'Korean morphology package smoke',
+        snippet: '학교에서 점심을 먹었다'
+      },
+      body: '학교에서 점심을 먹었다',
+      contentHash: 'package-smoke-korean',
+      textHash: 'package-smoke-korean'
+    }]);
+    const results = sqliteIndex.search('native smoke', { limit: 5 });
+    const koreanResults = sqliteIndex.search('먹다', { limit: 5 });
+    await runtimeSearchEngine.initialize();
+    const marker = `package-smoke-marker-${Date.now()}-${process.pid}`;
+    const saveResult = await saveDocumentToStore(packageSmokeStore, {
+      content: `# Package Save Search\n\nUnique marker: ${marker}\n`,
+      title: 'Package Save Search',
+      project: 'DocuLight',
+      docType: 'note',
+      category: 'package-smoke',
+      documentTags: ['package-smoke', 'wave2']
+    }, runtimeSearchEngine);
+    const saveText = saveResult && saveResult.content && saveResult.content[0] ? saveResult.content[0].text : '';
+    if (!saveText || saveText.includes(smokeRoot)) {
+      throw new Error('save_document package smoke response leaked an absolute package smoke path');
+    }
+    const savePayload = JSON.parse(saveText);
+    if (!savePayload.saved || !savePayload.documentId || !savePayload.sourceRelativePath) {
+      throw new Error('save_document package smoke did not return a canonical saved envelope');
+    }
+    await runtimeSearchEngine.rebuild();
+    const savedSearchResults = runtimeSearchEngine.search(marker, { limit: 5 });
+    const savedSearchMatch = savedSearchResults.find((item) => item.filePath && item.filePath.endsWith(savePayload.sourceRelativePath.replace(/\//g, path.sep)));
+    const smartSearchPayload = await runtimeSearchEngine.smartSearch({
+      query: marker,
+      limit: 5,
+      includeDiagnostics: true
+    });
+    const smartSearchMatch = Array.isArray(smartSearchPayload.results)
+      ? smartSearchPayload.results.find((item) => item.documentId === savePayload.documentId || item.sourceRelativePath === savePayload.sourceRelativePath)
+      : null;
+    if (!savedSearchMatch || !smartSearchMatch) {
+      throw new Error('save_document package smoke marker was not retrievable by search_documents and smart_search');
+    }
+    const invalidSaveDocument = await runPackageSmokeInvalidSaveDocumentChecks({
+      smokeRoot,
+      packageSmokeStore,
+      runtimeSearchEngine,
+      redactor: smokeRedactor
+    });
+    const redactionFixture = buildPackageSmokeRedactionFixture({
+      smokeRoot,
+      indexPath,
+      nativeIndexDataDir,
+      runtimeIndexDataDir,
+      userDataPath,
+      redactor: smokeRedactor,
+      writeFailurePath: invalidSaveDocument.writeFailurePath
+    });
+    const workerNative = sanitizePackageSmokeWorkerNative(
+      await probePackageSmokeWorkerNative(),
+      smokeRedactor
+    );
+    workerNative.searchIndexWorkerJob = await runPackageSmokeSearchIndexWorkerJob({
+      runtimeSearchEngine,
+      smokeRoot
+    });
+    const nativeLoad = loadHnswlib({ forceUnavailable: true });
+    const previousSemanticProvider = runtimeSearchEngine.options.semanticCandidateProvider;
+    runtimeSearchEngine.options.semanticCandidateProvider = {
+      search() {
+        return {
+          status: 'degraded',
+          degradationReason: 'native_unavailable',
+          backend: 'hnsw',
+          candidates: []
+        };
+      }
+    };
+    const nativeFailureSmartSearch = await runtimeSearchEngine.smartSearch({
+      query: marker,
+      limit: 5,
+      includeDiagnostics: true
+    });
+    runtimeSearchEngine.options.semanticCandidateProvider = previousSemanticProvider;
+    artifact = {
+      ...artifact,
+      tokenizer: tokenizer.getStatus(),
+      ok: results.length > 0 && koreanResults.length > 0 && Boolean(savedSearchMatch) && Boolean(smartSearchMatch),
+      resultCount: results.length,
+      koreanResultCount: koreanResults.length,
+      saveToSearch: {
+        saved: true,
+        documentId: savePayload.documentId,
+        sourceRelativePath: savePayload.sourceRelativePath,
+        indexingState: savePayload.indexing && savePayload.indexing.state ? savePayload.indexing.state : null,
+        indexingJobIdPresent: Boolean(savePayload.indexing && typeof savePayload.indexing.jobId === 'string' && savePayload.indexing.jobId.length > 0),
+        indexingJobIdDiagnosticOnly: Boolean(savePayload.indexing && typeof savePayload.indexing.jobId === 'string' && savePayload.indexing.jobId.length > 0) &&
+          !['statusUrl', 'cancelTool', 'retryTool', 'rebuildTool', 'importTool', 'reconciliationTool'].some((key) =>
+            Object.prototype.hasOwnProperty.call(savePayload.indexing || {}, key)
+          ),
+        queuedBooleanPresent: Object.prototype.hasOwnProperty.call(savePayload, 'queued') ||
+          Object.prototype.hasOwnProperty.call(savePayload.indexing || {}, 'queued'),
+        searchDocumentsFound: savedSearchResults.length,
+        smartSearchFound: smartSearchPayload.results.length,
+        identityMatched: smartSearchMatch.documentId === savePayload.documentId || smartSearchMatch.sourceRelativePath === savePayload.sourceRelativePath,
+        degraded: smartSearchPayload.degraded === true,
+        degradationReasons: smartSearchPayload.degradationReasons || []
+      },
+      saveDocumentInvalid: invalidSaveDocument.summary,
+      nativeFailure: {
+        loadReason: nativeLoad && nativeLoad.reason ? nativeLoad.reason : null,
+        smartSearchDegradationReasons: nativeFailureSmartSearch.degradationReasons || []
+      },
+      workerNative,
+      redactionFixture
+    };
+    if (!artifact.ok) {
+      throw new Error('SQLite package smoke query returned no results');
+    }
+    writePackageSmokeArtifact(artifact);
+    app.exit(0);
+  } catch (err) {
+    writePackageSmokeArtifact({
+      ...artifact,
+      ok: false,
+      error: smokeRedactor.redactString(err.message)
+    });
+    console.error('[doculight] Package smoke failed:', smokeRedactor.redactString(err.message));
+    app.exit(1);
+  } finally {
+    sqliteIndex.close();
+    runtimeSearchEngine.close();
+    try { fs.rmSync(smokeRoot, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
+function probePackageSmokeWorkerNative() {
+  return new Promise((resolve) => {
+    const worker = new Worker(`
+      const { parentPort } = require('worker_threads');
+      const path = require('path');
+      function requirePackagedModule(name) {
+        const packagedPath = process.resourcesPath
+          ? path.join(process.resourcesPath, 'app.asar', 'node_modules', name)
+          : name;
+        const unpackedPath = process.resourcesPath
+          ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', name)
+          : name;
+        try {
+          return require(packagedPath);
+        } catch (firstErr) {
+          if (packagedPath !== unpackedPath) {
+            try {
+              return require(unpackedPath);
+            } catch {
+              // Fall through to package name fallback below.
+            }
+          }
+          if (packagedPath === name) throw firstErr;
+          try {
+            return require(name);
+          } catch {
+            throw firstErr;
+          }
+        }
+      }
+      function probeBetterSqlite3() {
+        try {
+          const Database = requirePackagedModule('better-sqlite3');
+          const db = new Database(':memory:');
+          db.prepare('SELECT 1 AS ok').get();
+          db.close();
+          return { state: 'loaded', moduleVersion: process.versions.modules || null };
+        } catch (err) {
+          return {
+            state: 'native_unavailable',
+            code: err && err.code ? err.code : null,
+            message: err && err.message ? err.message : String(err),
+            moduleVersion: process.versions.modules || null
+          };
+        }
+      }
+      function probeHnswlibNode() {
+        try {
+          requirePackagedModule('hnswlib-node');
+          return { state: 'loaded', moduleVersion: process.versions.modules || null };
+        } catch (err) {
+          return {
+            state: 'native_unavailable',
+            code: err && err.code ? err.code : null,
+            message: err && err.message ? err.message : String(err),
+            moduleVersion: process.versions.modules || null
+          };
+        }
+      }
+      parentPort.postMessage({
+        runtime: 'worker_threads search-index-worker compatible',
+        betterSqlite3: probeBetterSqlite3(),
+        hnswlibNode: probeHnswlibNode(),
+        electronAbi: process.versions.modules || null,
+        nodeAbi: process.versions.modules || null
+      });
+    `, { eval: true });
+    const timer = setTimeout(() => {
+      try { worker.terminate(); } catch { /* ignore */ }
+      resolve({
+        runtime: 'worker_threads search-index-worker compatible',
+        betterSqlite3: { state: 'native_unavailable', message: 'worker native probe timeout' },
+        hnswlibNode: { state: 'native_unavailable', message: 'worker native probe timeout' },
+        electronAbi: process.versions.modules || null,
+        nodeAbi: process.versions.modules || null
+      });
+    }, 10000);
+    worker.once('message', (message) => {
+      clearTimeout(timer);
+      try { worker.terminate(); } catch { /* ignore */ }
+      resolve(message);
+    });
+    worker.once('error', (err) => {
+      clearTimeout(timer);
+      resolve({
+        runtime: 'worker_threads search-index-worker compatible',
+        betterSqlite3: { state: 'native_unavailable', message: err && err.message ? err.message : String(err) },
+        hnswlibNode: { state: 'native_unavailable', message: err && err.message ? err.message : String(err) },
+        electronAbi: process.versions.modules || null,
+        nodeAbi: process.versions.modules || null
+      });
+    });
+  });
+}
+
+function sanitizePackageSmokeWorkerNative(workerNative, redactor) {
+  const sanitizeProbe = (probe) => ({
+    state: probe && probe.state === 'loaded' ? 'loaded' : 'native_unavailable',
+    code: probe && probe.code ? String(probe.code) : null,
+    message: probe && probe.message ? redactor.redactString(String(probe.message)).slice(0, 240) : null,
+    moduleVersion: probe && probe.moduleVersion ? String(probe.moduleVersion) : null
+  });
+  return {
+    runtime: 'worker_threads search-index-worker compatible',
+    betterSqlite3: sanitizeProbe(workerNative && workerNative.betterSqlite3),
+    hnswlibNode: sanitizeProbe(workerNative && workerNative.hnswlibNode),
+    electronAbi: workerNative && workerNative.electronAbi ? String(workerNative.electronAbi) : (process.versions.modules || null),
+    nodeAbi: workerNative && workerNative.nodeAbi ? String(workerNative.nodeAbi) : (process.versions.modules || null)
+  };
+}
+
+async function runPackageSmokeSearchIndexWorkerJob({ runtimeSearchEngine, smokeRoot }) {
+  const content = [
+    '# Package Worker Job',
+    '',
+    `Packaged search-index-worker document job ${Date.now()} ${process.pid}`
+  ].join('\n');
+  const filePath = path.join(smokeRoot, 'package-worker-job.md');
+  fs.writeFileSync(filePath, content, 'utf-8');
+  const queued = runtimeSearchEngine.queueDocumentIndex({
+    filePath,
+    content,
+    requestedBy: 'package-smoke.search-index-worker'
+  });
+  if (!queued || queued.queued !== true || !queued.jobId) {
+    return {
+      queued: false,
+      completed: false,
+      documentIndexed: false,
+      reason: queued && queued.reason ? queued.reason : 'enqueue_failed'
+    };
+  }
+  try {
+    await runtimeSearchEngine._drainSmartIndexQueue();
+    const ledger = runtimeSearchEngine.getSourceLedger();
+    const job = ledger && typeof ledger.getIndexJob === 'function' ? ledger.getIndexJob(queued.jobId) : null;
+    const identity = typeof runtimeSearchEngine.getSmartSearchDocumentIdentity === 'function'
+      ? runtimeSearchEngine.getSmartSearchDocumentIdentity(filePath)
+      : null;
+    return {
+      queued: true,
+      jobIdPresent: true,
+      completed: Boolean(job && job.status === 'completed'),
+      documentIndexed: Boolean(identity && identity.documentId),
+      diagnosticCode: job && job.diagnosticCode ? job.diagnosticCode : null
+    };
+  } catch (err) {
+    return {
+      queued: true,
+      jobIdPresent: true,
+      completed: false,
+      documentIndexed: false,
+      diagnosticCode: err && err.code ? err.code : 'search_index_worker_job_failed'
+    };
+  }
+}
+
+async function runPackageSmokeInvalidSaveDocumentChecks({ smokeRoot, packageSmokeStore, runtimeSearchEngine, redactor }) {
+  const credentialKey = 'api' + '_key';
+  const rawNeedles = new Set([smokeRoot, 'rawsecret', `${credentialKey}=secret`, 'token=rawsecret']);
+  const summaries = {};
+  const responses = [];
+
+  async function capture(name, store, params, extraNeedles = []) {
+    const response = await saveDocumentToStore(store, params, runtimeSearchEngine);
+    const text = response && response.content && response.content[0] ? response.content[0].text : '';
+    let payload = {};
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = {};
+    }
+    responses.push({ name, response, text, payload });
+    for (const needle of extraNeedles) rawNeedles.add(needle);
+    return { response, text, payload };
+  }
+
+  await capture('forbiddenField', packageSmokeStore, {
+    content: '# Invalid Forbidden Field',
+    filePath: path.join(smokeRoot, 'rawsecret-forbidden.md')
+  }, [path.join(smokeRoot, 'rawsecret-forbidden.md')]);
+  await capture('unknownField', packageSmokeStore, {
+    content: '# Invalid Unknown Field',
+    unexpectedField: 'rawsecret'
+  });
+  await capture('multipleUnknownFields', packageSmokeStore, {
+    content: '# Invalid Multiple Unknown Fields',
+    unexpectedField: 'rawsecret',
+    anotherUnexpectedField: `${credentialKey}=secret`
+  });
+  const unsafeGitContextPath = path.join(app.getPath('temp'), `doculight-token=rawsecret-${process.pid}`, 'repo');
+  await capture('gitContextPath', packageSmokeStore, {
+    content: '# Invalid Git Context',
+    gitContextPath: unsafeGitContextPath
+  }, [unsafeGitContextPath]);
+
+  const writeFailurePath = path.join(smokeRoot, 'not-a-directory.md');
+  fs.writeFileSync(writeFailurePath, 'not a directory', 'utf-8');
+  const writeFailureStore = createPackageSmokeStore({
+    mcpAutoSave: true,
+    mcpAutoSavePath: writeFailurePath,
+    mcpSaveSubDir: '',
+    mcpGitInfo: false,
+    userDataPath: path.join(smokeRoot, 'write-failure-user-data')
+  });
+  await capture('writeFailure', writeFailureStore, {
+    content: '# Write Failure',
+    title: 'Write Failure'
+  }, [writeFailurePath]);
+
+  for (const { name, response, payload } of responses) {
+    summaries[name] = {
+      isError: response && response.isError === true,
+      code: payload && payload.error ? payload.error.code : null,
+      schemaVersion: payload.schemaVersion || null,
+      saved: payload.saved === false,
+      hasRetryable: Boolean(payload.error && Object.prototype.hasOwnProperty.call(payload.error, 'retryable')),
+      warningsArray: Array.isArray(payload.warnings)
+    };
+  }
+
+  const canonicalErrorEnvelope = responses.every(({ response, payload }) =>
+    response && response.isError === true &&
+    payload.schemaVersion === 'save_document.v1' &&
+    payload.saved === false &&
+    payload.error &&
+    typeof payload.error.code === 'string' &&
+    typeof payload.error.message === 'string' &&
+    typeof payload.error.retryable === 'boolean' &&
+    Array.isArray(payload.warnings)
+  );
+  const serializedResponses = responses.map((item) => item.text).join('\n');
+  const rawEchoFree = Array.from(rawNeedles)
+    .filter((needle) => typeof needle === 'string' && needle.length > 0)
+    .every((needle) => !serializedResponses.includes(needle)) &&
+    !/[A-Za-z]:[\\/]/.test(serializedResponses) &&
+    !/api[_-]?key=secret|token=rawsecret|password=rawsecret|bearer=rawsecret/i.test(serializedResponses);
+
+  return {
+    writeFailurePath,
+    summary: {
+      forbiddenFieldRejected: summaries.forbiddenField && summaries.forbiddenField.code === 'validation_failed',
+      unknownFieldRejected: summaries.unknownField && summaries.unknownField.code === 'validation_failed',
+      multipleUnknownFieldsRejected: summaries.multipleUnknownFields && summaries.multipleUnknownFields.code === 'validation_failed',
+      gitContextPathRejected: summaries.gitContextPath && summaries.gitContextPath.code === 'validation_failed',
+      canonicalErrorEnvelope,
+      rawEchoFree,
+      writeFailedCode: summaries.writeFailure ? summaries.writeFailure.code : null,
+      responseCodes: responses.map((item) => item.payload && item.payload.error ? item.payload.error.code : null),
+      redactedWriteFailurePath: redactor.redactPath(writeFailurePath)
+    }
+  };
+}
+
+function buildPackageSmokeRedactionFixture({
+  smokeRoot,
+  indexPath,
+  nativeIndexDataDir,
+  runtimeIndexDataDir,
+  userDataPath,
+  redactor,
+  writeFailurePath
+}) {
+  const credentialKey = 'api' + '_key';
+  const required = {
+    windowsDrivePath: String.raw`C:\Users\Example\repo\secret.md`,
+    uncPath: String.raw`\\server\share\secret.md`,
+    posixAbsolutePath: '/tmp/doculight-package-smoke-secret.md',
+    userHomePath: path.join(app.getPath('home'), 'doculight-secret.md'),
+    appUserDataIndexPath: indexPath,
+    credentialBearingUrl: `https://user:password@example.test/v1/embeddings?${credentialKey}=secret`,
+    rawGitContextPath: path.join(smokeRoot, 'git-context-raw'),
+    embeddingEndpointFailure: 'embedding provider failed at https://user:password@example.test/v1?token=rawsecret',
+    saveDocumentWriteFailure: `write failed for ${writeFailurePath}`,
+    nativeLoadFailure: `hnsw native load failed from ${nativeIndexDataDir} token=rawsecret`,
+    keywordOnlyDegradedResponse: 'smart_search degraded keyword_only embedding_disabled',
+    smartSearchRedactedResponse: `smart_search diagnostics ${runtimeIndexDataDir} ${userDataPath} bearer=rawsecret`
+  };
+  const redacted = Object.fromEntries(Object.entries(required).map(([key, value]) => [key, redactor.redactString(value)]));
+  const serialized = JSON.stringify(redacted);
+  const sensitiveKeys = [
+    'windowsDrivePath',
+    'uncPath',
+    'posixAbsolutePath',
+    'userHomePath',
+    'appUserDataIndexPath',
+    'credentialBearingUrl',
+    'rawGitContextPath',
+    'embeddingEndpointFailure',
+    'saveDocumentWriteFailure',
+    'nativeLoadFailure',
+    'smartSearchRedactedResponse'
+  ];
+  const rawEchoFree = sensitiveKeys.every((key) => !serialized.includes(required[key])) &&
+    !/\b[A-Za-z]:[\\/](?![\\/])/.test(serialized) &&
+    !/\\\\[^\\/\s]+[\\/][^\\/\s]+/.test(serialized) &&
+    !/(^|[":\s])\/(?:Users|home|tmp|temp|var|private|mnt|Volumes|Work)\b/.test(serialized) &&
+    !/api[_-]?key=secret|token=rawsecret|password=rawsecret|bearer=rawsecret|user:password/i.test(serialized);
+  return {
+    classes: Object.keys(required),
+    allClassesCovered: Object.keys(required).length === 12,
+    rawEchoFree,
+    redacted
+  };
+}
+
+function createPackageSmokeStore(initialValues) {
+  const values = new Map(Object.entries(initialValues || {}));
+  return {
+    get(key, defaultValue) {
+      return values.has(key) ? values.get(key) : defaultValue;
+    },
+    set(key, value) {
+      values.set(key, value);
+    }
+  };
+}
+
+function readPackageSmokeClientProfileOracleSummary() {
+  const fixturePath = path.join(process.cwd(), 'test', 'fixtures', 'wave2-client-profile-oracles.json');
+  try {
+    const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+    const defaultSerializedBytes = Math.max(...fixture.oracles.map((oracle) => Number(oracle.outputCaps && oracle.outputCaps.defaultSerializedBytes) || 0));
+    return {
+      version: fixture.version,
+      count: Array.isArray(fixture.oracles) ? fixture.oracles.length : 0,
+      defaultSerializedBytes
+    };
+  } catch {
+    return {
+      version: 'wave2-client-profile-oracles.v1',
+      count: 9,
+      defaultSerializedBytes: 65536
+    };
+  }
+}
+
+function assertMcpSearchConfigured() {
+  if (!store.get('mcpAutoSave', false) || !store.get('mcpAutoSavePath', '')) {
+    throw new Error('Search requires mcpAutoSave to be enabled with a configured mcpAutoSavePath.');
+  }
+  if (!searchEngine) {
+    throw new Error('Search engine not available. Ensure mcpAutoSave is enabled.');
+  }
+}
+
+function writePackageSmokeArtifact(artifact) {
+  const artifactPath = process.env.DOCULIGHT_PACKAGE_SMOKE_OUT;
+  if (!artifactPath) return;
+  try {
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+    fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[doculight] Failed to write package smoke artifact:', err.message);
+  }
+}
+
+function initializeSearchEngineIfConfigured() {
+  if (!searchEngine || !store.get('mcpAutoSave', false) || !store.get('mcpAutoSavePath', '')) {
+    return;
+  }
+  searchEngine.initialize().catch(err => {
+    console.error('[doculight] Search engine init error:', err.message);
+  });
+}
+
+function startNativeRepairIfNeeded() {
+  if (!nativeRebuildManager || PACKAGE_SMOKE_REQUESTED) return;
+  const repair = nativeRebuildManager.startBackgroundRepairIfNeeded();
+  if (repair && repair.promise) {
+    repair.promise.then(() => {
+      initializeSearchEngineIfConfigured();
+    }).catch((err) => {
+      console.warn('[doculight] Background native repair failed:', err && err.message ? err.message : String(err));
+    });
+  }
+}
+
+function getIndexingStatusPayload() {
+  const status = searchEngine ? searchEngine.getStatus() : { state: 'unavailable' };
+  if (!nativeRebuildManager) return status;
+  const nativeRepair = nativeRebuildManager.getStatus();
+  const nativeActive = nativeRepair && (nativeRepair.active || nativeRepair.state === 'checking' || nativeRepair.state === 'repairing');
+  if (!nativeRepair || nativeRepair.state === 'idle' || nativeRepair.state === 'ready') {
+    return { ...status, nativeRepair };
+  }
+  if (nativeActive) {
+    return {
+      ...status,
+      state: nativeRepair.state === 'checking' ? 'checking' : 'repairing',
+      phase: nativeRepair.phase || status.phase,
+      progress: nativeRepair.progress || status.progress || null,
+      diagnostic: nativeRepair.diagnostic || status.diagnostic || null,
+      nativeRepair
+    };
+  }
+  return {
+    ...status,
+    state: status.state === 'ready' ? 'degraded' : status.state,
+    diagnostic: nativeRepair.diagnostic || status.diagnostic || null,
+    errorSummary: status.errorSummary || (nativeRepair.diagnostic && nativeRepair.diagnostic.message) || null,
+    nativeRepair
+  };
+}
+
+function getStoredEmbeddingSettings() {
+  const semanticSearch = store.get('semanticSearch', {}) || {};
+  return {
+    enabled: semanticSearch.enabled === true,
+    provider: semanticSearch.provider || 'openai-compatible',
+    baseURL: semanticSearch.baseURL || '',
+    model: semanticSearch.model || '',
+    dimensions: semanticSearch.dimensions || null,
+    batchSize: semanticSearch.batchSize || 16,
+    maxConcurrency: semanticSearch.maxConcurrency || 2,
+    timeout: semanticSearch.timeout || 30000,
+    retryPolicy: semanticSearch.retryPolicy || { retries: 2, backoffMs: 500 },
+    apiKeyStorage: semanticSearch.apiKeyStorage || 'none',
+    hasApiKey: semanticSearch.hasApiKey === true,
+    hnsw: semanticSearch.hnsw || { m: 16, efConstruction: 200, efSearch: 64 },
+    chunker: {
+      chunkSize: Number(semanticSearch.chunker?.chunkSize) || EMBEDDING_DEFAULT_CHUNK_SIZE,
+      chunkOverlap: Number(semanticSearch.chunker?.chunkOverlap) || EMBEDDING_DEFAULT_CHUNK_OVERLAP
+    },
+    modelFingerprint: semanticSearch.modelFingerprint || null,
+    status: semanticSearch.status || 'unset',
+    statusReason: semanticSearch.statusReason || null,
+    lastValidatedAt: semanticSearch.lastValidatedAt || null,
+    offlineOnly: semanticSearch.offlineOnly === true,
+    retentionCostConfirmationVersion: semanticSearch.retentionCostConfirmationVersion || null,
+    endpointPolicy: semanticSearch.endpointPolicy || 'https-or-approved-local',
+    projectPolicy: normalizeEmbeddingProjectPolicy(semanticSearch.projectPolicy),
+    activationRecord: normalizeEmbeddingActivationRecord(semanticSearch.activationRecord),
+    secretMigration: normalizeSecretMigrationState(semanticSearch.secretMigration),
+    semanticIndexing: normalizeEmbeddingSemanticIndexing(semanticSearch.semanticIndexing)
+  };
+}
+
+function sanitizeSettingsPayload(settingsPayload) {
+  const settings = { ...(settingsPayload || {}) };
+  delete settings.embeddingApiKeyCiphertext;
+  delete settings.embeddingApiKey;
+  delete settings.apiKey;
+  settings.semanticSearch = sanitizeEmbeddingSettingsForRenderer(getStoredEmbeddingSettings());
+  return settings;
+}
+
+function sanitizeEmbeddingSettingsForRenderer(settingsPayload = getStoredEmbeddingSettings()) {
+  return {
+    enabled: settingsPayload.enabled === true,
+    provider: settingsPayload.provider || 'openai-compatible',
+    baseURL: sanitizeEmbeddingBaseURLForRenderer(settingsPayload.baseURL),
+    model: settingsPayload.model || '',
+    dimensions: settingsPayload.dimensions || null,
+    apiKeyStorage: settingsPayload.apiKeyStorage || 'none',
+    hasApiKey: settingsPayload.hasApiKey === true,
+    chunker: {
+      chunkSize: Number(settingsPayload.chunker?.chunkSize) || EMBEDDING_DEFAULT_CHUNK_SIZE,
+      chunkOverlap: Number(settingsPayload.chunker?.chunkOverlap) || EMBEDDING_DEFAULT_CHUNK_OVERLAP
+    },
+    modelFingerprint: settingsPayload.modelFingerprint || null,
+    status: settingsPayload.status || 'unset',
+    statusReason: settingsPayload.statusReason || null,
+    lastValidatedAt: settingsPayload.lastValidatedAt || null,
+    offlineOnly: settingsPayload.offlineOnly === true,
+    retentionCostConfirmationVersion: settingsPayload.retentionCostConfirmationVersion || null,
+    endpointPolicy: settingsPayload.endpointPolicy || 'https-or-approved-local',
+    projectPolicy: normalizeEmbeddingProjectPolicy(settingsPayload.projectPolicy),
+    activationRecord: normalizeEmbeddingActivationRecord(settingsPayload.activationRecord),
+    secretMigration: normalizeSecretMigrationState(settingsPayload.secretMigration),
+    semanticIndexing: normalizeEmbeddingSemanticIndexing(settingsPayload.semanticIndexing)
+  };
+}
+
+function normalizeEmbeddingSemanticIndexing(rawState = {}) {
+  const state = rawState && typeof rawState === 'object' ? rawState : {};
+  return {
+    status: state.status || 'idle',
+    progress_current: normalizeNonNegativeInt(state.progress_current, 0),
+    progress_total: normalizeNonNegativeInt(state.progress_total, 0)
+  };
+}
+
+function sanitizeEmbeddingBaseURLForRenderer(rawBaseURL) {
+  const value = String(rawBaseURL || '').trim();
+  if (!value) return '';
+  try {
+    const parsed = new URL(value);
+    parsed.username = '';
+    parsed.password = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/$/, parsed.pathname === '/' ? '/' : '');
+  } catch {
+    return '';
+  }
+}
+
+function normalizeEmbeddingEndpoint(rawBaseURL) {
+  const raw = String(rawBaseURL || '').trim();
+  if (!raw) {
+    const err = new Error('Embedding endpoint URL is required');
+    err.code = 'EMBEDDING_ENDPOINT_REQUIRED';
+    throw err;
+  }
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    const err = new Error('Embedding endpoint URL is invalid');
+    err.code = 'EMBEDDING_ENDPOINT_INVALID';
+    throw err;
+  }
+  if (parsed.username || parsed.password) {
+    const err = new Error('Embedding endpoint URL must not include credentials');
+    err.code = 'EMBEDDING_ENDPOINT_CREDENTIALS';
+    throw err;
+  }
+  const protocol = parsed.protocol.toLowerCase();
+  if (protocol !== 'https:' && !(protocol === 'http:' && isApprovedLocalEmbeddingHost(parsed.hostname))) {
+    const err = new Error('Embedding endpoint must use HTTPS or an approved local HTTP host');
+    err.code = 'EMBEDDING_ENDPOINT_POLICY';
+    throw err;
+  }
+  parsed.hash = '';
+  parsed.search = '';
+  let pathname = parsed.pathname.replace(/\/+$/, '');
+  if (pathname === '/') pathname = '';
+  const baseURL = `${parsed.origin}${pathname}`;
+  const modelListURL = `${baseURL || parsed.origin}/models`;
+  const embeddingsURL = `${baseURL || parsed.origin}/embeddings`;
+  return {
+    baseURL: baseURL || parsed.origin,
+    host: parsed.host,
+    modelListURL,
+    embeddingsURL
+  };
+}
+
+function isApprovedLocalEmbeddingHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host === '::1') return true;
+  if (/^127(?:\.\d{1,3}){3}$/.test(host)) return true;
+  const parts = host.split('.').map(part => Number(part));
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  return parts[0] === 192 && parts[1] === 168;
+}
+
+function getEmbeddingApiKey(candidateKey, options = {}) {
+  const allowStoredKeyFallback = options.allowStoredFallback !== false;
+  const trimmed = String(candidateKey || '').trim();
+  if (trimmed) return { key: trimmed, storage: 'pending' };
+  const envKey = String(process.env.DOCULIGHT_EMBEDDING_API_KEY || '').trim();
+  if (allowStoredKeyFallback && envKey) return { key: envKey, storage: 'env' };
+  const stored = store.get('embeddingApiKeyCiphertext', '');
+  if (!allowStoredKeyFallback || !stored || !safeStorage || !safeStorage.isEncryptionAvailable()) return { key: '', storage: 'none' };
+  try {
+    return { key: safeStorage.decryptString(Buffer.from(stored, 'base64')), storage: 'safeStorage' };
+  } catch {
+    return { key: '', storage: 'unavailable' };
+  }
+}
+
+function persistEmbeddingApiKey(apiKey, options = {}) {
+  const replaceExisting = options.replaceExisting === true;
+  const trimmed = String(apiKey || '').trim();
+  if (!trimmed) {
+    if (!replaceExisting && store.get('embeddingApiKeyCiphertext')) {
+      return { storage: 'safeStorage', hasApiKey: true };
+    }
+    if (!replaceExisting && process.env.DOCULIGHT_EMBEDDING_API_KEY) {
+      return { storage: 'env', hasApiKey: true };
+    }
+    store.delete('embeddingApiKeyCiphertext');
+    return { storage: 'none', hasApiKey: false };
+  }
+  if (safeStorage && safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(trimmed);
+    store.set('embeddingApiKeyCiphertext', encrypted.toString('base64'));
+    return { storage: 'safeStorage', hasApiKey: true };
+  }
+  store.delete('embeddingApiKeyCiphertext');
+  return { storage: process.env.DOCULIGHT_EMBEDDING_API_KEY ? 'env' : 'none', hasApiKey: false };
+}
+
+function createEmbeddingFingerprint({
+  baseURL,
+  model,
+  dimensions,
+  chunkSize,
+  chunkOverlap,
+  encodingFormat = 'float',
+  chunkerVersion = 'heading-aware-v1',
+  normalization = 'none',
+  hnswSpace = 'cosine',
+  distanceMetric = 'cosine'
+}) {
+  const baseURLHash = crypto
+    .createHash('sha256')
+    .update(String(baseURL || ''))
+    .digest('hex')
+    .slice(0, 16);
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify({
+      provider: 'openai-compatible',
+      baseURLHash,
+      model,
+      dimensions: Number.isInteger(dimensions) ? dimensions : null,
+      encodingFormat,
+      chunkerVersion,
+      normalization,
+      hnswSpace,
+      distanceMetric,
+      chunkSize,
+      chunkOverlap
+    }))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function hasEmbeddingTransmissionConfirmation(input = {}) {
+  return input.retentionCostConfirmed === true
+    && String(input.retentionCostConfirmationVersion || '') === EMBEDDING_RETENTION_CONFIRMATION_VERSION;
+}
+
+async function validateEmbeddingModelConfig(input = {}) {
+  const offlineOnly = Object.prototype.hasOwnProperty.call(input, 'offlineOnly')
+    ? input.offlineOnly === true
+    : getStoredEmbeddingSettings().offlineOnly === true;
+  if (offlineOnly) {
+    return {
+      ok: false,
+      status: 'degraded',
+      reason: 'offline-only',
+      message: 'Offline-only mode blocks remote embedding validation'
+    };
+  }
+  const normalized = normalizeEmbeddingEndpoint(input.baseURL);
+  const apiKeyInfo = getEmbeddingApiKey(input.apiKey, { allowStoredFallback: false });
+  const headers = { 'Content-Type': 'application/json' };
+  if (apiKeyInfo.key) headers.Authorization = `Bearer ${apiKeyInfo.key}`;
+  const timeoutMs = Math.max(1000, Math.min(Number(input.timeout) || 30000, 120000));
+  let model = String(input.model || '').trim();
+
+  if (!model) {
+    const modelsResponse = await fetchWithTimeout(normalized.modelListURL, { method: 'GET', headers }, timeoutMs);
+    if (!modelsResponse.ok) {
+      throw createEmbeddingHttpError('models', modelsResponse.status);
+    }
+    const payload = await modelsResponse.json();
+    model = extractFirstModelId(payload);
+    if (!model) {
+      const err = new Error('Embedding model discovery returned no model id');
+      err.code = 'EMBEDDING_MODEL_DISCOVERY_EMPTY';
+      throw err;
+    }
+  }
+
+  const requestedDimensions = normalizeOptionalPositiveInt(input.dimensions);
+  const validationBody = { model, input: 'DocuLight embedding validation' };
+  if (requestedDimensions) validationBody.dimensions = requestedDimensions;
+  const validationResponse = await fetchWithTimeout(normalized.embeddingsURL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(validationBody)
+  }, timeoutMs);
+  if (!validationResponse.ok) {
+    throw createEmbeddingHttpError('embeddings', validationResponse.status);
+  }
+  const validationPayload = await validationResponse.json();
+  const dimensions = requestedDimensions || extractEmbeddingDimensions(validationPayload);
+  if (!dimensions) {
+    const err = new Error('Embedding dimensions could not be discovered from validation response');
+    err.code = 'EMBEDDING_DIMENSIONS_REQUIRED';
+    throw err;
+  }
+
+  const chunkSize = normalizePositiveInt(input.chunkSize, EMBEDDING_DEFAULT_CHUNK_SIZE);
+  const chunkOverlap = normalizePositiveInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP);
+  return {
+    ok: true,
+    status: 'connected',
+    provider: 'openai-compatible',
+    baseURL: normalized.baseURL,
+    host: normalized.host,
+    model,
+    dimensions,
+    chunkSize,
+    chunkOverlap,
+    apiKeyStorage: apiKeyInfo.storage === 'pending' ? 'safeStorage' : apiKeyInfo.storage,
+    hasApiKey: Boolean(apiKeyInfo.key),
+    modelFingerprint: createEmbeddingFingerprint({ baseURL: normalized.baseURL, model, dimensions, chunkSize, chunkOverlap })
+  };
+}
+
+function normalizeOptionalPositiveInt(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function normalizePositiveInt(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function normalizeNonNegativeInt(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : fallback;
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractFirstModelId(payload) {
+  const candidates = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
+  const first = candidates[0];
+  if (!first) return '';
+  return String(first.id || first.name || first.model || '').trim();
+}
+
+function extractEmbeddingDimensions(payload) {
+  const data = Array.isArray(payload?.data) ? payload.data : [];
+  const firstVector = data.map((item) => item && item.embedding).find((vector) => Array.isArray(vector));
+  return firstVector ? firstVector.length : null;
+}
+
+function createEmbeddingHttpError(endpoint, status) {
+  const err = new Error(`Embedding ${endpoint} endpoint returned HTTP ${status}`);
+  err.code = 'EMBEDDING_ENDPOINT_UNREACHABLE';
+  return err;
+}
+
+function getEmbeddingModelStatusPayload() {
+  const settings = sanitizeEmbeddingSettingsForRenderer();
+  const indexingStatus = searchEngine ? searchEngine.getStatus() : null;
+  const semanticIndexingProgress = searchEngine && typeof searchEngine.getSemanticIndexingProgress === 'function'
+    ? searchEngine.getSemanticIndexingProgress()
+    : null;
+  const progressSource = semanticIndexingProgress || indexingStatus || {};
+  const current = Number(progressSource?.progress_current ?? progressSource?.progressCurrent ?? progressSource?.current ?? 0);
+  const total = Number(progressSource?.progress_total ?? progressSource?.progressTotal ?? progressSource?.total ?? 0);
+  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((current / total) * 100))) : null;
+  const indexingProgress = {
+    state: progressSource?.state || null,
+    phase: progressSource?.phase || null,
+    progress_current: current,
+    progress_total: total,
+    percent
+  };
+  if (!settings.model) {
+    const noModelStatus = (settings.status === 'degraded' || settings.status === 'unreachable' || settings.status === 'failed')
+      ? settings.status
+      : 'unset';
+    return { ...settings, status: noModelStatus, indexingProgress, semanticIndexingProgress, indexingPercent: percent };
+  }
+  return { ...settings, indexingProgress, semanticIndexingProgress, indexingPercent: percent };
+}
+
+function clearSemanticDerivedStateForFingerprint(modelFingerprint) {
+  if (!modelFingerprint || !searchEngine || typeof searchEngine.clearSemanticDerivedState !== 'function') {
+    return { cleared: false, reason: 'semantic-clear-unavailable' };
+  }
+  try {
+    return searchEngine.clearSemanticDerivedState({ modelFingerprint });
+  } catch (err) {
+    return { cleared: false, reason: err && err.message ? err.message : 'semantic-clear-failed' };
+  }
+}
+
 app.on('window-all-closed', () => {
   // Don't quit — stay alive in tray mode.
   // On macOS this is the default behavior; on Windows/Linux we simply
@@ -260,8 +1402,7 @@ app.on('before-quit', () => {
 
   // Delete port discovery file
   try {
-    const portFilePath = path.join(app.getPath('userData'), 'mcp-port');
-    fs.unlinkSync(portFilePath);
+    fs.unlinkSync(runtimeProfile.mcpPortFilePath);
   } catch { /* ignore — file may not exist */ }
 
   // Close every viewer window
@@ -386,7 +1527,7 @@ function updateTrayMenu() {
         label: `${fileName} (${parentDir})`,
         click: () => {
           if (fs.existsSync(fp)) {
-            windowManager.createWindow({ filePath: fp });
+            windowManager.createWindow({ filePath: fp, registerOpenedMarkdown: true });
           } else {
             console.log(`[doculight] recent file not found: ${fp}`);
             // Remove from list
@@ -585,6 +1726,11 @@ function startIpcServer() {
   });
 
   ipcServer.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') {
+      console.error('[doculight] IPC server already in use. Another DocuLight instance is probably running; this instance will exit.');
+      app.quit();
+      return;
+    }
     console.error('[doculight] IPC server error:', err.message);
   });
 
@@ -602,7 +1748,8 @@ function startIpcServer() {
 // MCP Auto-Save (shared module)
 // =============================================================================
 
-const { saveMcpFile, mcpManualSave, extractTitleFromContent } = require('./mcp-save');
+const { saveMcpFile, saveMcpUpdatedContent, mcpManualSave, saveDocumentToStore, extractTitleFromContent } = require('./mcp-save');
+const { buildSmartSearchToolResult } = require('./smart-search-response');
 
 /**
  * Route an incoming IPC message to the appropriate WindowManager method.
@@ -646,19 +1793,31 @@ async function handleIpcMessage(socket, msg) {
           });
         }
 
-        result = await windowManager.createWindow({ ...params, ...gitInfo });
+        result = await windowManager.createWindow({ ...params, ...gitInfo, registerOpenedMarkdown: false });
         try {
-          const savedPath = await saveMcpFile(store, { content: params.content, filePath: params.filePath, title: params.title, noSave: params.noSave, project: params.project, severity: params.severity, docType: params.docType });
           const entry = windowManager.getWindowEntry(result.windowId);
+          const savedPath = await saveMcpFile(store, {
+            content: params.content,
+            filePath: params.filePath,
+            title: params.title,
+            noSave: params.noSave,
+            project: params.project || entry?.meta?.project,
+            severity: params.severity,
+            docType: params.docType || entry?.meta?.docType
+          });
           if (entry && !entry.win.isDestroyed()) {
             // Send MCP document state to renderer (FR-22-001)
             entry.win.webContents.send('set-mcp-state', {
               isMcpDocument: true,
               mcpAutoSave: store.get('mcpAutoSave', false),
-              project: params.project || ''
+              project: params.project || entry.meta.project || ''
             });
             if (savedPath) {
-              searchEngine.markDirty();
+              searchEngine.markDirty({
+                filePath: savedPath,
+                content: params.content,
+                requestedBy: 'mcp.stdio.open_markdown'
+              });
               entry.meta.savedFilePath = savedPath;
               entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
               entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
@@ -703,28 +1862,11 @@ async function handleIpcMessage(socket, msg) {
         // Auto-save updated content (issue #6)
         try {
           const entry = windowManager.getWindowEntry(params.windowId);
-          if (entry && params.noSave !== true) {
-            const content = params.content || entry.meta.lastRenderedContent;
-            if (content && entry.meta.savedFilePath) {
-              // Overwrite existing saved file
-              const enabled = store.get('mcpAutoSave', false);
-              if (enabled) {
-                await fs.promises.writeFile(entry.meta.savedFilePath, content, 'utf-8');
-                searchEngine.markDirty();
-              }
-            } else if (content) {
-              // No existing saved file — create new via saveMcpFile
-              const savedPath = await saveMcpFile(store, {
-                content,
-                title: params.title || entry.meta.title,
-                noSave: params.noSave,
-                severity: params.severity || entry.meta.severity,
-                docType: params.docType || entry.meta.docType
-              });
-              if (savedPath) {
-                entry.meta.savedFilePath = savedPath;
-                searchEngine.markDirty();
-              }
+          const { savedPath } = await saveMcpUpdatedContent(store, entry, params, searchEngine);
+          if (entry && savedPath && !entry.win.isDestroyed()) {
+            entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
+            if (windowManager.formatWindowTitle) {
+              entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
             }
           }
         } catch (e) {
@@ -741,27 +1883,44 @@ async function handleIpcMessage(socket, msg) {
         result = { windows: windowManager.listWindows({ tag: params?.tag }) };
         break;
 
+      case 'save_document':
+        result = await saveDocumentToStore(store, params || {}, searchEngine);
+        break;
+
       case 'search_documents':
-        await searchEngine.ensureFresh();
+        assertMcpSearchConfigured();
+        if (typeof searchEngine.ensureFresh === 'function') {
+          await searchEngine.ensureFresh();
+        }
         result = {
           results: searchEngine.search(params.query, {
             limit: params.limit,
             project: params.project,
             docType: params.docType
           }),
-          totalIndexed: searchEngine.docMeta.size
+          totalIndexed: searchEngine.docMeta.size,
+          indexStatus: searchEngine.getStatus()
         };
         break;
 
       case 'search_projects':
-        await searchEngine.ensureFresh();
+        assertMcpSearchConfigured();
         result = {
-          projects: searchEngine.searchProjects(params.query, params.limit)
+          projects: searchEngine.searchProjects(params.query, params.limit),
+          indexStatus: searchEngine.getStatus()
         };
         break;
 
+      case 'smart_search': {
+        assertMcpSearchConfigured();
+        result = await buildSmartSearchToolResult(params || {}, { searchEngine, store });
+        break;
+      }
+
       case 'rebuild_index':
-        result = await searchEngine.rebuild();
+        result = typeof searchEngine.startRebuild === 'function'
+          ? searchEngine.startRebuild()
+          : await searchEngine.rebuild();
         break;
 
       default:
@@ -902,6 +2061,12 @@ function registerIpcHandlers() {
   fileAssoc.init(store);
 
   ipcMain.handle('register-file-association', async () => {
+    if (runtimeProfile.isDev) {
+      return {
+        success: false,
+        message: 'file association registration is disabled for the dev profile'
+      };
+    }
     if (!fileAssoc.isSupported()) {
       return { success: false, message: t('fileAssoc.unsupported') };
     }
@@ -955,6 +2120,248 @@ function registerIpcHandlers() {
     });
     if (result.canceled || !result.filePaths.length) return null;
     return result.filePaths[0];
+  });
+
+  ipcMain.handle('indexing:get-status', () => {
+    return getIndexingStatusPayload();
+  });
+
+  ipcMain.handle('indexing:start-rebuild', () => {
+    return searchEngine.startRebuild();
+  });
+
+  ipcMain.handle('indexing:cancel-job', () => {
+    return searchEngine.cancelRebuild();
+  });
+
+  ipcMain.handle('indexing:retry-failures', () => {
+    return searchEngine.retryFailures();
+  });
+
+  ipcMain.handle('indexing:compact', async () => {
+    return searchEngine.compact();
+  });
+
+  ipcMain.handle('indexing:clear', async () => {
+    return searchEngine.clear();
+  });
+
+  ipcMain.handle('indexing:open-data-dir', async () => {
+    const dataDir = searchEngine.getIndexDataDir();
+    if (!dataDir) return { success: false, error: 'mcpAutoSavePath is not configured' };
+    const error = await shell.openPath(dataDir);
+    return { success: !error, error: error || null, dataDir };
+  });
+
+  ipcMain.handle('document-import:linked-markdown', async (event) => {
+    try {
+      const knowledgeStoreRoot = store.get('mcpAutoSavePath', '');
+      if (!knowledgeStoreRoot) {
+        return { success: false, reason: 'knowledge-store-unconfigured', message: 'Document store is not configured' };
+      }
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Markdown', extensions: ['md', 'markdown'] }
+        ]
+      });
+      if (result.canceled || !result.filePaths.length) {
+        return { success: false, cancelled: true };
+      }
+      const entryPath = path.resolve(result.filePaths[0]);
+      const sourceRoot = path.dirname(entryPath);
+      const ledger = searchEngine && typeof searchEngine.getSourceLedger === 'function'
+        ? searchEngine.getSourceLedger()
+        : null;
+      const importer = createLinkedImporter({
+        sourceRoot,
+        knowledgeStoreRoot,
+        ledger,
+        requestedBy: 'settings.linked_import'
+      });
+      const importResult = await importer.importMarkdownGraph(entryPath);
+      return { success: true, ...importResult };
+    } catch (err) {
+      const redactor = createRedactor({
+        sourceRoots: [store.get('mcpAutoSavePath', '')].filter(Boolean),
+        userDataDir: app.getPath('userData')
+      });
+      return {
+        success: false,
+        reason: err && err.code ? err.code : 'linked-import-failed',
+        message: redactor.redactString(err && err.message ? err.message : String(err))
+      };
+    }
+  });
+
+  ipcMain.handle('embedding:get-status', () => {
+    return getEmbeddingModelStatusPayload();
+  });
+
+  ipcMain.handle('embedding:validate-model', async (_event, settings) => {
+    try {
+      const result = await validateEmbeddingModelConfig(settings || {});
+      return { success: true, ...result };
+    } catch (err) {
+      return {
+        success: false,
+        ok: false,
+        status: 'unreachable',
+        reason: err.code || 'connection-failed',
+        message: err.message
+      };
+    }
+  });
+
+  ipcMain.handle('embedding:save-model-settings', async (_event, settings) => {
+    try {
+      const previousSettings = getStoredEmbeddingSettings();
+      if (settings?.offlineOnly === true) {
+        clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
+        store.set('semanticSearch', {
+          ...previousSettings,
+          enabled: false,
+          offlineOnly: true,
+          status: 'degraded',
+          statusReason: 'offline-only',
+          projectPolicy: normalizeEmbeddingProjectPolicy(settings.projectPolicy),
+          activationRecord: null,
+          secretMigration: normalizeSecretMigrationState(previousSettings.secretMigration),
+          semanticIndexing: { status: 'disabled', progress_current: 0, progress_total: 0 }
+        });
+        return { success: true, status: getEmbeddingModelStatusPayload() };
+      }
+      if (!hasEmbeddingTransmissionConfirmation(settings || {})) {
+        return {
+          success: false,
+          status: {
+            ...getEmbeddingModelStatusPayload(),
+            status: 'unreachable',
+            statusReason: 'retention-cost-confirmation-required'
+          },
+          reason: 'retention-cost-confirmation-required',
+          message: 'Remote embedding retention and cost confirmation is required before enabling semantic indexing'
+        };
+      }
+      const validation = await validateEmbeddingModelConfig(settings || {});
+      if (!validation.ok) {
+        return {
+          success: false,
+          status: {
+            ...getEmbeddingModelStatusPayload(),
+            status: validation.status || 'degraded',
+            statusReason: validation.reason || 'validation-failed'
+          },
+          message: validation.message
+        };
+      }
+      const projectPolicy = normalizeEmbeddingProjectPolicy(settings?.projectPolicy);
+      const validatedAt = new Date().toISOString();
+      const semanticReindex = searchEngine && typeof searchEngine.queueSemanticReindexForActiveDocuments === 'function'
+        ? searchEngine.queueSemanticReindexForActiveDocuments({ requestedBy: 'embedding-registration' })
+        : { queued: 0, jobs: [] };
+      if (semanticReindex && semanticReindex.reason) {
+        return {
+          success: false,
+          status: {
+            ...getEmbeddingModelStatusPayload(),
+            status: 'unreachable',
+            statusReason: 'semantic-reindex-unavailable'
+          },
+          reason: 'semantic-reindex-unavailable',
+          message: `Semantic reindex enqueue failed: ${semanticReindex.reason}`
+        };
+      }
+      const secretState = persistEmbeddingApiKey(settings?.apiKey, { replaceExisting: true });
+      if (previousSettings.modelFingerprint && previousSettings.modelFingerprint !== validation.modelFingerprint) {
+        clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
+      }
+      const nextSettings = {
+        ...previousSettings,
+        enabled: true,
+        provider: 'openai-compatible',
+        baseURL: validation.baseURL,
+        model: validation.model,
+        dimensions: validation.dimensions,
+        apiKeyStorage: secretState.storage,
+        hasApiKey: secretState.hasApiKey,
+        chunker: {
+          chunkSize: validation.chunkSize,
+          chunkOverlap: validation.chunkOverlap
+        },
+        modelFingerprint: validation.modelFingerprint,
+        status: 'connected',
+        statusReason: null,
+        lastValidatedAt: validatedAt,
+        offlineOnly: false,
+        retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION,
+        endpointPolicy: 'https-or-approved-local',
+        projectPolicy,
+        activationRecord: createEmbeddingActivationRecord({
+          provider: 'openai-compatible',
+          endpointHost: validation.host,
+          model: validation.model,
+          retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION,
+          projectPolicy
+        }),
+        secretMigration: normalizeSecretMigrationState(previousSettings.secretMigration),
+        semanticIndexing: {
+          status: 'queued',
+          progress_current: 0,
+          progress_total: 0,
+          queuedAt: validatedAt
+        }
+      };
+      store.set('semanticSearch', nextSettings);
+      return { success: true, status: getEmbeddingModelStatusPayload(), semanticReindex };
+    } catch (err) {
+      return {
+        success: false,
+        status: {
+          ...getEmbeddingModelStatusPayload(),
+          status: 'unreachable',
+          statusReason: err.code || 'connection-failed'
+        },
+        reason: err.code || 'connection-failed',
+        message: err.message
+      };
+    }
+  });
+
+  ipcMain.handle('embedding:clear-model-settings', () => {
+    const previousSettings = getStoredEmbeddingSettings();
+    clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
+    store.delete('embeddingApiKeyCiphertext');
+    store.set('semanticSearch', {
+      enabled: false,
+      provider: 'openai-compatible',
+      baseURL: '',
+      model: '',
+      dimensions: null,
+      apiKeyStorage: 'none',
+      hasApiKey: false,
+      chunker: {
+        chunkSize: EMBEDDING_DEFAULT_CHUNK_SIZE,
+        chunkOverlap: EMBEDDING_DEFAULT_CHUNK_OVERLAP
+      },
+      status: 'unset',
+      statusReason: null,
+      modelFingerprint: null,
+      lastValidatedAt: null,
+      offlineOnly: false,
+      retentionCostConfirmationVersion: null,
+      endpointPolicy: 'https-or-approved-local',
+      projectPolicy: { mode: 'allow-all', projects: [] },
+      activationRecord: null,
+      secretMigration: null,
+      semanticIndexing: {
+        status: 'stale',
+        progress_current: 0,
+        progress_total: 0
+      }
+    });
+    return { success: true, status: getEmbeddingModelStatusPayload() };
   });
 
   // Navigate to a linked document within the same viewer window
@@ -1022,7 +2429,7 @@ function registerIpcHandlers() {
 
   // Settings: get all settings
   ipcMain.handle('get-settings', () => {
-    return store.store;
+    return sanitizeSettingsPayload(store.store);
   });
 
   // Settings: save all settings
@@ -1034,9 +2441,11 @@ function registerIpcHandlers() {
     const oldContentWidth = store.get('contentWidth');
     const oldContentMaxWidth = store.get('contentMaxWidth');
     const oldAutoRefresh = store.get('autoRefresh', true);
+    const oldMcpAutoSavePath = store.get('mcpAutoSavePath', '');
 
     // Save to store
     for (const [key, value] of Object.entries(settings)) {
+      if (key === 'semanticSearch' || key === 'embeddingApiKey' || key === 'apiKey' || key === 'embeddingApiKeyCiphertext') continue;
       store.set(key, value);
     }
 
@@ -1075,6 +2484,10 @@ function registerIpcHandlers() {
       }
     }
 
+    if ('mcpAutoSavePath' in settings && settings.mcpAutoSavePath !== oldMcpAutoSavePath && searchEngine) {
+      searchEngine.resetForSourceRootChange();
+    }
+
     return { success: true };
   });
 
@@ -1104,9 +2517,9 @@ function registerIpcHandlers() {
   // File dropped onto a viewer window (drag & drop)
   ipcMain.on('file-dropped', async (event, filePath) => {
     try {
-      // Validate .md extension
-      if (path.extname(filePath).toLowerCase() !== '.md') {
-        return; // silently ignore non-.md files
+      // Validate Markdown extension
+      if (!isMarkdownFilePath(filePath)) {
+        return; // silently ignore non-Markdown files
       }
 
       // Validate file exists
@@ -1154,6 +2567,7 @@ function registerIpcHandlers() {
 
       // Track in recent files
       addRecentFile(filePath);
+      scheduleOpenedMarkdownRegistration(filePath);
     } catch (err) {
       console.error(`[doculight] file-dropped error: ${err.message}`);
     }
@@ -1162,7 +2576,7 @@ function registerIpcHandlers() {
   // File opened in a new tab (track recent + start watcher, no render-markdown sent)
   ipcMain.on('file-opened-in-tab', async (event, filePath) => {
     try {
-      if (path.extname(filePath).toLowerCase() !== '.md') return;
+      if (!isMarkdownFilePath(filePath)) return;
       const win = BrowserWindow.fromWebContents(event.sender);
       const windowId = windowManager.findWindowId(win);
       if (!windowId) return;
@@ -1178,6 +2592,7 @@ function registerIpcHandlers() {
 
       // Track in recent files
       addRecentFile(filePath);
+      scheduleOpenedMarkdownRegistration(filePath);
     } catch (err) {
       console.error(`[doculight] file-opened-in-tab error: ${err.message}`);
     }
@@ -1765,6 +3180,13 @@ function registerIpcHandlers() {
       } else {
         await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
       }
+      if (searchEngine) {
+        searchEngine.markDirty({
+          filePath: savePath,
+          content: params && typeof params.content === 'string' ? params.content : null,
+          requestedBy: 'renderer.save_as'
+        });
+      }
 
       return { success: true, filePath: savePath };
     } catch (err) {
@@ -1787,6 +3209,13 @@ function registerIpcHandlers() {
         await fs.promises.copyFile(params.filePath, savePath);
       } else {
         await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
+      }
+      if (searchEngine) {
+        searchEngine.markDirty({
+          filePath: savePath,
+          content: params && typeof params.content === 'string' ? params.content : null,
+          requestedBy: 'renderer.quick_save'
+        });
       }
 
       return { success: true, filePath: savePath };
@@ -1847,7 +3276,11 @@ function registerIpcHandlers() {
           if (entry) entry.meta.savedFilePath = result.filePath;
         }
       }
-      searchEngine.markDirty();
+      searchEngine.markDirty({
+        filePath: result.filePath,
+        content: params && typeof params.content === 'string' ? params.content : null,
+        requestedBy: 'renderer.mcp_manual_save'
+      });
     }
     return result;
   });

@@ -16,24 +16,78 @@ import { platform } from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { injectFrontmatter, DOC_TYPE_VALUES } from './frontmatter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const {
+  normalizeProfileName,
+  resolveMcpIpcPath
+} = require('./runtime-profile.js');
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-const PIPE_PATH = platform() === 'win32'
-  ? '\\\\.\\pipe\\doculight-ipc'
-  : '/tmp/doculight-ipc.sock';
+const MCP_PROFILE_NAME = normalizeProfileName(
+  process.env.DOCULIGHT_MCP_PROFILE ||
+  process.env.DOCULIGHT_PROFILE ||
+  process.env.DOCULIGHT_RUNTIME_PROFILE ||
+  ''
+);
+const MCP_EXPLICIT_IPC_PATH = Boolean(process.env.DOCULIGHT_MCP_IPC_PATH);
+const PIPE_PATH = resolveMcpIpcPath({
+  env: process.env,
+  platform: platform()
+});
 
 const IPC_TIMEOUT = 10_000;        // 10 seconds per request
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024;  // 10 MB
 const MAX_RETRIES = 20;
 const RETRY_INTERVAL = 500;        // ms between connection retries
 const SHUTDOWN_GRACE = 5_000;      // max wait for pending requests on shutdown
+
+const SAVE_DOCUMENT_ARG_SHAPE = {
+  content: z.string().min(1).max(MAX_CONTENT_SIZE).describe('Markdown content to save to DocuLight persistent document metadata. Required.'),
+  title: z.string().min(1).max(200).optional().describe('Optional title and filename hint.'),
+  project: z.string().min(1).max(120).optional().describe('Optional persistent project metadata.'),
+  docName: z.string().min(1).max(160).optional().describe('Optional persistent document name and preferred filename hint.'),
+  description: z.string().min(0).max(1000).optional().describe('Optional persistent document description.'),
+  docType: z.enum(DOC_TYPE_VALUES).optional().describe('Optional persistent document type.'),
+  category: z.string().min(1).max(120).optional().describe('Optional persistent knowledge category metadata.'),
+  documentTags: z.array(z.string().min(1).max(64)).max(32).optional().describe('Optional persistent document metadata tags. Viewer/window grouping tags are named tags and are not accepted by save_document.'),
+  gitContextPath: z.string().min(1).max(1024).optional().describe('Optional local-only filesystem path used only to collect git metadata. It is not a destination path or save root override.')
+};
+const SAVE_DOCUMENT_ZOD_SCHEMA = z.object(SAVE_DOCUMENT_ARG_SHAPE).strict();
+
+const SMART_SEARCH_ARG_SHAPE = {
+  query: z.string().min(1).max(500).describe('Search query.'),
+  mode: z.enum(['auto', 'keyword', 'hybrid']).default('auto').describe('Retrieval mode.'),
+  limit: z.number().int().min(1).max(50).default(20).describe('Maximum results. Omit for 20; increase only when more results are needed, up to 50.'),
+  linkedTo: z.string().max(256).optional().describe('Top-level resolved documentId filter accepted by runtime; equivalent to filters.linkedTo.'),
+  linkedFrom: z.string().max(256).optional().describe('Top-level resolved documentId filter accepted by runtime; equivalent to filters.linkedFrom.'),
+  filters: z.object({
+    project: z.string().optional(),
+    docType: z.enum(DOC_TYPE_VALUES).optional(),
+    category: z.string().optional(),
+    documentTags: z.array(z.string()).optional(),
+    tagMode: z.enum(['any', 'all']).default('any').optional(),
+    pathPrefix: z.string().max(512).refine(isSafeSmartSearchPathPrefix, {
+      message: 'pathPrefix must be source-relative; absolute paths, UNC paths, home paths, traversal, URLs, and credentials are rejected.'
+    }).optional().describe('Source-relative path prefix filter. Absolute paths, UNC paths, home paths, traversal, URLs, and credentials are rejected with a redacted validation error.'),
+    linkedTo: z.string().optional().describe('Resolved documentId filter only.'),
+    linkedFrom: z.string().optional().describe('Resolved documentId filter only.'),
+    includeStale: z.boolean().default(false).optional()
+  }).strict().optional(),
+  includeSnippets: z.boolean().default(true).optional(),
+  includeScores: z.boolean().default(false).optional(),
+  includeTrace: z.boolean().default(false).optional(),
+  includeDiagnostics: z.boolean().default(false).optional(),
+  allowDegraded: z.boolean().default(true).optional()
+};
+const SMART_SEARCH_ZOD_SCHEMA = z.object(SMART_SEARCH_ARG_SHAPE).strict();
 
 // =============================================================================
 // IPC Socket Client State
@@ -52,6 +106,47 @@ let ipcBuffer = '';
 // =============================================================================
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isSafeSmartSearchPathPrefix(value) {
+  if (typeof value !== 'string') return false;
+  const raw = value.trim();
+  const normalized = raw.replace(/\\/g, '/');
+  const decoded = safeDecodeURIComponent(normalized);
+  return Boolean(raw) &&
+    !raw.includes('\0') &&
+    !normalized.startsWith('/') &&
+    !path.win32.isAbsolute(raw) &&
+    !path.posix.isAbsolute(raw) &&
+    normalized !== '~' &&
+    !normalized.startsWith('~/') &&
+    !normalized.startsWith('~\\') &&
+    !hasTraversalSegment(normalized) &&
+    !hasTraversalSegment(decoded) &&
+    !isUrlLike(normalized) &&
+    !isUrlLike(decoded) &&
+    !isCredentialLike(normalized) &&
+    !isCredentialLike(decoded);
+}
+
+function hasTraversalSegment(value) {
+  return String(value || '').split('/').some((segment) => segment === '..');
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function isUrlLike(value) {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value) || /^file:/i.test(value);
+}
+
+function isCredentialLike(value) {
+  return /[?&](api[_-]?key|token|password|secret)=/i.test(value) || /:\/\/[^/\s]*[:@][^/\s]*@/i.test(value);
+}
 
 /**
  * Log to stderr only. stdout is reserved for the MCP JSON-RPC protocol.
@@ -106,6 +201,18 @@ async function _doConnect() {
     log('Connected to Electron IPC server');
     return;
   } catch {
+    if (MCP_EXPLICIT_IPC_PATH) {
+      throw new Error(
+        `DocuLight explicit MCP IPC server not found at ${PIPE_PATH}. ` +
+        'Start the intended DocuLight instance, or update DOCULIGHT_MCP_IPC_PATH.'
+      );
+    }
+    if (MCP_PROFILE_NAME === 'dev') {
+      throw new Error(
+        `DocuLight dev profile IPC server not found at ${PIPE_PATH}. ` +
+        'Start the dev app with npm run dev, or set DOCULIGHT_MCP_IPC_PATH to the intended dev IPC endpoint.'
+      );
+    }
     log('Electron IPC server not found, attempting auto-launch...');
   }
 
@@ -346,7 +453,7 @@ const server = new McpServer({
 // ---------------------------------------------------------------------------
 server.tool(
   'open_markdown',
-  'Open a Markdown document in the DocuLight viewer. Provide either content (raw Markdown string) or filePath (absolute path to .md file). Returns windowId for future reference. IMPORTANT: Always provide project, docName, description, and docType when the context is known.',
+  'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide either content or filePath. Returns windowId for future viewer updates.',
   {
     content:          z.string().optional().describe('Raw Markdown content to display'),
     filePath:         z.string().optional().describe('Absolute path to a .md file to open'),
@@ -430,7 +537,7 @@ server.tool(
 // ---------------------------------------------------------------------------
 server.tool(
   'update_markdown',
-  'Update the content of an existing DocuLight viewer window.',
+  'Update the content of an existing visible DocuLight viewer window by windowId.',
   {
     windowId:         z.string().describe('ID of the window to update'),
     content:          z.string().optional().describe('New Markdown content'),
@@ -583,11 +690,39 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tool: save_document
+// ---------------------------------------------------------------------------
+server.registerTool(
+  'save_document',
+  {
+    description: "Save Markdown content to DocuLight's persistent document store for future retrieval by search_documents and smart_search. This document-only tool does not open, show, focus, update, or close any viewer window.",
+    inputSchema: SAVE_DOCUMENT_ZOD_SCHEMA
+  },
+  async (args) => {
+    try {
+      SAVE_DOCUMENT_ZOD_SCHEMA.parse(args);
+      const result = await sendIpcRequest('save_document', args);
+      return result;
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({
+          schemaVersion: 'save_document.v1',
+          saved: false,
+          error: { code: 'validation_failed', message: err.message, retryable: false },
+          warnings: []
+        }) }],
+        isError: true
+      };
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Tool: search_documents
 // ---------------------------------------------------------------------------
 server.tool(
   'search_documents',
-  'Search saved markdown documents using BM25 full-text search. Searches across document body and frontmatter metadata (title, project, description). Requires mcpAutoSave to be enabled with a configured save path.',
+  'Search existing saved markdown documents using keyword full-text search. This tool does not save new content. Requires mcpAutoSave to be enabled with a configured save path.',
   {
     query:   z.string().describe('Search query (Korean and English supported)'),
     limit:   z.number().int().min(1).max(100).default(20).describe('Max results'),
@@ -656,6 +791,49 @@ server.tool(
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Tool: smart_search
+// ---------------------------------------------------------------------------
+server.registerTool(
+  'smart_search',
+  {
+    description: 'Search existing saved documents with read-only smart retrieval. This tool does not save content or perform indexing controls. limit defaults to 20 and may be increased to 50 only when more results are needed. Response envelope includes schemaVersion, degradationReasons, indexFreshness, staleFilteredCount, and optional diagnostics.',
+    inputSchema: SMART_SEARCH_ZOD_SCHEMA
+  },
+  async (args) => {
+    try {
+      SMART_SEARCH_ZOD_SCHEMA.parse(args);
+      const result = await sendIpcRequest('smart_search', args);
+      return result;
+    } catch (err) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({
+          schemaVersion: 'smart_search.v1',
+          mode: { requested: sanitizeSmartSearchRequestedMode(args && args.mode), used: 'none' },
+          degraded: true,
+          degradationReasons: ['index_unavailable'],
+          results: [],
+          indexFreshness: 'unknown',
+          staleFilteredCount: 0,
+          error: {
+            code: 'validation_failed',
+            message: 'smart_search arguments failed validation.',
+            field: 'arguments',
+            expected: ['auto', 'keyword', 'hybrid'],
+            hint: 'Use the advertised smart_search schema and source-relative pathPrefix values.',
+            retryable: false
+          }
+        }) }],
+        isError: true
+      };
+    }
+  }
+);
+
+function sanitizeSmartSearchRequestedMode(value) {
+  return ['auto', 'keyword', 'hybrid'].includes(value) ? value : 'invalid';
+}
 
 // =============================================================================
 // Start and Shutdown

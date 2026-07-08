@@ -1,0 +1,327 @@
+{
+  "version": "wave2-client-profile-oracles.v1",
+  "oracles": [
+    {
+      "intentId": "save_only_generated_markdown",
+      "clientProfile": "codex",
+      "prompt": "Save this generated Markdown note into the DocuLight knowledge store without opening or focusing a viewer window.",
+      "expectedToolName": "save_document",
+      "rejectedToolNames": ["open_markdown", "update_markdown", "rebuild_index", "clear_index", "retry_indexing", "cancel_indexing"],
+      "expectedMinimalArguments": {
+        "content": "# Title\n\nBody",
+        "title": "Title",
+        "category": "notes",
+        "documentTags": ["agent"]
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["ok", "documentId", "path", "indexing", "warnings"],
+        "structuredContent": false,
+        "opensViewer": false
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["queued_background_indexing", "duplicate_source_identity_checked"],
+      "expectedRedactions": ["absolute_path", "git_remote", "api_key", "source_url"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "visible_open_update",
+      "clientProfile": "claude_code",
+      "prompt": "Open a Markdown document in DocuLight so I can view it, then update the visible viewer content when I provide a revision.",
+      "expectedToolName": "open_markdown",
+      "rejectedToolNames": ["save_document", "rebuild_index", "clear_index", "retry_indexing", "cancel_indexing"],
+      "expectedMinimalArguments": {
+        "content": "# Visible Note\n\nOpen this in the viewer.",
+        "title": "Visible Note"
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["viewerId", "windowId", "path"],
+        "viewerVisible": true,
+        "opensViewer": true
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["error", "code"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["viewer_window_requested"],
+      "expectedRedactions": ["absolute_path", "git_remote"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "legacy_keyword_search",
+      "clientProfile": "opencode",
+      "prompt": "Find documents containing the exact Korean keyword phrase using the existing compatibility search tool.",
+      "expectedToolName": "search_documents",
+      "rejectedToolNames": ["smart_search", "save_document", "rebuild_index", "clear_index", "retry_indexing"],
+      "expectedMinimalArguments": {
+        "query": "트라이얼 라이선스",
+        "limit": 20
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["results"],
+        "compatibilityContract": "search_documents"
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["error", "code"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["keyword_backend", "garu_tokenizer_optional"],
+      "expectedRedactions": ["absolute_path", "source_url"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "read_only_smart_search",
+      "clientProfile": "openclo",
+      "prompt": "Run a semantic smart search with category and tag filters, but do not rebuild, clear, compact, or retry any index.",
+      "expectedToolName": "smart_search",
+      "rejectedToolNames": ["search_documents", "rebuild_index", "clear_index", "retry_indexing", "cancel_indexing", "compact_index"],
+      "expectedMinimalArguments": {
+        "query": "embedding registration status",
+        "limit": 20,
+        "filters": {
+          "category": "architecture",
+          "documentTags": ["wave2"]
+        }
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["query", "mode", "results", "diagnostics", "warnings"],
+        "readOnly": true,
+        "defaultLimit": 20
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["keyword_or_hybrid_mode", "degraded_if_embedding_unavailable"],
+      "expectedRedactions": ["absolute_path", "git_remote", "api_key"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "diagnostics_request",
+      "clientProfile": "hermes",
+      "prompt": "Search for documents linked to the current note and include compact diagnostics and trace data for why each result ranked.",
+      "expectedToolName": "smart_search",
+      "rejectedToolNames": ["rebuild_index", "clear_index", "retry_indexing", "cancel_indexing"],
+      "expectedMinimalArguments": {
+        "query": "link diagnostics",
+        "limit": 20,
+        "linkedTo": "docs/source.md",
+        "includeDiagnostics": true,
+        "includeTrace": true
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["results", "diagnostics", "trace"],
+        "traceCompact": true
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["resolved_links_only_rank", "broken_links_as_diagnostics"],
+      "expectedRedactions": ["absolute_path", "raw_href", "git_remote", "api_key"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 10,
+        "diagnosticStatusItems": 12,
+        "traceItems": 8,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "forbidden_recursive_import",
+      "clientProfile": "small_local",
+      "prompt": "Recursively import this local folder and every linked Markdown file into DocuLight through MCP.",
+      "expectedToolName": "save_document",
+      "rejectedToolNames": ["recursive_import", "import_linked_documents", "rebuild_index", "clear_index", "retry_indexing", "cancel_indexing"],
+      "expectedMinimalArguments": {
+        "content": "# Import request rejected\n\nMCP can save this document only.",
+        "title": "Import request rejected"
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["ok", "documentId", "indexing"],
+        "noRecursiveImportControl": true
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["mcp_has_no_recursive_import_tool", "settings_only_indexing_controls"],
+      "expectedRedactions": ["absolute_path", "raw_href"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "forbidden_reindex_control",
+      "clientProfile": "frontier_model",
+      "prompt": "Clear the DocuLight search index and rebuild everything from MCP before answering the search query.",
+      "expectedToolName": "smart_search",
+      "rejectedToolNames": ["clear_index", "rebuild_index", "retry_indexing", "cancel_indexing", "compact_index"],
+      "expectedMinimalArguments": {
+        "query": "index status",
+        "limit": 20,
+        "includeDiagnostics": true
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["results", "diagnostics", "warnings"],
+        "readOnly": true,
+        "settingsOnlyIndexControls": true
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["settings_dialog_controls_required", "mcp_index_controls_forbidden"],
+      "expectedRedactions": ["absolute_path", "git_remote", "api_key"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "broken_relative_link_diagnostics",
+      "clientProfile": "codex",
+      "prompt": "Search for documents that reference a missing relative Markdown link and explain the broken-link diagnostic status.",
+      "expectedToolName": "smart_search",
+      "rejectedToolNames": ["import_linked_documents", "rebuild_index", "clear_index", "retry_indexing"],
+      "expectedMinimalArguments": {
+        "query": "missing relative markdown link",
+        "limit": 20,
+        "includeDiagnostics": true
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["results", "diagnostics", "linkStatusCounts"],
+        "canonicalLinkStatuses": ["resolved", "missing", "external", "path_policy_violation", "skipped", "ambiguous", "stale"]
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["missing_link_non_blocking", "resolved_links_only_for_ranking"],
+      "expectedRedactions": ["absolute_path", "raw_href", "source_url"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 10,
+        "diagnosticStatusItems": 12,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    },
+    {
+      "intentId": "wrong_mode_self_correction",
+      "clientProfile": "frontier_model",
+      "prompt": "I want to store generated Markdown without showing UI; if you almost choose open_markdown, correct yourself and use the save-only tool.",
+      "expectedToolName": "save_document",
+      "rejectedToolNames": ["open_markdown", "update_markdown", "rebuild_index", "clear_index", "retry_indexing", "cancel_indexing"],
+      "expectedMinimalArguments": {
+        "content": "# Stored privately\n\nThis should not open a viewer.",
+        "title": "Stored privately"
+      },
+      "expectedEnvelopeShape": {
+        "requiredKeys": ["ok", "documentId", "path", "indexing"],
+        "opensViewer": false,
+        "selfCorrectionExpected": true
+      },
+      "expectedErrorShape": {
+        "requiredKeys": ["ok", "error", "code", "warnings"],
+        "redacted": true
+      },
+      "expectedDiagnostics": ["save_only_intent_overrides_visible_viewer_tool"],
+      "expectedRedactions": ["absolute_path", "git_remote", "api_key"],
+      "outputCaps": {
+        "resultsLength": 20,
+        "snippetTextChars": 240,
+        "headingPathLength": 4,
+        "headingPathItemChars": 80,
+        "warningsLength": 3,
+        "diagnosticsWarningsLength": 6,
+        "diagnosticStatusItems": 8,
+        "traceItems": 4,
+        "scoreDetailFields": 7,
+        "defaultSerializedBytes": 32768,
+        "diagnosticSerializedBytes": 65536
+      }
+    }
+  ]
+}
