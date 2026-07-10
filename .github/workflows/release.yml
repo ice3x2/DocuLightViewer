@@ -18,7 +18,7 @@ jobs:
       version: ${{ steps.info.outputs.version }}
       tag: ${{ steps.info.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get version and tag from package.json
         id: info
@@ -39,22 +39,30 @@ jobs:
   # ── Windows 빌드 (NSIS 설치 파일 + Portable) ────────────────────────────
   build-windows:
     needs: prepare
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
 
+      - id: python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+        env:
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Build Windows
         run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Package smoke
         run: npm run smoke:package
@@ -80,21 +88,29 @@ jobs:
     needs: prepare
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
 
+      - id: python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+        env:
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Build macOS
         run: npm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Package smoke
         run: npm run smoke:package
@@ -118,20 +134,28 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
 
+      - id: python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+        env:
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Build Linux
         run: npm run build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Package smoke
         run: npm run smoke:package
@@ -157,7 +181,7 @@ jobs:
     needs: [prepare, build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: docs/release-note
 

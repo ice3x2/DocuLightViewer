@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const { getPackageSmokeLaunchArgs } = require('./package-smoke-launch-options');
 
 const root = path.resolve(__dirname, '..');
 const platform = process.platform;
@@ -184,7 +185,7 @@ function runSmoke(exePath, artifactPath) {
       }
       try { fs.rmSync(smokeUserDataDir, { recursive: true, force: true }); } catch { /* ignore */ }
     };
-    const child = spawn(exePath, ['--package-smoke'], {
+    const child = spawn(exePath, getPackageSmokeLaunchArgs(platform), {
       cwd: root,
       env: {
         ...process.env,
