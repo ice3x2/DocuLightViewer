@@ -1,0 +1,86 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "iter": 1,
+  "evaluatedRequirement": "CON-MCP-008",
+  "evaluators": [
+    {
+      "agentId": "019f1cec-17e1-7f31-aa41-6c7077118bea",
+      "grade": "A",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "severity": "MEDIUM",
+          "axis": "broken_link_policy",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1766",
+          "description": "AC-11 used non-canonical broken-link wording: unresolved and path-policy-violation, and omitted external.",
+          "suggestedAction": "Use exact DR-DOC-013 canonical statuses and only allow unresolved as an aggregate label."
+        }
+      ]
+    },
+    {
+      "agentId": "019f1cec-45cc-78e3-bb2b-34cf87d7463d",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 1
+      },
+      "findings": [
+        {
+          "severity": "LOW",
+          "axis": "broken_link_policy",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1766",
+          "description": "Clarify unresolved as an aggregate label or replace it with exact non-resolved statuses.",
+          "suggestedAction": "Clarify terminology."
+        }
+      ]
+    },
+    {
+      "agentId": "019f1cec-2ea0-72e0-96e4-829949e4a159",
+      "grade": "B+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 1
+      },
+      "findings": [
+        {
+          "severity": "MEDIUM",
+          "axis": "broken_link_policy",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1766",
+          "description": "Broken-link fixture wording drifted from the DOC canonical enum.",
+          "suggestedAction": "Use exact canonical statuses: resolved, missing, external, path_policy_violation, skipped, ambiguous, stale."
+        },
+        {
+          "severity": "MEDIUM",
+          "axis": "ac_verifiability",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1763",
+          "description": "Bounded snippet text and diagnostics arrays lacked measurable numeric caps or fixture oracle values.",
+          "suggestedAction": "Require explicit numeric cap oracle fields."
+        },
+        {
+          "severity": "LOW",
+          "axis": "fixture_oracle",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1759-1760",
+          "description": "Golden intent fixture pass/fail oracle was implied rather than explicit.",
+          "suggestedAction": "Require expected tool, rejected alternatives, minimal arguments, envelope, error, diagnostics, and redaction oracle fields."
+        }
+      ]
+    }
+  ],
+  "mergedSummary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 2,
+    "LOW": 1
+  },
+  "gateResult": "improve",
+  "resolution": "CON-MCP-009 supersedes CON-MCP-008 with canonical broken-link status spelling, explicit golden fixture oracle fields, and numeric output-cap oracle requirements."
+}

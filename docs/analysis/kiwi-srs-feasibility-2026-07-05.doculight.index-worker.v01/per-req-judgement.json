@@ -1,0 +1,63 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "judgements": [
+    {
+      "req_id": "REL-DOC-007",
+      "feasibility": "high",
+      "score": 88,
+      "axes": {
+        "implementability": {
+          "score": 27,
+          "evidence": [
+            "src/main/search-engine.js:L1545-L1593",
+            "src/main/search-sqlite-store.js:L101-L188"
+          ]
+        },
+        "evidence_strength": {
+          "score": 18,
+          "evidence": [
+            "docs/analysis/2026-07-04-search-index-rebuild-freeze-report.md"
+          ]
+        },
+        "dependency_health": {
+          "score": 13,
+          "evidence": [
+            "FR-DOC-019",
+            "DR-DOC-010",
+            "FR-DOC-022",
+            "REL-DOC-004",
+            "OPS-ARCH-010"
+          ]
+        },
+        "ac_verifiability": {
+          "score": 14,
+          "evidence": [
+            "REL-DOC-007 AC-1..AC-9"
+          ]
+        },
+        "scope_fit": {
+          "score": 9,
+          "evidence": [
+            "DOC search persistence and indexing scope"
+          ]
+        },
+        "product_fit": {
+          "score": 5,
+          "evidence": [
+            "Settings rebuild freeze is a core reliability defect"
+          ]
+        }
+      },
+      "blockers": [],
+      "conditions": [
+        "Requires worker runtime implementation and regression tests before verified status.",
+        "Large-corpus benchmark should be opt-in and temp-index based.",
+        "Package smoke must verify worker/child native load or native_unavailable degradation."
+      ],
+      "has_verification": false,
+      "current_stability": "evolving",
+      "current_status": "planned",
+      "external_module_impact": null
+    }
+  ]
+}

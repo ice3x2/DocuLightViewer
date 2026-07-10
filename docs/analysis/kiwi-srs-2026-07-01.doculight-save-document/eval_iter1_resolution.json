@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "kiwi-srs-evaluation-resolution.v1",
+  "date": "2026-07-01",
+  "target": "0.11.0-w2",
+  "topic": "document-only save_document MCP tool and Wave 2 save/search SRS",
+  "iteration": 1,
+  "subagentReview": {
+    "agents": [
+      {
+        "agentId": "019f1c46-127a-7f71-8954-f5564342557c",
+        "focus": "SRS completeness and cross-document consistency",
+        "grade": "B+"
+      },
+      {
+        "agentId": "019f1c46-291d-7492-a622-a079ffd36f15",
+        "focus": "MCP tool usability across Codex, Claude Code, OpenCode, OpenHands, and smaller models",
+        "grade": "B+"
+      },
+      {
+        "agentId": "019f1c46-403f-7950-94c4-7569780e8a64",
+        "focus": "Implementation feasibility and traceability",
+        "grade": "B+"
+      }
+    ],
+    "commonVerdict": "A separate save_document tool is the correct product direction, but the first SRS iteration needed stricter path, schema, redaction, response, and gate contracts before implementation planning."
+  },
+  "resolvedFindings": [
+    {
+      "finding": "projectPath and path-bearing inputs were ambiguous and could leak local paths.",
+      "resolution": "FR-DOC-027 and IR-MCP-017 reject projectPath, filePath, sourceFilePath, path, savePath, outputPath, destinationPath, directory, and mcpAutoSavePath. They introduce gitContextPath as transient local-only metadata context that is never persisted or echoed."
+    },
+    {
+      "finding": "save_document needed strict unknown-field behavior.",
+      "resolution": "IR-MCP-017 and CON-MCP-006 require additionalProperties=false or equivalent strict rejection, plus explicit forbidden field conformance across stdio, HTTP, and generated bundle."
+    },
+    {
+      "finding": "tags versus documentTags was too weak for smaller models.",
+      "resolution": "IR-MCP-017 and CON-MCP-006 require model-visible descriptions stating documentTags are persistent document metadata and tags are viewer/window grouping metadata not accepted by save_document."
+    },
+    {
+      "finding": "MCP scope overview and Wave 2 gate still referenced seven-tool smart_search contracts.",
+      "resolution": "docs/spec/50.mcp-integration.srs.md now describes strict 8-tool save/search parity. CON-ARCH-005 supersedes CON-ARCH-004 and gates Wave 2 on IR-MCP-017, CON-MCP-006, SEC-DOC-003, and OPS-ARCH-008."
+    },
+    {
+      "finding": "save_document response identity was too loose.",
+      "resolution": "FR-DOC-027 and IR-MCP-017 require documentId in every success response, with sourceRelativePath or redactedPath as a separate external identity."
+    },
+    {
+      "finding": "indexing.jobId might be mistaken as a control handle.",
+      "resolution": "IR-MCP-017 and CON-MCP-006 require jobId to be described and tested as diagnostic-only, never as a status, cancel, retry, or rebuild handle."
+    },
+    {
+      "finding": "storage containment and path_policy_violation behavior were under-specified.",
+      "resolution": "FR-DOC-027 defines lexical resolve checks, realpath or ancestor containment, traversal and drive/UNC rejection, symlink/junction escape rejection, and path_policy_violation outcomes."
+    },
+    {
+      "finding": "post-save indexing enqueue failure semantics were underspecified.",
+      "resolution": "FR-DOC-027 separates file save success from indexing enqueue. Enqueue failure keeps saved=true and returns indexing.state=enqueue_failed with warning code index_enqueue_failed."
+    },
+    {
+      "finding": "SEC-DOC-001/SEC-DOC-002 were smart_search-centric.",
+      "resolution": "SEC-DOC-003 supersedes them with one deterministic redaction policy for save_document, smart_search, diagnostics, logs, exports, backups, and package smoke artifacts."
+    },
+    {
+      "finding": "OPS-ARCH-006 package smoke still referenced the seven-tool contract.",
+      "resolution": "OPS-ARCH-008 supersedes it with eight-tool save/search package smoke covering save_document strict schema, smart_search limit/defaults, native load, and redaction fixtures."
+    }
+  ],
+  "newRequirements": [
+    "SEC-DOC-003",
+    "FR-DOC-027",
+    "IR-MCP-017",
+    "CON-MCP-006",
+    "OPS-ARCH-008",
+    "CON-ARCH-005"
+  ],
+  "discardedRequirements": [
+    "FR-DOC-026",
+    "IR-MCP-016",
+    "CON-MCP-005",
+    "SEC-DOC-001",
+    "SEC-DOC-002",
+    "OPS-ARCH-006",
+    "CON-ARCH-004"
+  ],
+  "nextEvaluation": "Run a second three-subagent evaluation against the replacement requirements and SpecKiwi validation output."
+}

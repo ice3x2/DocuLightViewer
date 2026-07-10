@@ -1,0 +1,11 @@
+{
+  "scopes": [
+    { "name": "Product Architecture", "slug": "product-architecture", "prefix": "ARCH", "primary_files_glob": ["package.json", "build/**", "src/main/mcp-server.bundle.mjs", "src/main/mcp-server.mjs", "src/main/preload.js"], "document": "docs/spec/10.product-architecture.srs.md" },
+    { "name": "Application Shell and IPC", "slug": "app-shell", "prefix": "APP", "primary_files_glob": ["src/main/index.js", "src/main/preload.js", "src/main/strings.js", "src/main/file-association.js", "src/locales/**"], "document": "docs/spec/20.app-shell.srs.md" },
+    { "name": "Window Management and Navigation", "slug": "window-management", "prefix": "WIN", "primary_files_glob": ["src/main/window-manager.js"], "document": "docs/spec/30.window-management.srs.md" },
+    { "name": "Sidebar Tree Builder", "slug": "sidebar-tree", "prefix": "TREE", "primary_files_glob": ["src/main/link-parser.js"], "document": "docs/spec/40.sidebar-tree.srs.md" },
+    { "name": "MCP Server Integration", "slug": "mcp-integration", "prefix": "MCP", "primary_files_glob": ["src/main/mcp-server.mjs", "src/main/mcp-http.mjs"], "document": "docs/spec/50.mcp-integration.srs.md" },
+    { "name": "Document Persistence and Search", "slug": "document-persistence", "prefix": "DOC", "primary_files_glob": ["src/main/mcp-save.js", "src/main/frontmatter.js", "src/main/git-info.js", "src/main/search-engine.js", "src/main/tokenizer.js"], "document": "docs/spec/60.document-persistence.srs.md" },
+    { "name": "Renderer and Rendering Pipeline", "slug": "renderer-pipeline", "prefix": "RENDER", "primary_files_glob": ["src/renderer/viewer.js", "src/renderer/viewer.html", "src/renderer/viewer.css", "src/renderer/settings.js", "src/renderer/tab-manager.js", "src/renderer/sidebar-search.js", "src/renderer/pdf-export-ui.js", "src/renderer/image-resolver.js"], "document": "docs/spec/80.renderer-pipeline.srs.md" }
+  ]
+}

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'">
+  <title></title>
+  <link rel="stylesheet" href="./media-viewer.css">
+</head>
+<body>
+  <div id="media-app">
+    <div class="media-toolbar" role="toolbar" aria-label=""
+         data-i18n-aria-label="viewer.media.toolbarAriaLabel">
+      <button id="media-zoom-in" class="media-tool-button" type="button"
+              data-i18n-title="viewer.media.zoomIn"
+              data-i18n-aria-label="viewer.media.zoomIn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="10.5" cy="10.5" r="6.5"></circle>
+          <path d="M10.5 7.5v6M7.5 10.5h6M15.5 15.5l4 4"></path>
+        </svg>
+      </button>
+      <button id="media-zoom-out" class="media-tool-button" type="button"
+              data-i18n-title="viewer.media.zoomOut"
+              data-i18n-aria-label="viewer.media.zoomOut">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="10.5" cy="10.5" r="6.5"></circle>
+          <path d="M7.5 10.5h6M15.5 15.5l4 4"></path>
+        </svg>
+      </button>
+      <button id="media-reset" class="media-tool-button" type="button"
+              data-i18n-title="viewer.media.reset"
+              data-i18n-aria-label="viewer.media.reset">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M8 3H4a1 1 0 0 0-1 1v4M16 3h4a1 1 0 0 1 1 1v4M8 21H4a1 1 0 0 1-1-1v-4M16 21h4a1 1 0 0 0 1-1v-4"></path>
+          <rect x="8" y="8" width="8" height="8" rx="1.5"></rect>
+        </svg>
+      </button>
+      <button id="media-fit-window" class="media-tool-button" type="button"
+              data-i18n-title="viewer.media.fitWindow"
+              data-i18n-aria-label="viewer.media.fitWindow">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"></path>
+          <path d="M9 12h6M12 9v6"></path>
+        </svg>
+      </button>
+    </div>
+    <div id="media-status" class="media-status" data-i18n="viewer.media.loading"></div>
+    <div id="media-viewport" class="media-viewport">
+      <div id="media-surface" class="media-surface">
+        <div id="media-content" class="media-content"></div>
+      </div>
+    </div>
+    <div id="media-context-menu" class="media-context-menu hidden" role="menu">
+      <button id="media-download" type="button" role="menuitem" data-i18n="viewer.media.download"></button>
+    </div>
+  </div>
+  <script src="./lib/mermaid.min.js"></script>
+  <script src="./media-viewer.js"></script>
+</body>
+</html>

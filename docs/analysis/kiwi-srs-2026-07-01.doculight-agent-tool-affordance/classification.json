@@ -1,0 +1,48 @@
+{
+  "target": "0.11.0-w2",
+  "classification": "new-feature",
+  "proposed_scope": "MCP Server Integration",
+  "proposed_prefix": "MCP",
+  "proposed_type": "constraint",
+  "confidence": "high",
+  "affected_existing_reqs": [
+    {
+      "id": "IR-MCP-018",
+      "relation": "depends_on",
+      "diff_summary": "Defines strict save_document and smart_search schemas; new requirement adds client-profile/model-size conformance around those schemas."
+    },
+    {
+      "id": "CON-MCP-007",
+      "relation": "extends",
+      "diff_summary": "Defines eight-tool parity; new requirement extends parity with model-facing self-routing descriptions, portable schema subset, and golden profile fixtures."
+    },
+    {
+      "id": "FR-DOC-028",
+      "relation": "depends_on",
+      "diff_summary": "save_document persistence semantics remain DOC-owned."
+    },
+    {
+      "id": "FR-DOC-025",
+      "relation": "depends_on",
+      "diff_summary": "smart_search ranking and bounded output semantics remain DOC-owned."
+    },
+    {
+      "id": "SEC-DOC-003",
+      "relation": "depends_on",
+      "diff_summary": "Redaction policy governs corrective errors, diagnostics, and result envelopes."
+    },
+    {
+      "id": "CON-DOC-006",
+      "relation": "depends_on",
+      "diff_summary": "Broken-link lifecycle policy remains DOC-owned and MCP-inert; agent-facing tools must expose only redacted diagnostics and no reconciliation controls."
+    },
+    {
+      "id": "DR-DOC-013",
+      "relation": "depends_on",
+      "diff_summary": "Canonical link edge status plus diagnostic_code is the data contract that smart_search diagnostics and link filters must respect."
+    }
+  ],
+  "scope_boundary_impact": null,
+  "external_module_impact": null,
+  "rationale": "The request asks how many agent clients and model sizes can reliably use the new tools, and adds a broken-link policy concern. This is a cross-client MCP contract and conformance concern layered over DOC-owned storage, ranking, and link diagnostic behavior."
+}

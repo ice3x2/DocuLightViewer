@@ -1,0 +1,25 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2.v01",
+  "skill": "kiwi-srs-feasibility",
+  "mode": "read-only-feasibility",
+  "target": "0.11.0-w2",
+  "mcp": {
+    "speckiwi_available": true,
+    "get_active_target": true,
+    "summarize_target": true,
+    "get_requirement": true,
+    "validate_spec": true,
+    "update_stability": false
+  },
+  "validation": {
+    "strict": true,
+    "failOnWarning": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "notes": [
+    "The exposed SpecKiwi MCP tool set did not include update_stability or list_requirements in this session, so no stability mutation was attempted.",
+    "All active 0.11.0-w2 requirements are already Stability=stable; mutation is not required for planner entry.",
+    "Shared Kiwi reference files referenced by the skill were not present under C:/Users/beom/.codex/skills/_shared/kiwi."
+  ]
+}

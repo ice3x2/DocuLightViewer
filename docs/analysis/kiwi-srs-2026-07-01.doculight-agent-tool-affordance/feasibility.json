@@ -1,0 +1,20 @@
+{
+  "implementability": "high",
+  "product_fit": "core",
+  "external_module_required": false,
+  "code_evidence": [
+    "src/main/mcp-http.mjs:L24-L121",
+    "src/main/mcp-server.mjs:L347-L658",
+    "test/test-mcp-tool-parity.js:L16-L44",
+    "test/test-mcp-http-save-parity.js:L100-L101",
+    "src/main/link-parser.js:L175-L230",
+    "test/test-link-extraction.js:L10-L78"
+  ],
+  "blockers": [],
+  "conditions": [
+    "Conformance fixtures should simulate client profiles and schema projection without requiring live Codex, Claude Code, OpenCode, OpenClo/OpenClaw, Hermes, or embedding provider calls.",
+    "No MCP indexing/import/reconciliation control tools should be added.",
+    "Broken links must remain non-blocking diagnostic graph edges; conformance fixtures should verify redacted diagnostic exposure and that unresolved edges do not affect resolved-link ranking/filter behavior."
+  ],
+  "rationale": "Existing MCP tests already compare tool names/schema parity. The new requirement mainly expands those fixtures to check descriptions, portable schema constructs, output bounds, redacted corrective errors, and client-profile golden prompts."
+}

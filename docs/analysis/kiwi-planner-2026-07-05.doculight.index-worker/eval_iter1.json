@@ -1,0 +1,42 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker",
+  "pass": true,
+  "summary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 4,
+    "low": 1
+  },
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "axis": "files_grounding",
+      "evidence": "Planned new files were listed without line ranges.",
+      "resolution": "Plan assumptions now explicitly list planned new files without line ranges and point existing anchors to code_context.json."
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "ac_coverage",
+      "evidence": "AC-2 exact latency thresholds and AC-5 tokenizer constants were described generally.",
+      "resolution": "Plan and sidecar now copy p95/p99/max/heartbeat thresholds, maxAnalysisChars <= 1200, and 160 MiB single-file behavior into tasks."
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "ac_coverage",
+      "evidence": "Tray, window, MCP read, and MCP search probes were not explicit under each heavy job type.",
+      "resolution": "T-PH001-01, T-PH002-01, and T-PH005-01 now require tray/window/MCP probes under rebuild, compact/VACUUM, semantic reindex, and HNSW build/compact load."
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "ac_coverage",
+      "evidence": "Final benchmark evidence could be replaced by an opt-in skip.",
+      "resolution": "T-PH001-02, T-PH004-02, and T-PH005-01 now require configured-corpus or generated-temp-corpus benchmark evidence for final completion; skip is not valid final evidence."
+    },
+    {
+      "severity": "LOW",
+      "axis": "sidecar_handoff",
+      "evidence": "mcp_call_log has placeholder hashes and ok:null before live mutation.",
+      "resolution": "Deferred until Phase 5 mutation; mcp_call_log will be normalized after add_trace_link/add_verification_evidence calls complete."
+    }
+  ]
+}

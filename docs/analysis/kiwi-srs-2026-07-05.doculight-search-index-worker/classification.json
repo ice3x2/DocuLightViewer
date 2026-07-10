@@ -1,0 +1,35 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "target": "0.11.0-w2",
+  "classification": "update",
+  "rationale": "The freeze report reveals a verification and wording gap in existing Wave 2 indexing requirements. The new requirement extends FR-DOC-019, DR-DOC-010, and FR-DOC-022 rather than replacing them.",
+  "evidence_paths": [
+    "docs/analysis/2026-07-04-search-index-rebuild-freeze-report.md:20",
+    "docs/analysis/2026-07-04-search-index-rebuild-freeze-report.md:235",
+    "src/main/search-engine.js:L1545-L1593",
+    "src/main/search-sqlite-store.js:L101-L188"
+  ],
+  "affected_existing_reqs": [
+    {
+      "id": "FR-DOC-019",
+      "relation": "extends",
+      "diff_summary": "Narrow non-blocking execution to require real isolation for heavy native/CPU work."
+    },
+    {
+      "id": "DR-DOC-010",
+      "relation": "extends",
+      "diff_summary": "Add worker-owned write connection and committed generation protection."
+    },
+    {
+      "id": "FR-DOC-022",
+      "relation": "extends",
+      "diff_summary": "Prevent request-path HNSW rebuild and isolate HNSW maintenance work."
+    }
+  ],
+  "proposed_scope": "DOC",
+  "proposed_prefix": "REL-DOC",
+  "proposed_type": "reliability",
+  "confidence": "high",
+  "scope_boundary_impact": null,
+  "external_module_impact": null
+}

@@ -78,6 +78,7 @@
   const mcpCopyToast = document.getElementById('mcp-copy-toast');
   const settingsMainView = document.getElementById('settings-main-view');
   const indexingManagementView = document.getElementById('indexing-management-view');
+  const embeddingRegistrationView = document.getElementById('embedding-registration-view');
   const indexingManageBtn = document.getElementById('indexing-manage-btn');
   const indexingBackBtn = document.getElementById('indexing-back-btn');
   const indexingStatusEl = document.getElementById('indexing-status');
@@ -99,7 +100,6 @@
   const embeddingProgressEl = document.getElementById('embedding-model-progress');
   const embeddingRegisterBtn = document.getElementById('embedding-register-btn');
   const embeddingClearBtn = document.getElementById('embedding-clear-btn');
-  const embeddingModal = document.getElementById('embedding-modal');
   const embeddingUrlInput = document.getElementById('embedding-url-input');
   const embeddingKeyInput = document.getElementById('embedding-key-input');
   const embeddingModelInput = document.getElementById('embedding-model-input');
@@ -113,9 +113,26 @@
   const embeddingCancelBtn = document.getElementById('embedding-cancel-btn');
   const embeddingConnectBtn = document.getElementById('embedding-connect-btn');
   const EMBEDDING_RETENTION_CONFIRMATION_VERSION = 'remote-embedding-v1';
+  const EMBEDDING_VALIDATION_DEBOUNCE_MS = 600;
+  let embeddingValidationTimer = null;
+  let embeddingValidationSequence = 0;
+  let embeddingValidationReady = false;
+  let embeddingConnectionInProgress = false;
+  const embeddingValidationInputs = [
+    embeddingUrlInput,
+    embeddingKeyInput,
+    embeddingModelInput,
+    embeddingChunkSizeInput,
+    embeddingChunkOverlapInput,
+    embeddingProjectPolicyMode,
+    embeddingProjectPolicyList,
+    embeddingOfflineOnlyCheckbox,
+    embeddingPolicyConfirmCheckbox
+  ].filter(Boolean);
   let indexingStatusRequest = null;
   let indexingActionRequest = null;
   let lastIndexingStatus = null;
+  let savedDocumentStorePath = '';
   const ACTIVE_INDEXING_POLL_MS = 500;
   const IDLE_INDEXING_POLL_MS = 3000;
   let indexingStatusTimer = null;
@@ -188,6 +205,7 @@
 
   // Populate form fields
   function populateForm(settings) {
+    savedDocumentStorePath = settings.mcpAutoSavePath || '';
     for (const [key, element] of Object.entries(fields)) {
       if (element) {
         element.value = settings[key] !== undefined ? settings[key] : DEFAULTS[key];
@@ -278,9 +296,9 @@
     const showDocNavEl = document.getElementById('showDocNav-checkbox');
     values.showDocNav = showDocNavEl ? showDocNavEl.checked : DEFAULTS.showDocNav;
     const mcpAutoSaveEl = document.getElementById('mcpAutoSave-checkbox');
-    values.mcpAutoSave = mcpAutoSaveEl ? mcpAutoSaveEl.checked : DEFAULTS.mcpAutoSave;
     const mcpAutoSavePathEl = document.getElementById('mcpAutoSavePath-input');
     values.mcpAutoSavePath = mcpAutoSavePathEl ? mcpAutoSavePathEl.value.trim() : DEFAULTS.mcpAutoSavePath;
+    values.mcpAutoSave = Boolean(values.mcpAutoSavePath) && (mcpAutoSaveEl ? mcpAutoSaveEl.checked : true);
     values.registerOpenedMarkdown = registerOpenedMarkdownCheckbox && !registerOpenedMarkdownCheckbox.disabled
       ? registerOpenedMarkdownCheckbox.checked
       : DEFAULTS.registerOpenedMarkdown;
@@ -356,8 +374,10 @@
   }
 
   function showIndexingManagementView() {
+    if (!hasSavedDocumentStorePath()) return;
     setSettingsTitle('settings.indexingManage');
     if (settingsMainView) settingsMainView.classList.add('hidden');
+    if (embeddingRegistrationView) embeddingRegistrationView.classList.add('hidden');
     if (indexingManagementView) indexingManagementView.classList.remove('hidden');
     refreshIndexingStatus();
   }
@@ -365,6 +385,7 @@
   function showMainSettingsView() {
     setSettingsTitle('settings.heading');
     if (indexingManagementView) indexingManagementView.classList.add('hidden');
+    if (embeddingRegistrationView) embeddingRegistrationView.classList.add('hidden');
     if (settingsMainView) settingsMainView.classList.remove('hidden');
   }
 
@@ -404,6 +425,8 @@
   function formatIndexingActionResult(result) {
     if (!result || typeof result !== 'object') return null;
     const failed = result.success === false ||
+      result.started === false ||
+      result.scheduled === false ||
       result.compacted === false ||
       result.cleared === false ||
       result.cancelled === false;
@@ -517,12 +540,14 @@
     }
     const active = isIndexingWorkerActive(state) || nativeRepairActive;
     const rebuildActive = isFullRebuildActive(status, state);
+    const sourceRootConfigured = status.sourceRootConfigured !== false;
+    if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
     if (indexingCancelBtn) indexingCancelBtn.disabled = busy || rebuildActive || !active || nativeRepairActive;
-    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active;
-    if (indexingRetryBtn) indexingRetryBtn.disabled = busy || active || (status.failedCount || 0) === 0;
-    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active;
-    if (indexingOpenDirBtn) indexingOpenDirBtn.disabled = busy;
+    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active || !sourceRootConfigured;
+    if (indexingRetryBtn) indexingRetryBtn.disabled = busy || active || !sourceRootConfigured || (status.failedCount || 0) === 0;
+    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || !sourceRootConfigured;
+    if (indexingOpenDirBtn) indexingOpenDirBtn.disabled = busy || !sourceRootConfigured;
     scheduleIndexingStatusPoll(status);
   }
 
@@ -607,27 +632,8 @@
     embeddingDialogStatus.classList.remove('hidden');
   }
 
-  function openEmbeddingModal() {
-    if (!embeddingModal) return;
-    if (embeddingChunkSizeInput) embeddingChunkSizeInput.value = '900';
-    if (embeddingChunkOverlapInput) embeddingChunkOverlapInput.value = '120';
-    if (embeddingKeyInput) embeddingKeyInput.value = '';
-    if (embeddingProjectPolicyMode) embeddingProjectPolicyMode.value = 'allow-all';
-    if (embeddingProjectPolicyList) embeddingProjectPolicyList.value = '';
-    if (embeddingOfflineOnlyCheckbox) embeddingOfflineOnlyCheckbox.checked = false;
-    if (embeddingPolicyConfirmCheckbox) embeddingPolicyConfirmCheckbox.checked = false;
-    if (embeddingDialogStatus) embeddingDialogStatus.classList.add('hidden');
-    embeddingModal.classList.remove('hidden');
-    if (embeddingUrlInput) embeddingUrlInput.focus();
-  }
-
-  function closeEmbeddingModal() {
-    if (embeddingModal) embeddingModal.classList.add('hidden');
-  }
-
-  async function connectEmbeddingModel() {
-    if (!window.doclight.saveEmbeddingModelSettings) return;
-    const payload = {
+  function collectEmbeddingPayload() {
+    return {
       baseURL: embeddingUrlInput ? embeddingUrlInput.value.trim() : '',
       apiKey: embeddingKeyInput ? embeddingKeyInput.value : '',
       model: embeddingModelInput ? embeddingModelInput.value.trim() : '',
@@ -641,18 +647,175 @@
       retentionCostConfirmed: Boolean(embeddingPolicyConfirmCheckbox && embeddingPolicyConfirmCheckbox.checked),
       retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION
     };
+  }
+
+  function setEmbeddingValidationReady(ready) {
+    embeddingValidationReady = ready === true;
+    if (embeddingConnectBtn) embeddingConnectBtn.disabled = !embeddingValidationReady;
+  }
+
+  function setEmbeddingRegistrationInputsDisabled(disabled) {
+    embeddingValidationInputs.forEach((element) => {
+      element.disabled = disabled === true;
+    });
+    if (embeddingCancelBtn) embeddingCancelBtn.disabled = disabled === true;
+  }
+
+  function isStrictNonNegativeInteger(value) {
+    const text = String(value || '').trim();
+    if (!/^\d+$/.test(text)) return false;
+    return Number.isSafeInteger(Number(text));
+  }
+
+  function isEmbeddingChunkConfigValid() {
+    const rawChunkSize = embeddingChunkSizeInput ? embeddingChunkSizeInput.value : '900';
+    const rawChunkOverlap = embeddingChunkOverlapInput ? embeddingChunkOverlapInput.value : '120';
+    if (!isStrictNonNegativeInteger(rawChunkSize) || !isStrictNonNegativeInteger(rawChunkOverlap)) {
+      return false;
+    }
+    return Number(rawChunkSize) > 0 && Number(rawChunkOverlap) >= 0;
+  }
+
+  function resetEmbeddingValidationState(options = {}) {
+    embeddingValidationSequence += 1;
+    if (embeddingValidationTimer) {
+      clearTimeout(embeddingValidationTimer);
+      embeddingValidationTimer = null;
+    }
+    setEmbeddingValidationReady(false);
+    if (options.hideStatus !== false && embeddingDialogStatus) {
+      embeddingDialogStatus.classList.add('hidden');
+    }
+  }
+
+  async function validateEmbeddingRegistration(sequence) {
+    const payload = collectEmbeddingPayload();
+    setEmbeddingValidationReady(false);
+
+    if (!isEmbeddingChunkConfigValid()) {
+      if (sequence !== embeddingValidationSequence) return;
+      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
+      return;
+    }
+
+    if (payload.offlineOnly) {
+      if (sequence !== embeddingValidationSequence) return;
+      showEmbeddingDialogStatus('error', t('settings.embeddingValidationOfflineBlocked'));
+      setEmbeddingValidationReady(false);
+      return;
+    }
+
+    if (!payload.baseURL) {
+      if (sequence !== embeddingValidationSequence) return;
+      showEmbeddingDialogStatus('info', t('settings.embeddingValidationPending'));
+      return;
+    }
+
+    if (!payload.retentionCostConfirmed) {
+      if (sequence !== embeddingValidationSequence) return;
+      showEmbeddingDialogStatus('error', t('settings.embeddingPolicyRequired'));
+      return;
+    }
+
+    if (!window.doclight.validateEmbeddingModel) return;
+
+    showEmbeddingDialogStatus('info', t('settings.embeddingValidationChecking'));
+    try {
+      const validation = await window.doclight.validateEmbeddingModel(payload);
+      if (sequence !== embeddingValidationSequence) return;
+      if (validation && validation.ok === true) {
+        showEmbeddingDialogStatus('success', t('settings.embeddingValidationReady'));
+        setEmbeddingValidationReady(true);
+        return;
+      }
+      showEmbeddingDialogStatus('error', (validation && validation.message) || t('settings.embeddingModelConnectionFailed'));
+      setEmbeddingValidationReady(false);
+    } catch (err) {
+      if (sequence !== embeddingValidationSequence) return;
+      showEmbeddingDialogStatus('error', err.message || t('settings.embeddingModelConnectionFailed'));
+      setEmbeddingValidationReady(false);
+    }
+  }
+
+  function scheduleEmbeddingValidation() {
+    if (embeddingConnectionInProgress) return;
+    const sequence = ++embeddingValidationSequence;
+    if (embeddingValidationTimer) {
+      clearTimeout(embeddingValidationTimer);
+      embeddingValidationTimer = null;
+    }
+    setEmbeddingValidationReady(false);
+
+    if (!isEmbeddingChunkConfigValid()) {
+      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
+      return;
+    }
+
+    const payload = collectEmbeddingPayload();
+    if (!payload.offlineOnly && payload.baseURL && payload.retentionCostConfirmed) {
+      showEmbeddingDialogStatus('info', t('settings.embeddingValidationChecking'));
+    }
+
+    embeddingValidationTimer = setTimeout(() => {
+      embeddingValidationTimer = null;
+      validateEmbeddingRegistration(sequence);
+    }, EMBEDDING_VALIDATION_DEBOUNCE_MS);
+  }
+
+  function showEmbeddingRegistrationView() {
+    if (!embeddingRegistrationView) return;
+    setSettingsTitle('settings.embeddingModelRegister');
+    if (settingsMainView) settingsMainView.classList.add('hidden');
+    if (indexingManagementView) indexingManagementView.classList.add('hidden');
+    if (embeddingChunkSizeInput) embeddingChunkSizeInput.value = '900';
+    if (embeddingChunkOverlapInput) embeddingChunkOverlapInput.value = '120';
+    if (embeddingKeyInput) embeddingKeyInput.value = '';
+    if (embeddingProjectPolicyMode) embeddingProjectPolicyMode.value = 'allow-all';
+    if (embeddingProjectPolicyList) embeddingProjectPolicyList.value = '';
+    if (embeddingOfflineOnlyCheckbox) embeddingOfflineOnlyCheckbox.checked = false;
+    if (embeddingPolicyConfirmCheckbox) embeddingPolicyConfirmCheckbox.checked = false;
+    resetEmbeddingValidationState();
+    embeddingRegistrationView.classList.remove('hidden');
+    if (embeddingUrlInput) embeddingUrlInput.focus();
+  }
+
+  function closeEmbeddingRegistrationView() {
+    resetEmbeddingValidationState();
+    showMainSettingsView();
+  }
+
+  async function connectEmbeddingModel() {
+    if (!window.doclight.saveEmbeddingModelSettings || embeddingConnectionInProgress) return;
+    if (!embeddingValidationReady) {
+      scheduleEmbeddingValidation();
+      return;
+    }
+    if (!isEmbeddingChunkConfigValid()) {
+      setEmbeddingValidationReady(false);
+      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
+      return;
+    }
+    const payload = collectEmbeddingPayload();
+    if (payload.offlineOnly) {
+      setEmbeddingValidationReady(false);
+      showEmbeddingDialogStatus('error', t('settings.embeddingValidationOfflineBlocked'));
+      return;
+    }
     if (!payload.offlineOnly && !payload.retentionCostConfirmed) {
       showEmbeddingDialogStatus('error', t('settings.embeddingPolicyRequired'));
       return;
     }
+    embeddingConnectionInProgress = true;
+    setEmbeddingRegistrationInputsDisabled(true);
     if (embeddingConnectBtn) embeddingConnectBtn.disabled = true;
     showEmbeddingDialogStatus('info', t('settings.processing'));
     try {
       const validation = window.doclight.validateEmbeddingModel
-        ? (payload.offlineOnly ? { success: true, ok: true } : await window.doclight.validateEmbeddingModel(payload))
-        : { success: true };
-      if (!validation.success && !validation.ok) {
-        showEmbeddingDialogStatus('error', validation.message || t('settings.embeddingModelConnectionFailed'));
+        ? await window.doclight.validateEmbeddingModel(payload)
+        : { ok: true };
+      if (!validation || validation.ok !== true) {
+        showEmbeddingDialogStatus('error', (validation && validation.message) || t('settings.embeddingModelConnectionFailed'));
+        setEmbeddingValidationReady(false);
         await refreshEmbeddingModelStatus();
         return;
       }
@@ -663,11 +826,14 @@
         return;
       }
       renderEmbeddingModelStatus(result.status);
-      closeEmbeddingModal();
+      closeEmbeddingRegistrationView();
     } catch (err) {
       showEmbeddingDialogStatus('error', err.message || t('settings.embeddingModelConnectionFailed'));
+      setEmbeddingValidationReady(false);
     } finally {
-      if (embeddingConnectBtn) embeddingConnectBtn.disabled = false;
+      embeddingConnectionInProgress = false;
+      setEmbeddingRegistrationInputsDisabled(false);
+      if (embeddingConnectBtn) embeddingConnectBtn.disabled = !embeddingValidationReady;
     }
   }
 
@@ -701,6 +867,9 @@
     const settings = collectFormValues();
     try {
       await window.doclight.saveSettings(settings);
+      savedDocumentStorePath = settings.mcpAutoSavePath || '';
+      updateAutoSavePathState();
+      await refreshIndexingStatus();
       showSaveMessage();
     } catch (err) {
       console.error('Failed to save settings:', err);
@@ -714,6 +883,8 @@
     populateForm(DEFAULTS);
     try {
       await window.doclight.saveSettings(DEFAULTS);
+      savedDocumentStorePath = DEFAULTS.mcpAutoSavePath || '';
+      updateAutoSavePathState();
       showSaveMessage();
     } catch (err) {
       console.error('Failed to reset settings:', err);
@@ -779,14 +950,18 @@
   }
 
   if (embeddingRegisterBtn) {
-    embeddingRegisterBtn.addEventListener('click', openEmbeddingModal);
+    embeddingRegisterBtn.addEventListener('click', showEmbeddingRegistrationView);
   }
   if (embeddingCancelBtn) {
-    embeddingCancelBtn.addEventListener('click', closeEmbeddingModal);
+    embeddingCancelBtn.addEventListener('click', closeEmbeddingRegistrationView);
   }
   if (embeddingConnectBtn) {
     embeddingConnectBtn.addEventListener('click', connectEmbeddingModel);
   }
+  embeddingValidationInputs.forEach((element) => {
+    element.addEventListener('input', scheduleEmbeddingValidation);
+    element.addEventListener('change', scheduleEmbeddingValidation);
+  });
   if (embeddingClearBtn) {
     embeddingClearBtn.addEventListener('click', async () => {
       if (!window.doclight.clearEmbeddingModelSettings) return;
@@ -795,12 +970,6 @@
       renderEmbeddingModelStatus(result.status);
     });
   }
-  if (embeddingModal) {
-    embeddingModal.addEventListener('click', function(ev) {
-      if (ev.target === embeddingModal) closeEmbeddingModal();
-    });
-  }
-
   // ==========================================================================
   // File Association
   // ==========================================================================
@@ -879,15 +1048,32 @@
   const mcpAutoSavePathInput = document.getElementById('mcpAutoSavePath-input');
   const mcpAutoSavePathBrowseBtn = document.getElementById('mcpAutoSavePath-browse-btn');
 
+  function hasDocumentStorePath() {
+    return Boolean(mcpAutoSavePathInput && mcpAutoSavePathInput.value.trim());
+  }
+
+  function hasSavedDocumentStorePath() {
+    const currentPath = mcpAutoSavePathInput ? mcpAutoSavePathInput.value.trim() : '';
+    return Boolean(savedDocumentStorePath && currentPath && currentPath === savedDocumentStorePath);
+  }
+
   function updateAutoSavePathState() {
     // Path input is always enabled (manual save uses it even when auto-save is off)
-    const hasDocumentStorePath = Boolean(mcpAutoSavePathInput && mcpAutoSavePathInput.value.trim());
+    const hasPath = hasDocumentStorePath();
+    const hasSavedPath = hasSavedDocumentStorePath();
+    if (mcpAutoSaveCheckbox) {
+      mcpAutoSaveCheckbox.disabled = !hasPath;
+      if (!hasPath) mcpAutoSaveCheckbox.checked = false;
+    }
+    if (indexingManageBtn) {
+      indexingManageBtn.disabled = !hasSavedPath;
+    }
     if (registerOpenedMarkdownCheckbox) {
-      registerOpenedMarkdownCheckbox.disabled = !hasDocumentStorePath;
-      if (!hasDocumentStorePath) registerOpenedMarkdownCheckbox.checked = false;
+      registerOpenedMarkdownCheckbox.disabled = !hasPath;
+      if (!hasPath) registerOpenedMarkdownCheckbox.checked = false;
     }
     if (registerOpenedMarkdownUnavailable) {
-      registerOpenedMarkdownUnavailable.classList.toggle('hidden', hasDocumentStorePath);
+      registerOpenedMarkdownUnavailable.classList.toggle('hidden', hasPath);
     }
   }
 

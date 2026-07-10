@@ -1,0 +1,65 @@
+{
+  "target": "0.11.0-w2",
+  "goal": "Wave 2 smart search and knowledge-store lifecycle: SQLite search store, MCP save_document into the knowledge store without opening a viewer, bounded local linked-Markdown import without duplicate saves, background embedding/classification/link graph indexing, built-in HNSW, and read-only smart_search MCP contract.",
+  "countsByStatus": {
+    "discarded": 34,
+    "planned": 28,
+    "verified": 1
+  },
+  "countsByType": {
+    "operational": 5,
+    "constraint": 19,
+    "data": 8,
+    "security": 4,
+    "functional": 20,
+    "interface": 5,
+    "reliability": 2
+  },
+  "countsByStability": {
+    "stable": 63
+  },
+  "blocked": [],
+  "implementedNotVerified": [],
+  "missingEvidence": [],
+  "draftRequirements": [],
+  "deprecatedRequirements": [],
+  "newWorkCandidates": [
+    "OPS-ARCH-009",
+    "OPS-ARCH-010",
+    "CON-ARCH-007",
+    "DR-APP-002",
+    "SEC-APP-003",
+    "FR-APP-012",
+    "FR-TREE-009",
+    "IR-MCP-018",
+    "CON-MCP-007",
+    "CON-MCP-010",
+    "DR-DOC-006",
+    "FR-DOC-019",
+    "DR-DOC-007",
+    "FR-DOC-020",
+    "FR-DOC-021",
+    "DR-DOC-008",
+    "FR-DOC-022",
+    "DR-DOC-009",
+    "FR-DOC-024",
+    "FR-DOC-025",
+    "SEC-DOC-003",
+    "FR-DOC-028",
+    "REL-DOC-004",
+    "DR-DOC-013",
+    "CON-DOC-006",
+    "FR-DOC-033",
+    "CON-DOC-007",
+    "FR-DOC-034"
+  ],
+  "completedWork": [
+    {
+      "date": "2026-06-30",
+      "target": "0.11.0-w2",
+      "scope": "DOC",
+      "requirementIds": ["FR-DOC-023"],
+      "summary": "Korean morphology keyword tokenizer completed and verified."
+    }
+  ]
+}

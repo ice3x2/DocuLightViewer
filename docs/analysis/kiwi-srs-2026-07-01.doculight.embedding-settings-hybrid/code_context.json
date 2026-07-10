@@ -1,0 +1,67 @@
+{
+  "relevant_files": [
+    {
+      "path": "src/renderer/settings.html",
+      "line_range": "160-180",
+      "signature": "indexing-section",
+      "relevance": "Existing Settings UI area for index status and controls; embedding model status/register UI should be added near this surface.",
+      "trace_intent": "addition_site"
+    },
+    {
+      "path": "src/renderer/settings.js",
+      "line_range": "313-337",
+      "signature": "renderIndexingStatus(status)",
+      "relevance": "Current Settings renderer shows indexing state/counts but not percentage or embedding model connectivity.",
+      "trace_intent": "addition_site"
+    },
+    {
+      "path": "src/main/index.js",
+      "line_range": "1057-1084",
+      "signature": "indexing:* IPC handlers",
+      "relevance": "Settings-only indexing IPC exists and can be extended with embedding registration/progress status without adding MCP control tools.",
+      "trace_intent": "addition_site"
+    },
+    {
+      "path": "src/main/index.js",
+      "line_range": "1152-1211",
+      "signature": "get-settings/save-settings handlers",
+      "relevance": "Current settings persistence path stores arbitrary settings and needs safe embedding config handling plus semantic index invalidation on model changes.",
+      "trace_intent": "addition_site"
+    },
+    {
+      "path": "src/main/search-sqlite-store.js",
+      "line_range": "208-236",
+      "signature": "search(query, { limit = 20, project, docType })",
+      "relevance": "SQLite keyword search already defaults to 20 and clamps internal keyword output; hybrid search should keep output and candidate caps explicit.",
+      "trace_intent": "addition_site"
+    },
+    {
+      "path": "src/main/mcp-http.mjs",
+      "line_range": "97-108",
+      "signature": "search_documents inputSchema",
+      "relevance": "Existing HTTP MCP keyword search default is 20 and max 100; smart_search must be updated separately.",
+      "trace_intent": "verifies"
+    },
+    {
+      "path": "src/main/mcp-server.mjs",
+      "line_range": "589-599",
+      "signature": "search_documents tool",
+      "relevance": "Existing stdio MCP keyword search default is 20 and max 100; smart_search must preserve this compatibility while adding hybrid search.",
+      "trace_intent": "verifies"
+    }
+  ],
+  "related_modules": [
+    "src/main/search-engine.js",
+    "src/main/search-sqlite-store.js",
+    "src/main/preload.js",
+    "src/main/mcp-http.mjs",
+    "src/main/mcp-server.mjs",
+    "src/renderer/settings.css"
+  ],
+  "missing_evidence": [
+    "No committed embedding provider registration IPC exists.",
+    "No committed smart_search implementation exists.",
+    "No committed semantic embedding/HNSW index lifecycle implementation exists."
+  ],
+  "external_paths_detected": []
+}

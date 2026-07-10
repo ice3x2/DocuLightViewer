@@ -1,0 +1,50 @@
+{
+  "summary": "Settings-managed embedding model registration, validation, indexing progress, semantic index invalidation, MCP document indexing, and bounded BM25+embedding hybrid search for target 0.11.0-w2.",
+  "intent_type_hint": "update",
+  "key_entities": [
+    "Settings dialog",
+    "embedding model status",
+    "embedding model registration",
+    "OpenAI-compatible /models discovery",
+    "embeddings validation",
+    "chunk size default 512",
+    "indexing progress percentage",
+    "semantic embedding index",
+    "HNSW derived index",
+    "MCP saved/opened documents",
+    "BM25 keyword search",
+    "hybrid search",
+    "MCP limit default 20"
+  ],
+  "ambiguities": [],
+  "implied_requirements": [
+    "Do not hard-code local model-api endpoint, API key, or model name into committed SRS/code/tests.",
+    "Settings must remain the owner of long indexing controls; MCP search tools must not expose rebuild, long indexing, model-change, or clear-index controls.",
+    "Changing or removing a model must invalidate or remove semantic derived data without making HNSW authoritative over SQLite.",
+    "MCP search output limit and internal candidate limits must be separate bounded values."
+  ],
+  "semantic_equivalences": [
+    {
+      "prompt_term": "URL",
+      "canonical_term": "OpenAI-compatible embedding API base URL",
+      "confidence": "high"
+    },
+    {
+      "prompt_term": "key",
+      "canonical_term": "optional API key or bearer token credential",
+      "confidence": "high"
+    },
+    {
+      "prompt_term": "가중치가 높은 것부터",
+      "canonical_term": "descending hybrid relevance score",
+      "confidence": "high"
+    }
+  ],
+  "recommended_req_split": [
+    "APP functional requirement for Settings embedding status and registration UI",
+    "DOC functional requirement for registration-triggered indexing, progress, and semantic invalidation",
+    "DOC functional requirement for bounded hybrid BM25+embedding ranking",
+    "MCP interface update superseding smart_search v1 limit default 10 with default 20",
+    "MCP constraint update superseding seven-tool parity dependency on the old smart_search contract"
+  ]
+}

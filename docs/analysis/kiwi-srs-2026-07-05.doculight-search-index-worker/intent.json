@@ -1,0 +1,29 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "target": "0.11.0-w2",
+  "summary": "Add a requirement that search index maintenance heavy work must run outside the Electron main process.",
+  "intent_type_hint": "update",
+  "key_entities": [
+    "Settings search index rebuild",
+    "Electron main process",
+    "worker_threads",
+    "better-sqlite3",
+    "SQLite FTS5",
+    "garu-ko tokenizer",
+    "HNSW",
+    "status/cancel IPC"
+  ],
+  "ambiguities": [],
+  "implied_requirements": [
+    "Main process must remain responsive while rebuild/compact/HNSW maintenance is active.",
+    "Worker-owned SQLite write connection and committed generation protection are required.",
+    "Query path must not synchronously build HNSW fallback indexes."
+  ],
+  "semantic_equivalences": [
+    {
+      "prompt_term": "응답 없음",
+      "srs_term": "main-process blocking / responsiveness regression",
+      "confidence": "high"
+    }
+  ]
+}

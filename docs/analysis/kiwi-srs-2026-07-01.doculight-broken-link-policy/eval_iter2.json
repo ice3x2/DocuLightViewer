@@ -1,0 +1,39 @@
+{
+  "run_id": "2026-07-01.doculight-broken-link-policy",
+  "iter": 2,
+  "evaluator": "subagent:Confucius",
+  "grade": "B+",
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 1,
+    "MEDIUM": 1,
+    "LOW": 0
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "axis": "trace",
+      "req_id": "CON-DOC-002 / FR-DOC-030",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:3063",
+      "description": "Active requirements still depended on discarded DR-DOC-011.",
+      "resolution": "Added CON-DOC-005 superseding CON-DOC-002 and FR-DOC-032 superseding FR-DOC-030; both depend on DR-DOC-012 instead."
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "internal_coherence",
+      "req_id": "FR-DOC-029",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:2834",
+      "description": "FR-DOC-029 AC-7 still exposed skipped_cycle/skipped_depth/skipped_limit as result names.",
+      "resolution": "Added FR-DOC-031 superseding FR-DOC-029; skipped_* terms are now diagnostic_code examples under canonical skipped status."
+    }
+  ],
+  "resolved_prior_findings": [
+    "DR-DOC-011 and CON-DOC-003 discarded",
+    "DR-DOC-012 uses canonical skipped plus diagnostic_code",
+    "CON-DOC-004 distinguishes post-save background indexing from MCP reconciliation controls",
+    "Trace line ranges use test/test-link-extraction.js:L10-L78",
+    "Research Wave 2 list includes active replacement IDs"
+  ],
+  "gate_result": "failed",
+  "next_action": "Run final evaluation after superseding FR-DOC-029, CON-DOC-002, and FR-DOC-030."
+}

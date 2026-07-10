@@ -1,0 +1,21 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "plan": [
+    {
+      "req_id": "REL-DOC-007",
+      "current_stability": "evolving",
+      "proposed_stability": "keep",
+      "requires_user_confirm": false,
+      "reason": "Feasibility high, but no implementation verification evidence exists yet. Keep evolving until implementation and review-fix-loop evidence are attached.",
+      "dryrun_guard_verdict": "not_applicable",
+      "user_decision": null
+    }
+  ],
+  "summary": {
+    "total_mutations": 0,
+    "auto_apply": 0,
+    "user_confirm_required": 0,
+    "no_op": 1,
+    "guard_blocked": 0
+  }
+}

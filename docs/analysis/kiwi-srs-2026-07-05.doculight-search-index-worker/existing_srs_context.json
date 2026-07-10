@@ -1,0 +1,51 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "candidate_matches": [
+    {
+      "id": "FR-DOC-019",
+      "scope": "DOC",
+      "title": "Saved documents enqueue background smart indexing work",
+      "relation_hint": "potential-update",
+      "similarity_score": 0.92,
+      "gap": "AC-6 allows bounded asynchronous task and does not categorically exclude heavy native/CPU work from the Electron main process."
+    },
+    {
+      "id": "DR-DOC-010",
+      "scope": "DOC",
+      "title": "SQLite FTS5 keyword cache replaces monolithic BM25 JSON persistence",
+      "relation_hint": "potential-update",
+      "similarity_score": 0.78,
+      "gap": "Defines SQLite FTS5 derived cache but not worker-owned write connection or generation swap under active rebuild."
+    },
+    {
+      "id": "FR-DOC-022",
+      "scope": "DOC",
+      "title": "HNSW delete filtering and compaction are settings-driven",
+      "relation_hint": "potential-update",
+      "similarity_score": 0.74,
+      "gap": "Defines settings-only HNSW compaction but not main-process isolation or no query-time HNSW rebuild."
+    },
+    {
+      "id": "IR-APP-010",
+      "scope": "APP",
+      "title": "Search indexing controls are Settings-only",
+      "relation_hint": "dependency",
+      "similarity_score": 0.69,
+      "gap": "Preserves UI/IPC ownership but does not define worker runtime behavior."
+    },
+    {
+      "id": "REL-DOC-004",
+      "scope": "DOC",
+      "title": "SQLite and HNSW search indexes recover with shared redacted diagnostics",
+      "relation_hint": "dependency",
+      "similarity_score": 0.66,
+      "gap": "Defines recovery/redaction baseline used by backup and failed rebuild handling."
+    }
+  ],
+  "relevant_scopes": [
+    "DOC",
+    "APP",
+    "ARCH"
+  ],
+  "no_match_reason": null
+}

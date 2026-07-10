@@ -1,0 +1,71 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "skill": "kiwi-srs",
+  "mode": "--max",
+  "source_research": "docs/research/knowledge_store/knowledge.md",
+  "active_target_after_run": "0.11.0-w1",
+  "target_split": [
+    {
+      "target": "0.11.0-w1",
+      "wave": "Wave 1",
+      "goal": "Indexing foundation stabilization before semantic search.",
+      "requirement_ids": [
+        "IR-MCP-013",
+        "FR-DOC-018",
+        "IR-APP-010",
+        "OPS-ARCH-004"
+      ]
+    },
+    {
+      "target": "0.11.0-w2",
+      "wave": "Wave 2",
+      "goal": "SQLite-backed smart search with background indexing, embeddings, built-in HNSW, link graph, and read-only MCP smart_search.",
+      "requirement_ids": [
+        "DR-DOC-006",
+        "FR-DOC-019",
+        "DR-DOC-007",
+        "FR-DOC-020",
+        "FR-DOC-021",
+        "FR-TREE-008",
+        "IR-MCP-014",
+        "SEC-DOC-001",
+        "DR-APP-002",
+        "OPS-ARCH-005",
+        "CON-MCP-003",
+        "SEC-APP-003",
+        "DR-DOC-008",
+        "FR-DOC-022",
+        "SEC-DOC-002",
+        "CON-ARCH-004",
+        "OPS-ARCH-006",
+        "DR-DOC-009",
+        "REL-DOC-003"
+      ]
+    }
+  ],
+  "manual_index_updates": [
+    "Registered targets 0.11.0-w1 and 0.11.0-w2 in docs/spec/00.index.md because no target-registration MCP tool was available.",
+    "Changed active target to 0.11.0-w1.",
+    "Updated MCP and DOC scope descriptions so smart_search does not conflict with the 0.10.16 baseline wording."
+  ],
+  "mcp_boundary": {
+    "mcp_indexing_controls": "excluded",
+    "settings_indexing_controls": "required through IR-APP-010",
+    "smart_search": "read-only MCP tool in 0.11.0-w2"
+  },
+  "post_eval_decisions": {
+    "smart_search_transport": "canonical JSON in MCP content[0].text for v1",
+    "native_default_candidate": "better-sqlite3 + hnswlib-node",
+    "package_smoke_release_gating": [
+      "Windows x64",
+      "macOS arm64",
+      "Linux x64"
+    ],
+    "package_smoke_best_effort": [
+      "Windows arm64",
+      "macOS x64",
+      "Linux arm64"
+    ],
+    "clear_index_policy": "settings-only with confirmation plus backup/recovery warning; never MCP"
+  }
+}

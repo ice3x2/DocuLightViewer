@@ -1,0 +1,52 @@
+{
+  "target": "0.11.0-w2",
+  "classification": "update",
+  "rationale": "The request refines existing Wave 2 smart-search SRS, and one MCP default conflicts with the current IR-MCP-014 contract. Multi-aspect split is required across APP, DOC, and MCP surfaces.",
+  "evidence_paths": [
+    "src/renderer/settings.html:L160-L180",
+    "src/renderer/settings.js:L313-L337",
+    "src/main/index.js:L1057-L1084",
+    "src/main/index.js:L1152-L1211",
+    "src/main/mcp-http.mjs:L97-L108",
+    "src/main/mcp-server.mjs:L589-L599",
+    "src/main/search-sqlite-store.js:L208-L236"
+  ],
+  "affected_existing_reqs": [
+    {
+      "id": "DR-APP-002",
+      "relation": "extends",
+      "diff_summary": "Adds visible model status, registration modal, optional key/model discovery, and chunk size field."
+    },
+    {
+      "id": "FR-DOC-019",
+      "relation": "extends",
+      "diff_summary": "Adds registration-triggered background indexing and Settings percentage progress."
+    },
+    {
+      "id": "FR-DOC-020",
+      "relation": "extends",
+      "diff_summary": "Clarifies semantic index invalidation/removal after explicit model registration/change/removal."
+    },
+    {
+      "id": "FR-DOC-021",
+      "relation": "extends",
+      "diff_summary": "Adds output/candidate limit discipline to hybrid ranking."
+    },
+    {
+      "id": "IR-MCP-014",
+      "relation": "supersedes",
+      "diff_summary": "Changes smart_search limit default from 10 to 20 and keeps bounded larger limits."
+    },
+    {
+      "id": "CON-MCP-003",
+      "relation": "supersedes",
+      "diff_summary": "Refreshes seven-tool parity to depend on the updated smart_search contract."
+    }
+  ],
+  "proposed_scope": "APP, DOC, MCP",
+  "proposed_prefix": "APP/DOC/MCP",
+  "proposed_type": "functional/interface/constraint",
+  "confidence": "high",
+  "scope_boundary_impact": null,
+  "external_module_impact": null
+}

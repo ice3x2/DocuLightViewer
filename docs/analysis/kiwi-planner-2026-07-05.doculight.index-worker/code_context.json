@@ -1,0 +1,78 @@
+{
+  "req_anchors": [
+    {
+      "req_id": "REL-DOC-007",
+      "files": [
+        {
+          "path": "src/main/search-engine.js",
+          "line_range": "103-198",
+          "signature": "SearchEngine.rebuild/_performRebuild scans, reads, indexes, and saves in the Electron main process."
+        },
+        {
+          "path": "src/main/search-engine.js",
+          "line_range": "421-462",
+          "signature": "smart_search semantic fallback can build an in-memory HNSW index on the query path."
+        },
+        {
+          "path": "src/main/search-engine.js",
+          "line_range": "1382-1394",
+          "signature": "_saveIndex calls SQLiteKeywordIndex.rebuild synchronously."
+        },
+        {
+          "path": "src/main/search-engine.js",
+          "line_range": "1545-1593",
+          "signature": "startRebuild and compact schedule same-process async work, not worker isolation."
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "line_range": "101-188",
+          "signature": "SQLiteKeywordIndex.rebuild deletes and reinserts all FTS rows in one synchronous transaction."
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "line_range": "307-321",
+          "signature": "VACUUM and deleteFiles are synchronous and need WAL/SHM-aware backup handling."
+        },
+        {
+          "path": "src/renderer/settings.js",
+          "line_range": "448-649",
+          "signature": "Settings status polling and rebuild/cancel/retry/compact/clear button handlers."
+        }
+      ]
+    }
+  ],
+  "missing_anchors": [],
+  "external_paths_detected": [],
+  "addition_sites": [
+    {
+      "path": "src/main/index.js",
+      "line_range": "1855-1877",
+      "reason": "Settings IPC control-plane handlers should keep the same names but delegate heavy work to the worker controller."
+    },
+    {
+      "path": "src/main/source-ledger-store.js",
+      "line_range": "304-325,630-750",
+      "reason": "Durable job phase/progress/heartbeat/cancel fields can back worker status."
+    },
+    {
+      "path": "src/main/indexing-service.js",
+      "line_range": "47-180,227-380",
+      "reason": "Chunk, embedding, and HNSW maintenance must move to worker or equivalent isolation."
+    },
+    {
+      "path": "src/main/search-tokenizer.js",
+      "line_range": "11-14,71-85,129-140",
+      "reason": "AC-5 requires bounded tokenizer enrichment and metadata/cache behavior."
+    },
+    {
+      "path": "src/main/hnsw-index.js",
+      "line_range": "15-63,86-168",
+      "reason": "Worker runtime must load or degrade native HNSW without blocking request paths."
+    },
+    {
+      "path": "package.json",
+      "line_range": "17-31,55-57",
+      "reason": "Native rebuild/package smoke scripts need worker-runtime smoke and benchmark entry points."
+    }
+  ]
+}

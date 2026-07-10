@@ -1,0 +1,117 @@
+{
+  "run_id": "2026-07-01.doculight-link-import",
+  "target": "0.11.0-w2",
+  "date": "2026-07-01",
+  "user_request_summary": "Evaluate and improve SRS for local Markdown imports where linked documents must also be saved into the knowledge store, while preventing infinite loops and duplicate saves.",
+  "classification": "new-feature",
+  "added_requirements": [
+    "FR-DOC-029",
+    "DR-DOC-011"
+  ],
+  "updated_documents": [
+    "docs/spec/00.index.md",
+    "docs/spec/10.product-architecture.srs.md",
+    "docs/spec/60.document-persistence.srs.md",
+    "docs/research/knowledge_store/knowledge.md"
+  ],
+  "subagent_findings": [
+    {
+      "agent": "Erdos",
+      "id": "019f1c78-47da-7513-a733-633eb1c3ef70",
+      "focus": "SRS coverage gap",
+      "summary": "Existing SRS covers SQLite ledger, source scanning, link graph, and single-document save_document, but does not require source-path-backed local linked Markdown ingestion. Recommended FR-DOC-029 and updates around source identity."
+    },
+    {
+      "agent": "Turing",
+      "id": "019f1c78-7f20-7681-bc19-ba1f54bdfee5",
+      "focus": "Existing link parser and traversal behavior",
+      "summary": "src/main/link-parser.js already extracts Markdown links and wikilinks, skips protocols/anchors/images, and prevents viewer traversal loops with visited/globalSeen/depth/file caps. Import still needs graph-oriented persistence, source-to-destination mapping, structured diagnostics, and E2E fixtures."
+    },
+    {
+      "agent": "Raman",
+      "id": "019f1c78-abb3-7d31-aaaa-e6daf8a255d6",
+      "focus": "Duplicate prevention and path identity",
+      "summary": "Raw absolute path should not be the primary identity. Recommended stable documentId, source_id/path_key for duplicate/update lookup, root_fingerprint/source-relative path for source identity, canonical realpath hash for traversal visited sets, and content_hash for no-op/stale/move-copy decisions."
+    },
+    {
+      "agent": "Lovelace",
+      "id": "019f1c78-de6e-7d03-bfb7-ed8a06516225",
+      "focus": "Architecture and MCP scope fit",
+      "summary": "Recursive linked import belongs in Settings/local import workflow backed by an internal importer/scanner service, not in content-only MCP save_document and not as a silent viewer open side effect. smart_search should consume stored graph data and remain read-only."
+    },
+    {
+      "agent": "Hilbert",
+      "id": "019f1c79-0fa4-77c1-842e-2fd07c496ec7",
+      "focus": "SRS/research currency",
+      "summary": "Active SRS trace cleanup is clean, but linked local Markdown import was a requirements gap and knowledge.md still had stale 7-tool references. Recommended adding dedicated DOC requirements and updating research to active 8-tool save/search contract."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "decision": "Linked local Markdown import is a bounded Settings/local import workflow, not an MCP save_document extension.",
+      "reason": "IR-MCP-018 and FR-DOC-028 intentionally keep save_document content-only, no-viewer, and free of caller path/import/indexing-control fields."
+    },
+    {
+      "id": "D2",
+      "decision": "Import follows linked documents of linked documents, but only within bounded depth/file/byte/cancel limits.",
+      "reason": "This preserves graph connectivity without becoming an unbounded crawler."
+    },
+    {
+      "id": "D3",
+      "decision": "Infinite-loop prevention uses canonical source identity visited sets and records skipped cycle/limit edge diagnostics.",
+      "reason": "Viewer link tree already proves the local pattern; importer needs persistent graph semantics rather than tree-only behavior."
+    },
+    {
+      "id": "D4",
+      "decision": "Already imported documents are not saved again.",
+      "reason": "Duplicate detection uses stable documentId, source_id/path_key, root_fingerprint, canonical path hash, and content_hash according to separate roles."
+    },
+    {
+      "id": "D5",
+      "decision": "Absolute/canonical paths remain internal-only.",
+      "reason": "They are required for containment and duplicate checks but must not be returned in MCP/search/log/export surfaces under SEC-DOC-003."
+    }
+  ],
+  "srs_delta": {
+    "new_requirements": {
+      "FR-DOC-029": {
+        "type": "functional",
+        "purpose": "Local linked Markdown import preserves graph connectivity without duplicate saves."
+      },
+      "DR-DOC-011": {
+        "type": "data",
+        "purpose": "Local source identity ledger prevents duplicate linked-document imports."
+      }
+    },
+    "index_updates": [
+      "planned count 22 -> 24",
+      "functional count 92 -> 93",
+      "data count 17 -> 18",
+      "0.11.0-w2 goal now includes bounded local linked-Markdown import"
+    ],
+    "research_updates": [
+      "Replaced stale 7-tool smart_search-only wording with typed 8-tool save_document + smart_search contract.",
+      "Added local linked Markdown import policy, identity model, import graph tables, and no-MCP-import-control boundary."
+    ],
+    "trace_cleanup": [
+      "OPS-ARCH-009 package smoke traces now acknowledge existing smoke:package, better-sqlite3 native rebuild, asarUnpack, and Wave 1.5 package smoke tests.",
+      "DR-DOC-006 package trace now acknowledges existing better-sqlite3 dependency and native packaging hooks."
+    ]
+  },
+  "recommended_tests": [
+    "test/fixtures/import-link-closure with A.md -> B.md -> C.md -> A.md, self-link, duplicate links, duplicate basename, already imported B.md, missing target, outside-root target, symlink/junction escape, URL-encoded spaces, and Korean filenames.",
+    "Importer E2E verifies one saved document per canonical source identity, preserved or rewritten relative links, structured counts, and resolved/missing edge states.",
+    "Search E2E verifies imported linked documents are retrievable through search_documents and smart_search after indexing completion or keyword-only degraded indexing."
+  ],
+  "verification_notes": {
+    "subagents_used": 5,
+    "automated_validation_required": true,
+    "expected_final_checks": [
+      "speckiwi validate --json --fail-on-warning",
+      "speckiwi summarize target 0.11.0-w2",
+      "repository-wide non-discarded depends_on discarded/missing scan",
+      "independent sub-agent SRS review"
+    ]
+  }
+}

@@ -1862,7 +1862,11 @@ class SearchEngine {
     } catch {
       return null;
     }
-    const activeJobs = jobs.filter((job) => job && ['queued', 'indexing'].includes(job.status));
+    const activeJobs = jobs.filter((job) =>
+      job &&
+      job.jobType === 'index_document' &&
+      ['queued', 'indexing'].includes(job.status)
+    );
     if (activeJobs.length === 0) return null;
     let progressCurrent = 0;
     let progressTotal = 0;
@@ -1894,12 +1898,12 @@ class SearchEngine {
       state = activeWorkerStatus.state;
     } else if (this._rebuildPromise) {
       state = 'rebuilding';
-    } else if (!this.initialized) {
-      state = 'uninitialized';
     } else if (this._status.state === 'failed') {
       state = 'degraded';
     } else if (this.dirty) {
       state = 'stale';
+    } else if (!this.initialized) {
+      state = 'uninitialized';
     } else if (state === 'uninitialized') {
       state = 'ready';
     }
@@ -2058,12 +2062,24 @@ class SearchEngine {
       this.initialized = true;
       this.dirty = false;
       this._lastDegradedReason = null;
+      const result = job.result || {};
+      const indexedCount = Number.isFinite(Number(result.indexed)) ? Math.max(0, Number(result.indexed)) : this.docMeta.size;
+      const totalCount = Number.isFinite(Number(result.scanned)) ? Math.max(indexedCount, Number(result.scanned)) : indexedCount;
       const fullReset = this._resetSearchDerivedStateAfterFullRebuild();
       this._status = {
         ...this._status,
         state: 'ready',
         phase: null,
         currentPath: null,
+        progress: { current: indexedCount, total: totalCount },
+        rebuildSession: {
+          active: false,
+          indexedCount,
+          pendingCount: 0,
+          totalCount,
+          currentPath: null,
+          requestedBy: null
+        },
         lastIndexedAt: new Date().toISOString(),
         errorSummary: null,
         failedFiles: [],
@@ -2134,14 +2150,98 @@ class SearchEngine {
     });
   }
 
+  // @req REL-DOC-008
+  _beginFullRebuildStatus(requestedBy) {
+    this._lastDegradedReason = null;
+    this._status = {
+      ...this._status,
+      state: 'rebuilding',
+      phase: 'queued',
+      currentPath: null,
+      progress: { current: 0, total: 0 },
+      rebuildSession: {
+        active: true,
+        indexedCount: 0,
+        pendingCount: 0,
+        totalCount: 0,
+        currentPath: null,
+        requestedBy: requestedBy || 'settings.rebuild'
+      },
+      errorSummary: null,
+      failedFiles: []
+    };
+  }
+
+  // @req REL-DOC-008
+  _markRebuildStartFailed(result = {}, requestedBy = 'settings.rebuild') {
+    const status = result && result.status && typeof result.status === 'object' ? result.status : {};
+    const diagnostic = status.diagnostic && typeof status.diagnostic === 'object' ? status.diagnostic : null;
+    const reason = result.reason || (diagnostic && diagnostic.code) || 'rebuild-start-failed';
+    const detail = result.message || result.error || (diagnostic && diagnostic.message) || reason;
+    const message = detail && detail !== reason ? `${reason}: ${detail}` : detail;
+    this.dirty = true;
+    this._lastDegradedReason = reason;
+    this._status = {
+      ...this._status,
+      state: 'failed',
+      phase: 'start',
+      currentPath: null,
+      progress: { current: 0, total: 0 },
+      rebuildSession: {
+        active: false,
+        indexedCount: 0,
+        pendingCount: 0,
+        totalCount: 0,
+        currentPath: null,
+        requestedBy
+      },
+      errorSummary: message || 'Search index rebuild could not be started',
+      failedFiles: []
+    };
+    return this.getStatus();
+  }
+
   startRebuild(options = {}) {
     const requestedBy = options.requestedBy || 'settings.rebuild';
+    const sourceRootStatus = this._getSourceRootStatus();
+    if (!sourceRootStatus.ok) {
+      if (sourceRootStatus.reason === 'source-root-unavailable' && this._lastDegradedReason === 'index_missing') {
+        const failedStatus = this._markRebuildStartFailed({
+          started: false,
+          scheduled: false,
+          reason: sourceRootStatus.reason
+        }, requestedBy);
+        return {
+          started: false,
+          scheduled: false,
+          reason: sourceRootStatus.reason,
+          status: failedStatus
+        };
+      }
+      return {
+        started: false,
+        scheduled: false,
+        reason: sourceRootStatus.reason,
+        status: this.getStatus()
+      };
+    }
     const controller = this.getIndexingWorkerController();
     if (controller && typeof controller.enqueueRebuild === 'function') {
       if (controller.isActive && controller.isActive()) {
         return { started: false, status: this.getStatus() };
       }
+      this._beginFullRebuildStatus(requestedBy);
       const result = controller.enqueueRebuild({ requestedBy });
+      if (!(result && (result.started === true || result.scheduled === true))) {
+        const failedStatus = this._markRebuildStartFailed(result || {}, requestedBy);
+        return {
+          started: result && result.started === true,
+          scheduled: result && result.scheduled === true,
+          jobId: result && result.jobId ? result.jobId : null,
+          reason: result && result.reason ? result.reason : 'rebuild-start-failed',
+          status: failedStatus
+        };
+      }
       if (result.promise) {
         this._rebuildPromise = result.promise
           .catch((err) => {
@@ -2167,11 +2267,7 @@ class SearchEngine {
     if (this._rebuildPromise) {
       return { started: false, status: this.getStatus() };
     }
-    this._status.rebuildSession = {
-      ...(normalizeRebuildSession(this._status.rebuildSession) || {}),
-      active: true,
-      requestedBy: options.requestedBy || 'settings.rebuild'
-    };
+    this._beginFullRebuildStatus(options.requestedBy || 'settings.rebuild');
     this.rebuild().catch((err) => {
       console.error('[doculight] Background search index rebuild failed:', err.message);
     });
@@ -2360,18 +2456,34 @@ class SearchEngine {
   // @req FR-DOC-024
   queueSemanticReindexForActiveDocuments({ requestedBy = 'embedding-registration' } = {}) {
     const sourceRoot = this._getSourceRoot();
+    if (!sourceRoot) {
+      return { queued: 0, jobs: [], skipped: true, reason: 'source-root-unconfigured' };
+    }
     const ledger = this.indexDataDir ? this._getSourceLedger() : null;
-    if (!sourceRoot || !ledger || typeof ledger.listActiveDocuments !== 'function') {
+    if (!ledger || typeof ledger.listActiveDocuments !== 'function') {
       return { queued: 0, jobs: [], reason: 'source-ledger-unavailable' };
     }
+    const sourceDocumentsByPath = new Map();
+    const addSourceDocument = (document, { overwrite = true } = {}) => {
+      if (!document || !document.filePathInternal || !isWithinRoot(document.filePathInternal, sourceRoot)) return;
+      const key = normalizeInternalPath(document.filePathInternal);
+      if (!overwrite && sourceDocumentsByPath.has(key)) return;
+      sourceDocumentsByPath.set(key, document);
+    };
     const documents = ledger.listActiveDocuments({});
-    const sourceDocuments = documents.length > 0
-      ? documents
-      : this._getLegacyKnowledgeStoreDocumentsForSemanticReindex(sourceRoot);
+    for (const document of documents) {
+      addSourceDocument(document);
+    }
+    for (const document of this._getLegacyKnowledgeStoreDocumentsForSemanticReindex(sourceRoot)) {
+      addSourceDocument(document, { overwrite: false });
+    }
+    const sourceDocuments = Array.from(sourceDocumentsByPath.values());
     const jobs = [];
+    const queuedRecords = [];
+    const failures = [];
     for (const document of sourceDocuments) {
       if (!document || !document.filePathInternal || !isWithinRoot(document.filePathInternal, sourceRoot)) continue;
-      const queued = this.queueDocumentIndex({
+      const queueInput = {
         filePath: document.filePathInternal,
         requestedBy,
         metadata: {
@@ -2379,7 +2491,10 @@ class SearchEngine {
           category: document.category,
           documentTags: document.documentTags || []
         }
-      });
+      };
+      const queued = document.documentId && document.sourceId
+        ? this.queueKnownDocumentIndex({ ...queueInput, document })
+        : this.queueDocumentIndex(queueInput);
       if (queued && queued.queued) {
         jobs.push({
           jobId: queued.jobId || null,
@@ -2387,9 +2502,69 @@ class SearchEngine {
           sourceRelativePath: document.sourceRelativePath,
           requestedBy
         });
+        queuedRecords.push({
+          jobId: queued.jobId || null,
+          filePathInternal: document.filePathInternal,
+          sourceRelativePath: document.sourceRelativePath || null
+        });
+      } else {
+        failures.push({
+          documentId: document.documentId || null,
+          sourceRelativePath: document.sourceRelativePath || null,
+          reason: queued && queued.reason ? queued.reason : 'not-queued'
+        });
       }
     }
+    if (failures.length > 0) {
+      const rollback = this._rollbackSemanticReindexQueuedJobs(ledger, queuedRecords, requestedBy);
+      return {
+        queued: 0,
+        jobs: [],
+        rolledBackJobs: jobs,
+        rolledBack: rollback.rolledBack,
+        rollbackFailures: rollback.failures,
+        failures,
+        reason: 'semantic-reindex-enqueue-failed'
+      };
+    }
     return { queued: jobs.length, jobs };
+  }
+
+  _rollbackSemanticReindexQueuedJobs(ledger, queuedRecords = [], requestedBy = 'embedding-registration') {
+    const result = { rolledBack: 0, failures: [] };
+    for (const record of queuedRecords) {
+      if (!record) continue;
+      try {
+        if (record.filePathInternal) {
+          this._smartIndexQueue.delete(normalizeInternalPath(record.filePathInternal));
+        }
+        if (record.jobId && ledger && typeof ledger.updateIndexJob === 'function') {
+          const updated = ledger.updateIndexJob(record.jobId, {
+            status: 'cancelled',
+            cancelRequested: true,
+            diagnosticCode: 'semantic_reindex_enqueue_rollback',
+            diagnostic: {
+              message: 'Semantic reindex enqueue failed; queued job rolled back',
+              requestedBy,
+              sourceRelativePath: record.sourceRelativePath || null
+            },
+            finishedAt: true
+          });
+          if (updated) {
+            result.rolledBack += 1;
+          }
+        } else {
+          result.rolledBack += 1;
+        }
+      } catch (err) {
+        result.failures.push({
+          jobId: record.jobId || null,
+          sourceRelativePath: record.sourceRelativePath || null,
+          reason: err && err.message ? err.message : 'rollback-failed'
+        });
+      }
+    }
+    return result;
   }
 
   _getLegacyKnowledgeStoreDocumentsForSemanticReindex(sourceRoot) {
@@ -2446,7 +2621,8 @@ class SearchEngine {
   }
 
   _recordFailure(phase, currentPath, err, failedFiles) {
-    this._status = {
+    const rebuildSession = normalizeRebuildSession(this._status.rebuildSession);
+    const nextStatus = {
       ...this._status,
       state: phase === 'cancelled' ? 'cancelled' : 'failed',
       phase,
@@ -2454,6 +2630,15 @@ class SearchEngine {
       errorSummary: err.message,
       failedFiles
     };
+    if (rebuildSession) {
+      nextStatus.rebuildSession = {
+        ...rebuildSession,
+        active: false,
+        pendingCount: 0,
+        currentPath: null
+      };
+    }
+    this._status = nextStatus;
   }
 
   close() {
@@ -2584,6 +2769,21 @@ class SearchEngine {
   _getSourceRoot() {
     const savePath = this.store.get('mcpAutoSavePath', '');
     return savePath ? path.resolve(savePath) : '';
+  }
+
+  _getSourceRootStatus() {
+    const sourceRoot = this._getSourceRoot();
+    if (!sourceRoot) {
+      return { ok: false, reason: 'source-root-unconfigured', sourceRoot: '' };
+    }
+    try {
+      if (fs.statSync(sourceRoot).isDirectory()) {
+        return { ok: true, reason: null, sourceRoot };
+      }
+    } catch {
+      return { ok: false, reason: 'source-root-unavailable', sourceRoot };
+    }
+    return { ok: false, reason: 'source-root-unavailable', sourceRoot };
   }
 
   _getBackendStatusName() {

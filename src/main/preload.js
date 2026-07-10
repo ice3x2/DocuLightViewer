@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('doclight', {
   navigateTo: (filePath) => ipcRenderer.send('navigate-to', filePath),
   navigateBack: () => ipcRenderer.send('navigate-back'),
   navigateForward: () => ipcRenderer.send('navigate-forward'),
+  navigateToHistoryIndex: (index) => ipcRenderer.send('navigate-to-history-index', index),
   openExternal: (url) => ipcRenderer.send('open-external', url),
   notifyReady: () => ipcRenderer.send('window-ready'),
 
@@ -174,6 +175,16 @@ contextBridge.exposeInMainWorld('doclight', {
 
   // Read a local image file as a base64 data URL (bypasses file:// sandbox restriction)
   readImageAsDataUrl: (filePath) => ipcRenderer.invoke('read-image-as-data-url', filePath),
+
+  // Dedicated Mermaid / image media viewer
+  openMediaViewer: (payload) => ipcRenderer.invoke('media-viewer:open', payload),
+  downloadMediaAsset: (request) => ipcRenderer.invoke('media-viewer:download', request),
+  getMediaViewerPayload: () => ipcRenderer.invoke('media-viewer:get-payload'),
+  onMediaViewerPayload: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('media-viewer-payload', handler);
+    return () => ipcRenderer.removeListener('media-viewer-payload', handler);
+  },
 
   // Save As / Quick Save / Delete auto-saved file (FR-21)
   saveAs: (params) => ipcRenderer.invoke('save-as', params),

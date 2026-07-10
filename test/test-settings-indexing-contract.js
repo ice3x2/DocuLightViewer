@@ -57,6 +57,11 @@ const statusPayload = statusEngine.getStatus();
 for (const field of ['state', 'indexedCount', 'pendingCount', 'failedCount', 'currentPath', 'phase', 'lastIndexedTime', 'errorSummary']) {
   assert(Object.prototype.hasOwnProperty.call(statusPayload, field), `indexing status payload includes ${field}`);
 }
+assert.strictEqual(
+  statusPayload.state,
+  'stale',
+  'dirty uninitialized search index reports stale/rebuild-required instead of uninitialized'
+);
 
 for (const id of [
   'settings-title',
@@ -90,11 +95,26 @@ assert(settingsJs.includes("setSettingsTitle('settings.indexingManage')"), 'inde
 assert(settingsJs.includes("setSettingsTitle('settings.heading')"), 'main settings view restores generic Settings heading');
 assert(settingsJs.includes('formatIndexingDiagnostic'), 'settings renderer formats indexing diagnostics before display');
 assert(settingsJs.includes('formatIndexingActionResult'), 'settings renderer surfaces action failure and scheduled results');
+assert(settingsJs.includes('result.started === false'), 'settings renderer treats failed rebuild start as an incomplete action');
+assert(settingsJs.includes('result.scheduled === false'), 'settings renderer treats failed rebuild scheduling as an incomplete action');
 assert(settingsJs.includes('formatIndexingDisplayPath'), 'settings renderer formats current indexing paths for display');
 assert(settingsJs.includes('formatLinkedImportMessage'), 'settings renderer formats linked import errors before display');
 assert(settingsJs.includes('settings.indexingNativeModuleMismatch'), 'native module mismatch is rendered as a localized user-facing message');
 assert(settingsJs.includes('nativeRepair'), 'settings renderer reads native repair status from indexing status payload');
 assert(settingsJs.includes('settings.indexingNativeRepairing'), 'settings renderer renders native repair progress text');
+assert(/id="mcpAutoSave-checkbox"[^>]*disabled/.test(settingsHtml), 'auto-save checkbox starts disabled until a document store path is configured');
+assert(/id="indexing-manage-btn"[^>]*disabled/.test(settingsHtml), 'search index management button starts disabled until a document store path is configured');
+assert(settingsJs.includes('let savedDocumentStorePath'), 'settings renderer tracks the saved document store path separately from unsaved input');
+assert(settingsJs.includes('function hasDocumentStorePath'), 'settings renderer centralizes document store path availability checks');
+assert(settingsJs.includes('function hasSavedDocumentStorePath'), 'settings renderer only allows index management for the saved document store path');
+assert(settingsJs.includes('mcpAutoSaveCheckbox.disabled = !hasPath'), 'settings renderer disables auto-save when no document store path is configured');
+assert(settingsJs.includes('if (!hasPath) mcpAutoSaveCheckbox.checked = false'), 'settings renderer unchecks auto-save when no document store path is configured');
+assert(!settingsJs.includes('mcpAutoSaveCheckbox.checked = hasPath'), 'settings renderer enables auto-save without forcing the user opt-in checkbox on');
+assert(settingsJs.includes('indexingManageBtn.disabled = !hasSavedPath'), 'settings renderer disables search index management until the current path is saved');
+assert(/function showIndexingManagementView\(\)\s*{[\s\S]{0,180}if \(!hasSavedDocumentStorePath\(\)\) return;/.test(settingsJs), 'settings renderer prevents entering index management without a saved document store path');
+assert(/const sourceRootConfigured\s*=/.test(main), 'main process computes document store source-root availability for indexing status');
+assert(/canRebuild:\s*sourceRootConfigured/.test(main), 'main indexing status exposes whether rebuild is currently allowed');
+assert(/fs\.statSync\([^)]*\)\.isDirectory\(\)/.test(main), 'main process treats only existing directories as configured document store roots');
 assert(settingsJs.includes('indexingCancelBtn.disabled = busy || rebuildActive || !active || nativeRepairActive'), 'settings renderer does not expose indexing cancel during native repair or full rebuild');
 assert(settingsJs.includes('const showPhase'), 'technical phase text is hidden unless indexing is actively running');
 assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings renderer tracks an in-flight indexing status request');
@@ -111,6 +131,14 @@ assert(
   /indexingCancelBtn\.disabled\s*=\s*busy\s*\|\|\s*rebuildActive\s*\|\|\s*!active\s*\|\|\s*nativeRepairActive/.test(settingsJs),
   'settings renderer disables the stop-indexing button while full rebuild is active'
 );
+assert(
+  /searchEngine\.resetForSourceRootChange\(\);\s*initializeSearchEngineIfConfigured\(\);/.test(main),
+  'saving a newly configured document store reinitializes search index status after source-root reset'
+);
+assert(
+  !/function initializeSearchEngineIfConfigured\(\)[\s\S]{0,220}mcpAutoSave['"],\s*false/.test(main),
+  'search index status initialization depends on the configured document store path, not the MCP auto-save toggle'
+);
 assert(settingsJs.includes('ACTIVE_INDEXING_POLL_MS'), 'settings renderer defines active indexing polling cadence');
 assert(settingsJs.includes('IDLE_INDEXING_POLL_MS'), 'settings renderer defines idle indexing polling cadence');
 assert(settingsJs.includes('scheduleIndexingStatusPoll'), 'settings renderer schedules adaptive indexing status polling');
@@ -122,6 +150,9 @@ assert(settingsJs.includes('rebuildSession.indexedCount'), 'settings renderer re
 assert(settingsJs.includes('rebuildSession.pendingCount'), 'settings renderer renders rebuild-session pending count');
 assert(!settingsCss.includes('background: #24292e;'), 'search index manage button no longer uses the black custom background');
 assert(/\.indexing-manage-button[\s\S]*var\(--button-secondary-bg\)/.test(settingsCss), 'search index manage button uses the normal secondary button background');
+assert(/\.indexing-manage-button[\s\S]*font-size:\s*12px;/.test(settingsCss), 'search index manage button uses the same font size as the embedding register button');
+assert(/\.indexing-manage-button[\s\S]*font-weight:\s*400;/.test(settingsCss), 'search index manage button is not visually heavier than the embedding register button');
+assert(/\.indexing-manage-button[\s\S]*margin-top:\s*12px;/.test(settingsCss), 'search index manage button is spaced away from the opened Markdown unavailable hint');
 
 for (const locale of ['en', 'ko', 'ja', 'es']) {
   const file = path.join(root, `src/locales/${locale}.json`);

@@ -1,0 +1,22 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2",
+  "type": "kiwi-pm-preflight",
+  "plan_path": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md",
+  "sidecar_path": "docs/plans/2026-07-02.doculight.0-11-0-w2.sidecar.json",
+  "plan_sha256": "ab3d18985df03bf5e82cb1203ffc3fad794d0ee35d5364e50dd469501fae5586",
+  "sidecar_sha256": "a7ffad915393505248ca0c6812712b1e0a95563df8308e08718abd57393c1d8e",
+  "active_target": "0.11.0-w2",
+  "validator": {
+    "errors": 0,
+    "warnings": 0,
+    "checks_total": 26
+  },
+  "speckiwi_strict": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "lifecycle_gate": {
+    "blocked_req_ids": [],
+    "status": "passed"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "mode": "live",
+  "applied": [],
+  "skipped": [
+    {
+      "req_id": "REL-DOC-007",
+      "reason": "already_evolving_no_verification_yet",
+      "current_status": "planned",
+      "current_stability": "evolving"
+    }
+  ],
+  "guard_blocked": [],
+  "user_rejected": [],
+  "system_failed": [],
+  "summary": {
+    "applied_count": 0,
+    "skipped_count": 1,
+    "guard_blocked_count": 0,
+    "user_rejected_count": 0,
+    "system_failed_count": 0
+  }
+}

@@ -1,0 +1,6 @@
+[
+  { "id": "OPS-ARCH-004", "stability": "stable", "status": "planned", "ac_total": 5, "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"] },
+  { "id": "IR-APP-010", "stability": "stable", "status": "planned", "ac_total": 5, "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"] },
+  { "id": "IR-MCP-013", "stability": "stable", "status": "planned", "ac_total": 5, "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"] },
+  { "id": "FR-DOC-018", "stability": "stable", "status": "planned", "ac_total": 5, "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"] }
+]

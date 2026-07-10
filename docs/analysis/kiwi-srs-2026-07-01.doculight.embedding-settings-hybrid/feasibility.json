@@ -1,0 +1,21 @@
+{
+  "implementability": "high",
+  "product_fit": "core",
+  "rationale": "The requested behavior aligns with the existing 0.11.0-w2 goal for SQLite search store, embedding, HNSW, background indexing, and read-only smart_search. Current code already has Settings indexing controls and MCP keyword limit defaults that can be extended.",
+  "code_evidence": [
+    "src/renderer/settings.html:L160-L180",
+    "src/renderer/settings.js:L313-L337",
+    "src/main/index.js:L1057-L1084",
+    "src/main/index.js:L1152-L1211",
+    "src/main/search-sqlite-store.js:L208-L236",
+    "src/main/mcp-http.mjs:L97-L108",
+    "src/main/mcp-server.mjs:L589-L599"
+  ],
+  "blockers": [],
+  "conditions": [
+    "Embedding endpoint/model test details remain local in model-api.txt and are not committed.",
+    "No MCP indexing-control tools are introduced.",
+    "Semantic index deletion/invalidation happens only after explicit Settings confirmation or successful Connect action."
+  ],
+  "external_module_required": false
+}

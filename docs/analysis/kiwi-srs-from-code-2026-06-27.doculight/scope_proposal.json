@@ -1,0 +1,101 @@
+{
+  "project_slug": "doculight",
+  "generated": "2026-06-27",
+  "scope_min": 3,
+  "scope_max": 8,
+  "note": "Reuse existing ARCH scope (10.product-architecture.srs.md, currently a stub) for cross-cutting concerns. 6 new feature scopes added. Type prefixes (FR/NFR/IR/DR/SEC/PERF/REL/OBS/OPS/MIG/CON) avoided per skill §0.8. All scope prefixes unique and SRS-MD §11.2 compliant.",
+  "scopes": [
+    {
+      "name": "Product Architecture",
+      "slug": "product-architecture",
+      "prefix": "ARCH",
+      "ordering": 10,
+      "existing": true,
+      "document": "docs/spec/10.product-architecture.srs.md",
+      "primary_dirs": ["(cross-cutting)"],
+      "primary_files_glob": ["package.json", "build/**", "electron-builder*", "src/main/mcp-server.mjs"],
+      "rationale": "Cross-cutting product constraints: Electron security baseline (contextIsolation/sandbox/nodeIntegration), CJS vs ESM process model, vendored renderer libs, build & packaging (electron-builder, esbuild bundle), MCP bundle pipeline. Owns OPS/CON/architecture-level requirements that have no single feature home; per-feature security behaviors live in their feature scope.",
+      "estimated_req_count": 8,
+      "candidate_prefix_alternatives": ["ARCH", "ARC", "PROD"],
+      "inventory_share": { "cli_commands": 9, "config_options": 0, "public_classes_or_funcs": 0 }
+    },
+    {
+      "name": "Application Shell and IPC",
+      "slug": "app-shell",
+      "prefix": "APP",
+      "ordering": 20,
+      "document": "docs/spec/20.app-shell.srs.md",
+      "primary_dirs": ["src/main/"],
+      "primary_files_glob": ["src/main/index.js", "src/main/preload.js", "src/main/strings.js", "src/main/file-association.js", "src/locales/**"],
+      "rationale": "Electron app lifecycle, single-instance lock, system tray, ndjson IPC socket server (Named Pipe / Unix socket), electron-store settings, contextBridge API, i18n locale loading, Windows .md file association. The central glue of the main process.",
+      "estimated_req_count": 24,
+      "candidate_prefix_alternatives": ["APP", "SHELL", "MAIN"],
+      "inventory_share": { "ipc_actions": 43, "config_options": 20, "events_messages": 54, "public_classes_or_funcs": 15 }
+    },
+    {
+      "name": "Window Management and Navigation",
+      "slug": "window-management",
+      "prefix": "WIN",
+      "ordering": 30,
+      "document": "docs/spec/30.window-management.srs.md",
+      "primary_dirs": ["src/main/"],
+      "primary_files_glob": ["src/main/window-manager.js"],
+      "rationale": "BrowserWindow lifecycle, named-window upsert, cascading positions, navigation history, window state tracking, file watchers, sidebar tree load orchestration, severity/auto-close/progress window features.",
+      "estimated_req_count": 18,
+      "candidate_prefix_alternatives": ["WIN", "WND", "WM"],
+      "inventory_share": { "public_classes_or_funcs": 25, "data_entities": 4 }
+    },
+    {
+      "name": "Sidebar Tree Builder",
+      "slug": "sidebar-tree",
+      "prefix": "TREE",
+      "ordering": 40,
+      "document": "docs/spec/40.sidebar-tree.srs.md",
+      "primary_dirs": ["src/main/"],
+      "primary_files_glob": ["src/main/link-parser.js"],
+      "rationale": "Merged sidebar tree: link-based tree from markdown links/wikilinks + filesystem directory tree, with linked-node marking. Limits MAX_DIR_FILES/MAX_TREE_FILES/MAX_DEPTH.",
+      "estimated_req_count": 9,
+      "candidate_prefix_alternatives": ["TREE", "SIDEBAR", "NAV"],
+      "inventory_share": { "public_classes_or_funcs": 8, "data_entities": 1 }
+    },
+    {
+      "name": "MCP Server Integration",
+      "slug": "mcp-integration",
+      "prefix": "MCP",
+      "ordering": 50,
+      "document": "docs/spec/50.mcp-integration.srs.md",
+      "primary_dirs": ["src/main/"],
+      "primary_files_glob": ["src/main/mcp-server.mjs", "src/main/mcp-http.mjs"],
+      "rationale": "Two MCP transports exposing 6 tools (open_markdown, update_markdown, close_viewer, list_viewers, search_documents, search_projects): stdio server via @modelcontextprotocol/sdk + Zod, and embedded HTTP JSON-RPC 2.0 server (Streamable HTTP, SSE, CORS, OAuth discovery stubs).",
+      "estimated_req_count": 16,
+      "candidate_prefix_alternatives": ["MCP", "MCPSRV", "RPC"],
+      "inventory_share": { "mcp_tools": 6, "rest_endpoints": 11, "public_classes_or_funcs": 3 }
+    },
+    {
+      "name": "Document Persistence and Search",
+      "slug": "document-persistence",
+      "prefix": "DOC",
+      "ordering": 60,
+      "document": "docs/spec/60.document-persistence.srs.md",
+      "primary_dirs": ["src/main/"],
+      "primary_files_glob": ["src/main/mcp-save.js", "src/main/frontmatter.js", "src/main/git-info.js", "src/main/search-engine.js", "src/main/tokenizer.js"],
+      "rationale": "Auto-save of MCP documents with subdirectory templating, YAML frontmatter injection/parsing (docType classification), git metadata collection, and BM25 full-text search (Korean+English composite tokenizer) over saved documents.",
+      "estimated_req_count": 20,
+      "candidate_prefix_alternatives": ["DOC", "DOCS", "STORE"],
+      "inventory_share": { "public_classes_or_funcs": 19, "data_entities": 6 }
+    },
+    {
+      "name": "Renderer and Rendering Pipeline",
+      "slug": "renderer-pipeline",
+      "prefix": "RENDER",
+      "ordering": 80,
+      "document": "docs/spec/80.renderer-pipeline.srs.md",
+      "primary_dirs": ["src/renderer/"],
+      "primary_files_glob": ["src/renderer/viewer.js", "src/renderer/viewer.html", "src/renderer/viewer.css", "src/renderer/settings.js", "src/renderer/tab-manager.js", "src/renderer/sidebar-search.js", "src/renderer/pdf-export-ui.js", "src/renderer/image-resolver.js"],
+      "rationale": "Renderer UI: markdown rendering pipeline (marked -> DOMPurify -> heading IDs -> images -> mermaid -> highlight -> TOC), themes, settings UI, tab-based multi-document view, sidebar file search, PDF export modal, relative image path resolution.",
+      "estimated_req_count": 22,
+      "candidate_prefix_alternatives": ["RENDER", "VIEW", "UI"],
+      "inventory_share": { "public_classes_or_funcs": 0, "events_messages": 0 }
+    }
+  ]
+}

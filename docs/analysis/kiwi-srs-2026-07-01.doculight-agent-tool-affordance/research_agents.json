@@ -1,0 +1,28 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "target": "0.11.0-w2",
+  "agents": [
+    {
+      "id": "019f1cdd-cff1-79e1-9c75-658260c66ca9",
+      "focus": "Existing SRS and cross-client compatibility",
+      "result": "Current SRS covers strict eight-tool parity, canonical JSON, redaction, and no MCP indexing controls; missing explicit client-profile/model-size conformance.",
+      "recommendation": "Add CON-MCP-008 as an MCP conformance requirement layered on IR-MCP-018 and CON-MCP-007."
+    },
+    {
+      "id": "019f1cde-0520-7fb3-a5fd-ad74f6f0fb77",
+      "focus": "Small-model and frontier-model tool-selection failure modes",
+      "result": "Small models need compact self-routing descriptions and strict schemas; frontier models need explicit forbidden orchestration boundaries.",
+      "recommendation": "Use golden intent fixtures and redacted corrective errors; do not add aliases or MCP indexing/import controls."
+    },
+    {
+      "id": "019f1cdd-9864-7a90-9160-d7d0a7a78937",
+      "focus": "Tool affordance, result envelope, diagnostics, and portability",
+      "result": "Exactly eight tools should remain; diagnostics should be exposed through existing save/search envelopes and bounded includeDiagnostics behavior.",
+      "recommendation": "Keep content[0].text canonical JSON, bounded diagnostics, portable schema subset, and client conformance matrix."
+    }
+  ],
+  "integratedFollowUp": {
+    "userRequest": "Broken-link policy must be considered.",
+    "decision": "Preserve CON-DOC-006 and DR-DOC-013 as the DOC-owned broken-link lifecycle. MCP conformance must verify non-blocking redacted broken-link diagnostics and must not add import or reconciliation controls."
+  }
+}

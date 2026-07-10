@@ -1,0 +1,41 @@
+{
+  "iter": 2,
+  "evaluator": "Sagan",
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "remaining_actionable_findings": [],
+  "checks": {
+    "discarded_dependency_check": {
+      "passed": true,
+      "discarded_ids": [
+        "IR-MCP-014",
+        "CON-MCP-003"
+      ],
+      "result": "No active non-discarded 0.11.0-w2 requirement has a depends_on relation to either discarded ID."
+    },
+    "smart_search_default_limit": {
+      "passed": true,
+      "current_contract": "20"
+    },
+    "settings_percent_progress": {
+      "passed": true,
+      "evidence": [
+        "docs/spec/20.app-shell.srs.md:1528",
+        "docs/spec/60.document-persistence.srs.md:2340"
+      ]
+    },
+    "fr_doc_025_trace_relation": {
+      "passed": true,
+      "result": "FR-DOC-025 uses compatibility_reference for existing SQLite keyword behavior and addition_site for unimplemented hybrid work."
+    },
+    "validate_spec": {
+      "passed": true,
+      "errors": 0,
+      "warnings": 0
+    }
+  }
+}

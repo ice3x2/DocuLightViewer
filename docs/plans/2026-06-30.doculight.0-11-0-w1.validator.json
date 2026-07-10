@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "phases": 3,
+    "tasks": 5,
+    "coverage": "4/4 requirements, 20/20 acceptance criteria"
+  },
+  "notes": "Manual planner validation completed against kiwi-planner v0.6 schema subset used by this repository session."
+}

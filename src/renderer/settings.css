@@ -54,7 +54,8 @@ h1 {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
@@ -66,7 +67,8 @@ h1 {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: var(--button-bg);
   box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.15);
@@ -269,18 +271,24 @@ h1 {
 .indexing-manage-button {
   width: 100%;
   min-height: 34px;
+  margin-top: 12px;
   padding: 7px 12px;
   cursor: pointer;
   background: var(--button-secondary-bg);
   color: var(--button-secondary-text);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .indexing-manage-button:hover {
   opacity: 0.92;
+}
+
+.indexing-manage-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .indexing-management-view {
@@ -486,7 +494,16 @@ h1 {
   gap: 10px;
 }
 
-.modal-button-group {
+.embedding-registration-view {
+  min-height: calc(100vh - 48px);
+  padding-bottom: 32px;
+}
+
+.embedding-registration-view .checkbox-label {
+  margin-top: 10px;
+}
+
+.embedding-registration-button-group {
   margin-top: 12px;
   padding-top: 12px;
 }

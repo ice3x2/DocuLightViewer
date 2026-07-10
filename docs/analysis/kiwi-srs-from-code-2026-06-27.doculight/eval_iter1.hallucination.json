@@ -1,0 +1,93 @@
+{
+  "axis": "hallucination",
+  "iter": 1,
+  "meta": {
+    "verifier": "independent-hallucination-hunter",
+    "date": "2026-06-27",
+    "requirements_checked": 120,
+    "files_read": [
+      "src/main/index.js",
+      "src/main/window-manager.js",
+      "src/main/preload.js",
+      "src/main/mcp-server.mjs",
+      "src/main/mcp-http.mjs",
+      "src/main/mcp-save.js",
+      "src/main/frontmatter.js",
+      "src/main/git-info.js",
+      "src/main/search-engine.js",
+      "src/main/tokenizer.js",
+      "src/main/link-parser.js",
+      "src/main/file-association.js",
+      "src/main/strings.js",
+      "src/renderer/viewer.html",
+      "src/renderer/viewer.js",
+      "package.json",
+      "electron-builder.yml"
+    ],
+    "srs_files_verified": [
+      "docs/spec/10.product-architecture.srs.md",
+      "docs/spec/20.app-shell.srs.md",
+      "docs/spec/30.window-management.srs.md",
+      "docs/spec/40.sidebar-tree.srs.md",
+      "docs/spec/50.mcp-integration.srs.md",
+      "docs/spec/60.document-persistence.srs.md",
+      "docs/spec/80.renderer-pipeline.srs.md"
+    ]
+  },
+  "findings": [
+    {
+      "id": "hallucination-1-1",
+      "severity": "LOW",
+      "scope": "APP",
+      "requirement_id": "IR-APP-002",
+      "type": "hallucinated",
+      "evidence": "src/main/preload.js:L56",
+      "evidence_path": "src/main/preload.js",
+      "description": "AC-4 claims invoke methods including cancelSidebarTreeLoad are mapped at preload.js L130-178. However, cancelSidebarTreeLoad is at L56 (interleaved among the listener/on* methods section), not in the L130-178 range. The method exists and is correctly characterised as an ipcRenderer.invoke call. The broad VE-1 evidence range (L1-184) covers it correctly. Only the AC-4 narrow line range (L130-178) is inaccurate.",
+      "suggested_action": "update_ac_line_range"
+    }
+  ],
+  "verified_accurate_sampling": [
+    "SEC-ARCH-001: window-manager.js L393-398 and L1243-1248 webPreferences confirmed (contextIsolation:true, nodeIntegration:false, sandbox:true)",
+    "SEC-ARCH-002: viewer.html L6-7 CSP meta tag content confirmed verbatim",
+    "SEC-ARCH-003/SEC-APP-001: index.js L981-993 open-external http/https filter confirmed",
+    "SEC-ARCH-004/SEC-APP-002: index.js L595-597 chmodSync 0o600 on non-win32 confirmed",
+    "CON-ARCH-001: index.js L234 await import('./mcp-http.mjs') confirmed",
+    "CON-ARCH-002: viewer.html L166-169 vendored lib scripts confirmed; package.json deps confirmed absence of marked/dompurify/highlight/mermaid",
+    "CON-ARCH-003: package.json electron ^33.4.0 and engines.node >=20.0.0 confirmed",
+    "DR-APP-001: mcpPort default 32580 (not 52580 as stated in CLAUDE.md doc), enableTabs default true, all 20 schema keys confirmed at index.js L93-129",
+    "OPS-ARCH-002: package.json L13-17 bundle:mcp and prebuild hooks confirmed; electron-builder.yml L18-19 asarUnpack confirmed",
+    "OPS-ARCH-003: electron-builder.yml L1-3 appId/productName/copyright confirmed; nsis/portable artifactName formats confirmed",
+    "IR-MCP-001: mcp-server.mjs L347-426 open_markdown stdio tool confirmed; mcp-http.mjs L129-213 HTTP handler confirmed",
+    "IR-MCP-002: mcp-http.mjs L215-260 update_markdown confirmed; appendMode verb 'Appended to' at L256 confirmed",
+    "IR-MCP-008: PROTOCOL_VERSION '2025-11-25' and SERVER_INFO.name 'doculight' confirmed; handleJsonRpc method router at L373-426 confirmed",
+    "IR-MCP-009: POST /mcp entry at mcp-http.mjs L511-591 confirmed",
+    "IR-MCP-010: GET /mcp SSE ':ok' and 15s keepalive at L483-500 confirmed",
+    "IR-MCP-011: DELETE /mcp 405 response at L503-508 confirmed; OPTIONS 204 with correct CORS headers at L459-465 confirmed",
+    "IR-MCP-012: well-known oauth/openid JSON 404 stub at L473-478 confirmed",
+    "CON-MCP-001: Origin header 403 block at L448-456 confirmed",
+    "OPS-MCP-001: port scan loop (upward then downward to 1024) at L609-634; atomic .tmp write at L641-652 confirmed",
+    "FR-DOC-001: saveMcpFile noSave/enabled/basePath guards at mcp-save.js L116-133 confirmed",
+    "FR-DOC-002: resolveSubDir token replacement at mcp-save.js L33-61 confirmed",
+    "FR-DOC-005: injectFrontmatter date auto-add and merge logic at frontmatter.js L38-66 confirmed",
+    "FR-DOC-007: parseFrontmatter at frontmatter.js L121-131; parseSimpleYaml at L74-90 confirmed",
+    "FR-DOC-008: collectGitInfo at git-info.js L45-76; sanitizeRemoteUrl at L34-37 confirmed",
+    "FR-DOC-009: SearchEngine.search BM25 + filter at search-engine.js L103-139 confirmed",
+    "FR-DOC-011: rebuild 20-item batch scan at search-engine.js L54-92 confirmed",
+    "DR-DOC-004: BM25 fldWeights title=5/project=4/docName=3/docType=3/desc=2/body=1; bm25Params k1=1.2/b=0.75/k=1 at L220-231 confirmed",
+    "FR-DOC-014: tokenize 3-layer (word/suffix-strip/bigram) at tokenizer.js L18-54 confirmed",
+    "FR-WIN-001: named-window upsert + _pendingNames guard at window-manager.js L254-321 confirmed",
+    "FR-WIN-004: 30px cascade offset at window-manager.js L1385-1386 confirmed; first-window centering at L1376-1381 confirmed",
+    "FR-TREE-001: buildLinkTree visited/globalSeen/leaf-node logic at link-parser.js L243-306 confirmed",
+    "FR-TREE-004: compareFileNames numeric prefix sort regex at link-parser.js L40-71 confirmed",
+    "FR-RENDER-001: DOMPurify.sanitize USE_PROFILES/ADD_TAGS/ALLOWED_URI_REGEXP at viewer.js L427-432 confirmed",
+    "FR-RENDER-004: mermaid.initialize securityLevel:'strict'/startOnLoad:false at viewer.js L164-171 confirmed",
+    "ARCH sidebar cache: SIDEBAR_CACHE_TTL_MS=5min, SIDEBAR_CACHE_MAX_SIZE=32 at window-manager.js L13-14 confirmed"
+  ],
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 1
+  }
+}

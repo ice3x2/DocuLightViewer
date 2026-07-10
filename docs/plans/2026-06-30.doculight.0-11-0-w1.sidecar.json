@@ -1,0 +1,215 @@
+{
+  "schema_version": "1.1.0",
+  "plan_contract": "1.2.0",
+  "run_id": "2026-06-30.doculight.0-11-0-w1",
+  "target": "0.11.0-w1",
+  "plan_version": "0.1.0",
+  "generated_at": "2026-06-30T01:45:35+09:00",
+  "tool_versions": {
+    "speckiwi": "mcp",
+    "kiwi_planner": "0.6",
+    "validator": "manual"
+  },
+  "tdd_policy": "relaxed",
+  "md_path": "docs/plans/2026-06-30.doculight.0-11-0-w1.plan.md",
+  "md_sha256": "manual-record",
+  "phases": [
+    { "id": "PH-001", "title": "Red Tests", "goal": "Add failing contract tests for Wave 1 ACs", "depends_on": [], "task_ids": ["T-PH001-01"] },
+    { "id": "PH-002", "title": "Implementation", "goal": "Implement Wave 1 behavior in app code", "depends_on": ["PH-001"], "task_ids": ["T-PH002-01", "T-PH002-02", "T-PH002-03"] },
+    { "id": "PH-003", "title": "Verification", "goal": "Regenerate bundle, run checks, and update SRS evidence", "depends_on": ["PH-002"], "task_ids": ["T-PH003-01"] }
+  ],
+  "tasks": [
+    {
+      "id": "T-PH001-01",
+      "phase_id": "PH-001",
+      "title": "Add Wave 1 red contract tests",
+      "type": "code",
+      "req_ids": ["FR-DOC-018", "IR-APP-010", "IR-MCP-013", "OPS-ARCH-004"],
+      "files": [
+        { "path": "test/test-search-engine-lifecycle.js" },
+        { "path": "test/test-mcp-http-save-parity.js" },
+        { "path": "test/test-mcp-tool-parity.js" },
+        { "path": "test/test-settings-indexing-contract.js" }
+      ],
+      "action": "Add focused Node tests that fail against current Wave 1 gaps.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "npm run test:wave1", "expected_exit": 1 }],
+      "verification_cmd": { "posix": "npm run test:wave1", "windows": "npm run test:wave1" },
+      "dod": ["Red tests fail for current Wave 1 gaps."],
+      "rollback": "Remove added Wave 1 test files.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": [],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"],
+      "tdd": {
+        "applicable": true,
+        "phase": "red",
+        "test_cases": [
+          { "id": "TC-REQ-FR-DOC-018-AC3-01", "req_id": "FR-DOC-018", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-search-engine-lifecycle.js", "kind": "unit", "expected_failure_signature": "getStatus|atomic|rebuild" },
+          { "id": "TC-REQ-IR-MCP-013-AC1-01", "req_id": "IR-MCP-013", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-mcp-http-save-parity.js", "kind": "contract", "expected_failure_signature": "createToolHandlers is not a function" },
+          { "id": "TC-REQ-OPS-ARCH-004-AC2-01", "req_id": "OPS-ARCH-004", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-mcp-tool-parity.js", "kind": "contract", "expected_failure_signature": "TOOLS" },
+          { "id": "TC-REQ-IR-APP-010-AC1-01", "req_id": "IR-APP-010", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-settings-indexing-contract.js", "kind": "contract", "expected_failure_signature": "preload exposes getIndexingStatus" }
+        ],
+        "red_evidence": {
+          "command": "node test/test-search-engine-lifecycle.js && node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js && node test/test-settings-indexing-contract.js",
+          "exit_code": 1,
+          "captured_failure": "Initial red run failed on missing SearchEngine lifecycle/status, missing HTTP handler export/TOOLS, and missing Settings indexing API.",
+          "timestamp": "2026-06-30T01:40:00+09:00"
+        },
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH002-01",
+      "phase_id": "PH-002",
+      "title": "Implement committed keyword index lifecycle",
+      "type": "code",
+      "req_ids": ["FR-DOC-018"],
+      "files": [
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/index.js" },
+        { "path": "src/main/mcp-http.mjs" }
+      ],
+      "action": "Preserve committed index during rebuild failure, make JSON writes atomic, expose status diagnostics, and stop search_documents/search_projects from calling rebuild paths.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-engine-lifecycle.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-search-engine-lifecycle.js", "windows": "node test/test-search-engine-lifecycle.js" },
+      "dod": ["Search uses committed index while stale.", "Failed rebuild preserves previous JSON and in-memory index.", "Diagnostics report stale/degraded state."],
+      "rollback": "Revert SearchEngine lifecycle changes.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH001-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [{ "id": "TC-REQ-FR-DOC-018-AC3-01", "req_id": "FR-DOC-018", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-search-engine-lifecycle.js", "kind": "unit" }],
+        "red_evidence": null,
+        "green_evidence": { "command": "node test/test-search-engine-lifecycle.js", "exit_code": 0, "timestamp": "2026-06-30T01:42:28+09:00" }
+      }
+    },
+    {
+      "id": "T-PH002-02",
+      "phase_id": "PH-002",
+      "title": "Implement MCP save and bundle parity",
+      "type": "code",
+      "req_ids": ["IR-MCP-013", "OPS-ARCH-004"],
+      "files": [
+        { "path": "package.json" },
+        { "path": "src/main/index.js" },
+        { "path": "src/main/mcp-http.mjs" },
+        { "path": "src/main/mcp-save.js" },
+        { "path": "src/main/mcp-server.bundle.mjs" }
+      ],
+      "action": "Share update save side effects, pass project/docType into HTTP save paths, persist canonical append content, preserve noSave, add Wave 1 parity script, and regenerate MCP bundle.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js", "windows": "node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js" },
+      "dod": ["HTTP update save semantics use canonical content.", "noSave suppresses save and dirty side effects.", "Bundle contains current docType filter contract."],
+      "rollback": "Revert MCP save helper changes and regenerate bundle.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH001-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-IR-MCP-013-AC1-01", "req_id": "IR-MCP-013", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-mcp-http-save-parity.js", "kind": "contract" },
+          { "id": "TC-REQ-OPS-ARCH-004-AC2-01", "req_id": "OPS-ARCH-004", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-mcp-tool-parity.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": { "command": "node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js", "exit_code": 0, "timestamp": "2026-06-30T01:42:28+09:00" }
+      }
+    },
+    {
+      "id": "T-PH002-03",
+      "phase_id": "PH-002",
+      "title": "Implement Settings indexing IPC and UI controls",
+      "type": "code",
+      "req_ids": ["IR-APP-010"],
+      "files": [
+        { "path": "src/main/index.js" },
+        { "path": "src/main/preload.js" },
+        { "path": "src/renderer/settings.html" },
+        { "path": "src/renderer/settings.js" },
+        { "path": "src/renderer/settings.css" },
+        { "path": "src/locales/en.json" },
+        { "path": "src/locales/ko.json" },
+        { "path": "src/locales/ja.json" },
+        { "path": "src/locales/es.json" }
+      ],
+      "action": "Add Settings-only indexing status/control IPC and UI buttons for status, rebuild, cancel, retry failed, compact, clear, and open data directory; keep MCP tools/list unchanged.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-settings-indexing-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-settings-indexing-contract.js", "windows": "node test/test-settings-indexing-contract.js" },
+      "dod": ["Preload exposes Settings functions.", "Main registers IPC handlers.", "UI renders controls with confirmation for compact/clear.", "MCP tools/list has no indexing controls."],
+      "rollback": "Remove Settings indexing controls and IPC handlers.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH001-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [{ "id": "TC-REQ-IR-APP-010-AC1-01", "req_id": "IR-APP-010", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"], "test_file": "test/test-settings-indexing-contract.js", "kind": "contract" }],
+        "red_evidence": null,
+        "green_evidence": { "command": "node test/test-settings-indexing-contract.js", "exit_code": 0, "timestamp": "2026-06-30T01:42:28+09:00" }
+      }
+    },
+    {
+      "id": "T-PH003-01",
+      "phase_id": "PH-003",
+      "title": "Verify Wave 1 and update SRS evidence",
+      "type": "review",
+      "req_ids": ["FR-DOC-018", "IR-APP-010", "IR-MCP-013", "OPS-ARCH-004"],
+      "files": [
+        { "path": "docs/spec/10.product-architecture.srs.md" },
+        { "path": "docs/spec/20.app-shell.srs.md" },
+        { "path": "docs/spec/50.mcp-integration.srs.md" },
+        { "path": "docs/spec/60.document-persistence.srs.md" }
+      ],
+      "action": "Run focused checks, validate SRS, add verification evidence, and move eligible Wave 1 REQs to implemented.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "npm run test:wave1 && node test/test-tokenizer.js && npm run bundle:mcp", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "npm run test:wave1 && node test/test-tokenizer.js && npm run bundle:mcp", "windows": "npm run test:wave1 && node test/test-tokenizer.js && npm run bundle:mcp" },
+      "dod": ["Focused tests pass.", "Bundle is current.", "SpecKiwi validation passes.", "SRS evidence references concrete commands."],
+      "rollback": "Remove invalid SRS evidence through SpecKiwi MCP if verification is invalidated.",
+      "trace_links": [],
+      "estimated_effort": "S",
+      "depends_on_task": ["T-PH002-01", "T-PH002-02", "T-PH002-03"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5"],
+      "tdd": {
+        "applicable": false,
+        "phase": "n/a",
+        "exempt_reason": "Review task records verification and SRS evidence rather than changing executable behavior.",
+        "test_cases": [],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    }
+  ],
+  "coverage": [
+    { "req_id": "OPS-ARCH-004", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-02", "T-PH003-01"] },
+    { "req_id": "IR-APP-010", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-03", "T-PH003-01"] },
+    { "req_id": "IR-MCP-013", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-02", "T-PH003-01"] },
+    { "req_id": "FR-DOC-018", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH003-01"] }
+  ],
+  "orphans": [],
+  "unreferenced_reqs": [],
+  "excluded_reqs": [],
+  "deferred_ac": [],
+  "risks": [
+    {
+      "id": "R-W1-001",
+      "severity": "med",
+      "description": "Existing Playwright helper can select an empty viewer for update rendering checks.",
+      "mitigation": "Wave 1 behavior is covered by focused Node contract tests; Playwright issue is reported separately in PM notes.",
+      "affected_task_ids": ["T-PH003-01"]
+    }
+  ],
+  "open_questions": [],
+  "external_module_impact": [],
+  "tdd_decisions": [],
+  "coder_handoff_readiness": [
+    { "phase_id": "PH-001", "ready": true, "blockers": [] },
+    { "phase_id": "PH-002", "ready": true, "blockers": [] },
+    { "phase_id": "PH-003", "ready": true, "blockers": [] }
+  ],
+  "mcp_call_log": []
+}

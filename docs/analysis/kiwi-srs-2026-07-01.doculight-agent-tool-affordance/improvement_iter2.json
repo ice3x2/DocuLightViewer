@@ -1,0 +1,60 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "iter": 2,
+  "inputRequirement": "CON-MCP-009",
+  "outputRequirement": "CON-MCP-010",
+  "mcpCalls": [
+    {
+      "tool": "add_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-010",
+      "filePath": "docs/spec/50.mcp-integration.srs.md",
+      "notes": "Supersedes CON-MCP-009 with second evaluator fixes."
+    },
+    {
+      "tool": "update_status",
+      "ok": true,
+      "id": "CON-MCP-009",
+      "status": "discarded"
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 2,
+        "warningCodes": [
+          "SRS-W019",
+          "SRS-W020"
+        ],
+        "resolution": "docs/spec/00.index.md discarded and constraint counts plus CON-MCP-010 cross-scope row were updated."
+      }
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 0
+      }
+    }
+  ],
+  "changes": [
+    {
+      "finding": "Numeric output caps had no upper ceiling.",
+      "resolution": "AC-11 now caps results, snippet text, heading path length, warning count, diagnostics arrays, trace items, scoreDetail field count, and serialized JSON byte size."
+    },
+    {
+      "finding": "pathPrefix fail-or-redact wording was ambiguous.",
+      "resolution": "AC-8 now requires unsafe pathPrefix values to fail validation with redacted validation errors and never be accepted or coerced."
+    }
+  ],
+  "indexSync": {
+    "file": "docs/spec/00.index.md",
+    "planned": 28,
+    "discarded": 34,
+    "constraint": 25,
+    "activeRequirement": "CON-MCP-010"
+  },
+  "goldenRule": "No manual apply_patch edits were made to docs/spec/50.mcp-integration.srs.md after SpecKiwi MCP mutations; only docs/spec/00.index.md and analysis logs were manually synchronized."
+}

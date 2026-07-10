@@ -1,0 +1,48 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "subagent_reviewers_completed": [
+    "Kuhn",
+    "Erdos",
+    "James"
+  ],
+  "findings_resolved": [
+    {
+      "finding": "IR-MCP-014 introduced seven MCP tools while CON-MCP-002 fixed the baseline to six tools.",
+      "resolution": "Added CON-MCP-003 for the 0.11.0-w2 seven-tool parity contract and linked IR-MCP-014 to it."
+    },
+    {
+      "finding": "Remote embedding governance did not cover project policy, offline-only mode, or approved endpoint/proxy routing.",
+      "resolution": "Added SEC-APP-003 extending DR-APP-002."
+    },
+    {
+      "finding": "Wave 2 sequencing gates were not encoded.",
+      "resolution": "Added CON-ARCH-004 depending on Wave 1 readiness, seven-tool MCP parity, and native packaging strategy."
+    },
+    {
+      "finding": "Heading-aware chunking was under-specified.",
+      "resolution": "Added DR-DOC-008 for chunk identity, heading offsets, search text, tokenizer compatibility, and stale embedding state."
+    },
+    {
+      "finding": "HNSW delete filtering and compaction lifecycle were missing.",
+      "resolution": "Added FR-DOC-022 for tombstones, deleted filtering, path history, and settings-driven compaction."
+    },
+    {
+      "finding": "Redaction rules were broad but not deterministic.",
+      "resolution": "Added SEC-DOC-002 for allowed path forms, credential grammar, output surfaces, and fixtures."
+    },
+    {
+      "finding": "OPS-ARCH-005 used a Code trace row for a requirement reference.",
+      "resolution": "Changed the trace to Requirement CON-ARCH-003 depends_on."
+    },
+    {
+      "finding": "FR-DOC-018 trace rows marked current rebuild-on-search behavior as verifies.",
+      "resolution": "Changed those rows to negative evidence."
+    }
+  ],
+  "followup_subagent_round": {
+    "requested_agents": 5,
+    "completed_agents": 0,
+    "blocked_reason": "Subagent usage limit was reached before the second --max evaluator round could complete.",
+    "fallback": "Manual consistency review plus SpecKiwi MCP validation and speckiwi CLI validation."
+  }
+}

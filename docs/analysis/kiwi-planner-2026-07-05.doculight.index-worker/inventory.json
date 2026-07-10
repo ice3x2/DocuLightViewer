@@ -1,0 +1,8 @@
+[
+  {
+    "id": "REL-DOC-007",
+    "stability": "evolving",
+    "ac_total": 9,
+    "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9"]
+  }
+]

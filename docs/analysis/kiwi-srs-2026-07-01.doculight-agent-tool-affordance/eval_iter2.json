@@ -1,0 +1,61 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "iter": 2,
+  "evaluatedRequirement": "CON-MCP-009",
+  "evaluators": [
+    {
+      "agentId": "019f1cf3-eb7f-76a3-8e3d-557ae1ad2979",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      }
+    },
+    {
+      "agentId": "019f1cf4-19e5-7bc1-9904-1907ce965161",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      }
+    },
+    {
+      "agentId": "019f1cf4-0264-75a1-87c5-e5de06812b1c",
+      "grade": "A",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 2
+      },
+      "findings": [
+        {
+          "severity": "LOW",
+          "axis": "ac_verifiability",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1842",
+          "description": "Numeric output caps were required but acceptable cap values were not constrained.",
+          "suggestedAction": "Add hard SRS ceilings for fixture cap values."
+        },
+        {
+          "severity": "LOW",
+          "axis": "path_validation",
+          "evidence": "docs/spec/50.mcp-integration.srs.md:1840",
+          "description": "pathPrefix fail-or-redact wording was slightly ambiguous for a source-relative-only filter.",
+          "suggestedAction": "Require validation failure with redacted error payloads for unsafe pathPrefix values."
+        }
+      ]
+    }
+  ],
+  "mergedSummary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 2
+  },
+  "gateResult": "improve-for-a-plus",
+  "resolution": "CON-MCP-010 supersedes CON-MCP-009 with hard numeric output cap ceilings and strict source-relative pathPrefix validation failure semantics."
+}

@@ -1,0 +1,18 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2",
+  "target": "0.11.0-w2",
+  "target_intent": "Implement Wave 2 smart search and knowledge-store lifecycle without adding MCP indexing/import controls.",
+  "user_priorities": [
+    "Embedding model registration through Settings",
+    "Built-in HNSW plus hybrid smart_search",
+    "SQLite source-of-truth ledger",
+    "No-viewer save_document",
+    "Bounded linked local Markdown import without duplicates or loops",
+    "Broken links as redacted diagnostics"
+  ],
+  "ambiguities": [],
+  "non_coding_signals": [
+    "Package smoke and client-profile conformance are release gates.",
+    "Retrieval evaluation set remains future roadmap, not current implementation."
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "subagent_reviewers_completed": [
+    "Linnaeus",
+    "Mill",
+    "Sartre",
+    "Lagrange",
+    "Beauvoir"
+  ],
+  "grades_before_resolution": {
+    "product_research": "A",
+    "code_alignment": "A-",
+    "mcp_contract": "A",
+    "data_indexing_search": "A-",
+    "security_operations": "B+"
+  },
+  "findings_resolved": [
+    {
+      "finding": "Open questions affected normative SRS behavior.",
+      "resolution": "Converted Open Questions to closed Design Decisions in docs/spec/00.index.md."
+    },
+    {
+      "finding": "Hybrid ranking weights drifted from research.",
+      "resolution": "Changed FR-DOC-021 to semantic 0.48, keyword 0.32, metadata 0.10, link 0.05, freshness 0.05 and keyword fallback 0.75/0.15/0.05/0.05."
+    },
+    {
+      "finding": "Chunking defaults drifted from research.",
+      "resolution": "Changed DR-DOC-008 default chunk size/overlap to 900/120."
+    },
+    {
+      "finding": "Traceability was too coarse for new requirements.",
+      "resolution": "Added line-specific research links and derivation notes for DR-DOC-006, FR-DOC-021, DR-DOC-008, DR-DOC-009, REL-DOC-003, and OPS-ARCH-006."
+    },
+    {
+      "finding": "CON-ARCH-004 omitted some Wave 2 requirements from stability gate.",
+      "resolution": "Expanded AC-5 to all 19 target 0.11.0-w2 smart-search requirements and added missing trace links."
+    },
+    {
+      "finding": "IR-APP-010 trace overclaimed current Settings IPC support.",
+      "resolution": "Changed rebuild_index trace to compatibility_reference with explicit note that Settings IPC/UI controls remain addition work."
+    },
+    {
+      "finding": "MCP formal contract needed fixture-level details.",
+      "resolution": "Added smart-search-contract-v1 implementation notes with request/response fields and canonical JSON serialization."
+    },
+    {
+      "finding": "Stale validation artifacts listed only 16 Wave 2 requirements.",
+      "resolution": "Updated final_validation.json and srs_delta.json to include OPS-ARCH-006, DR-DOC-009, and REL-DOC-003."
+    }
+  ],
+  "scope_note": "Implementation absence was not treated as an SRS-quality blocker. Requirements remain planned, while Stability is promoted only after the SRS decisions are resolved."
+}

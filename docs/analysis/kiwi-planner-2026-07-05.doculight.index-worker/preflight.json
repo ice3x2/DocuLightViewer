@@ -1,0 +1,16 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker",
+  "skill": "kiwi-planner",
+  "target": "0.11.0-w2",
+  "mcp": {
+    "speckiwi": "pass",
+    "get_active_target": "0.11.0-w2",
+    "summary_errors": 0,
+    "summary_warnings": 0
+  },
+  "halted": false,
+  "notes": [
+    "Active target contains one planned new work candidate: REL-DOC-007.",
+    "No draft or deprecated active-target blocker was reported by SpecKiwi summary."
+  ]
+}

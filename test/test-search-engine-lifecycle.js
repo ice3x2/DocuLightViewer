@@ -59,6 +59,36 @@ async function waitFor(predicate, timeoutMs = 500) {
     }
   });
 
+  {
+    const engine = new SearchEngine(createStore(''));
+    try {
+      const blocked = engine.startRebuild();
+      assert.strictEqual(blocked.started, false, 'full rebuild does not start without a configured document store root');
+      assert.strictEqual(blocked.scheduled, false, 'full rebuild is not queued without a configured document store root');
+      assert.strictEqual(blocked.reason, 'source-root-unconfigured', 'full rebuild reports source root configuration as the missing prerequisite');
+      const status = engine.getStatus();
+      assert.notStrictEqual(status.state, 'degraded', 'source-root configuration failure is not reported as a degraded index');
+      assert(!String(status.errorSummary || '').includes('mcpAutoSavePath'), 'source-root configuration failure does not expose raw mcpAutoSavePath errors');
+    } finally {
+      engine.close();
+    }
+  }
+
+  await withTempDir(async (dir) => {
+    const missingRoot = path.join(dir, 'missing-document-store');
+    const engine = new SearchEngine(createStore(missingRoot));
+    try {
+      const blocked = engine.startRebuild();
+      assert.strictEqual(blocked.started, false, 'full rebuild does not start when the configured document store root does not exist');
+      assert.strictEqual(blocked.scheduled, false, 'full rebuild is not queued when the configured document store root does not exist');
+      assert.strictEqual(blocked.reason, 'source-root-unavailable', 'full rebuild reports unavailable source root for missing directories');
+      const status = engine.getStatus();
+      assert.notStrictEqual(status.state, 'degraded', 'missing source-root configuration is not reported as a degraded index');
+    } finally {
+      engine.close();
+    }
+  });
+
   await withTempDir(async (dir) => {
     writeDoc(dir, 'a.md', '---\nproject: Alpha\n---', '# Alpha\n\nstartup keyword');
 
@@ -83,6 +113,103 @@ async function waitFor(predicate, timeoutMs = 500) {
     assert.strictEqual(status.state, 'stale', 'missing startup index is reported as stale');
     assert.strictEqual(status.dirty, true, 'missing startup index requires settings rebuild');
     assert(status.errorSummary.includes('Search index is missing'), 'missing startup index diagnostic is user-visible');
+  });
+
+  await withTempDir(async (dir) => {
+    writeDoc(dir, 'a.md', '---\nproject: Alpha\n---', '# Alpha\n\nmissing index rebuild clears diagnostic');
+    const engine = new SearchEngine(createStore(dir), {
+      smartIndexDelayMs: 60000
+    });
+    try {
+      await engine.initialize();
+      const missingStatus = engine.getStatus();
+      assert(missingStatus.errorSummary.includes('Search index is missing'), 'missing startup index diagnostic is visible before rebuild');
+
+      const started = engine.startRebuild();
+      assert.strictEqual(started.scheduled, true, 'settings rebuild schedules a worker job from a missing index state');
+      assert.strictEqual(started.status.errorSummary, null, 'starting full rebuild clears the stale missing-index diagnostic immediately');
+
+      await engine._rebuildPromise;
+      const completedStatus = engine.getStatus();
+      assert.strictEqual(completedStatus.state, 'ready', 'worker rebuild returns the search index to ready');
+      assert.strictEqual(completedStatus.dirty, false, 'worker rebuild clears dirty missing-index state');
+      assert.strictEqual(completedStatus.errorSummary, null, 'worker rebuild completion keeps missing-index diagnostic cleared');
+      assert.strictEqual(completedStatus.rebuildSession && completedStatus.rebuildSession.active, false, 'worker rebuild completion marks public rebuild session inactive');
+      assert.strictEqual(completedStatus.indexingWorker && completedStatus.indexingWorker.rebuildSession && completedStatus.indexingWorker.rebuildSession.active, false, 'worker controller terminal status does not keep rebuildSession active');
+      assert(engine.search('diagnostic').some((result) => path.basename(result.filePath) === 'a.md'), 'rebuilt index is searchable after clearing the diagnostic');
+    } finally {
+      engine.close();
+    }
+  });
+
+  await withTempDir(async (dir) => {
+    writeDoc(dir, 'a.md', '---\nproject: Alpha\n---', '# Alpha\n\nmissing index rebuild worker start failure');
+    const engine = new SearchEngine(createStore(dir), {
+      indexingWorkerController: {
+        isActive: () => false,
+        getStatus: () => ({
+          active: false,
+          state: 'failed',
+          phase: 'start',
+          progress: { current: 0, total: 0 },
+          currentPath: null,
+          diagnostic: { code: 'worker_start_failed', message: 'Worker could not start' },
+          rebuildSession: { active: false, indexedCount: 0, pendingCount: 0, totalCount: 0, currentPath: null }
+        }),
+        enqueueRebuild: () => ({
+          started: false,
+          scheduled: false,
+          reason: 'worker-start-failed',
+          status: {
+            active: false,
+            state: 'failed',
+            phase: 'start',
+            progress: { current: 0, total: 0 },
+            currentPath: null,
+            diagnostic: { code: 'worker_start_failed', message: 'Worker could not start' },
+            rebuildSession: { active: false, indexedCount: 0, pendingCount: 0, totalCount: 0, currentPath: null }
+          }
+        })
+      }
+    });
+    try {
+      await engine.initialize();
+      assert(engine.getStatus().errorSummary.includes('Search index is missing'), 'missing index diagnostic is visible before failed rebuild start');
+
+      const failed = engine.startRebuild();
+      assert.strictEqual(failed.started, false, 'worker start failure does not report rebuild started');
+      assert.strictEqual(failed.scheduled, false, 'worker start failure does not report rebuild scheduled');
+      assert.strictEqual(failed.reason, 'worker-start-failed', 'worker start failure reason is returned to Settings');
+      assert.notStrictEqual(failed.status.errorSummary, null, 'failed rebuild start replaces stale missing-index diagnostic');
+      assert(!failed.status.errorSummary.includes('Search index is missing'), 'failed rebuild start does not keep stale missing-index guidance');
+      assert(failed.status.errorSummary.includes('worker-start-failed') || failed.status.errorSummary.includes('Worker could not start'), 'failed rebuild start reports the current worker failure');
+      assert.strictEqual(failed.status.rebuildSession && failed.status.rebuildSession.active, false, 'failed rebuild start leaves rebuild session inactive');
+    } finally {
+      engine.close();
+    }
+  });
+
+  await withTempDir(async (dir) => {
+    writeDoc(dir, 'a.md', '---\nproject: Alpha\n---', '# Alpha\n\nmissing index rebuild source root disappears');
+    const engine = new SearchEngine(createStore(dir), {
+      smartIndexDelayMs: 60000
+    });
+    try {
+      await engine.initialize();
+      assert(engine.getStatus().errorSummary.includes('Search index is missing'), 'missing index diagnostic is visible before source root disappears');
+      fs.rmSync(dir, { recursive: true, force: true });
+
+      const failed = engine.startRebuild();
+      assert.strictEqual(failed.started, false, 'full rebuild does not start when source root disappeared after initialize');
+      assert.strictEqual(failed.scheduled, false, 'full rebuild is not scheduled when source root disappeared after initialize');
+      assert.strictEqual(failed.reason, 'source-root-unavailable', 'full rebuild reports the current missing source root');
+      assert.notStrictEqual(failed.status.errorSummary, null, 'source root failure replaces stale missing-index diagnostic');
+      assert(!failed.status.errorSummary.includes('Search index is missing'), 'source root failure does not keep stale missing-index guidance');
+      assert(failed.status.errorSummary.includes('source-root-unavailable'), 'source root failure reports current unavailable-root reason');
+      assert.strictEqual(failed.status.rebuildSession && failed.status.rebuildSession.active, false, 'source root failure leaves rebuild session inactive');
+    } finally {
+      engine.close();
+    }
   });
 
   await withTempDir(async (dir) => {

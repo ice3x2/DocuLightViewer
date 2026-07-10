@@ -1,0 +1,71 @@
+{
+  "iter": 1,
+  "evaluators": [
+    "McClintock",
+    "Zeno"
+  ],
+  "summary": {
+    "CRITICAL": 1,
+    "HIGH": 4,
+    "MEDIUM": 1,
+    "LOW": 1
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "axis": "consistency",
+      "req_id": "CON-ARCH-004",
+      "evidence_path": "docs/spec/10.product-architecture.srs.md:765",
+      "description": "Wave 2 gate still referenced discarded IR-MCP-014 and CON-MCP-003 and omitted newly added Wave 2 IDs.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "HIGH",
+      "axis": "traceability",
+      "req_id": "IR-MCP-015, CON-MCP-004",
+      "evidence_path": "docs/spec/00.index.md:101",
+      "description": "Cross-scope dependency map still pointed at discarded IR-MCP-014 / CON-MCP-003.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "HIGH",
+      "axis": "traceability",
+      "req_id": "SEC-DOC-002",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:2032",
+      "description": "SEC-DOC-002 trace links depended on discarded MCP IDs.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "HIGH",
+      "axis": "completeness",
+      "req_id": "FR-APP-011, FR-DOC-024",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:2340",
+      "description": "Settings UI percent rendering was not explicitly required.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "HIGH",
+      "axis": "traceability",
+      "req_id": "FR-DOC-025",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:2425",
+      "description": "Keyword SQLite search trace used verifies although hybrid implementation is not committed.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "research_alignment",
+      "req_id": "IR-MCP-015, CON-MCP-004",
+      "evidence_path": "docs/research/knowledge_store/knowledge.md",
+      "description": "Research still carried old smart_search default and old MCP IDs.",
+      "resolution": "resolved_in_improvement_iter1"
+    },
+    {
+      "severity": "LOW",
+      "axis": "precision",
+      "req_id": "FR-APP-011, IR-MCP-015",
+      "evidence_path": "docs/spec/20.app-shell.srs.md:1522",
+      "description": "Color-family wording and corpus-qualified limit behavior can be made more precise during implementation planning.",
+      "resolution": "accepted_low_risk"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "run_id": "2026-06-30.doculight.0-11-0-w1",
+  "target": "0.11.0-w1",
+  "mode": "max",
+  "include_stable": true,
+  "judgements": [
+    {
+      "req_id": "OPS-ARCH-004",
+      "feasibility": "high",
+      "score": 92,
+      "current_status": "planned",
+      "current_stability": "stable",
+      "proposed_stability": "keep",
+      "has_verification": false,
+      "blockers": [],
+      "evidence": [
+        "package.json:scripts.bundle:mcp",
+        "electron-builder.yml:asarUnpack",
+        "src/main/mcp-server.mjs:search_documents",
+        "src/main/mcp-http.mjs:TOOLS"
+      ]
+    },
+    {
+      "req_id": "IR-APP-010",
+      "feasibility": "high",
+      "score": 88,
+      "current_status": "planned",
+      "current_stability": "stable",
+      "proposed_stability": "keep",
+      "has_verification": false,
+      "blockers": [],
+      "evidence": [
+        "src/main/preload.js",
+        "src/main/index.js:registerIpcHandlers",
+        "src/renderer/settings.html",
+        "src/renderer/settings.js"
+      ]
+    },
+    {
+      "req_id": "IR-MCP-013",
+      "feasibility": "high",
+      "score": 91,
+      "current_status": "planned",
+      "current_stability": "stable",
+      "proposed_stability": "keep",
+      "has_verification": false,
+      "blockers": [],
+      "evidence": [
+        "src/main/mcp-http.mjs:createToolHandlers",
+        "src/main/index.js:handleIpcMessage",
+        "src/main/mcp-save.js:saveMcpUpdatedContent"
+      ]
+    },
+    {
+      "req_id": "FR-DOC-018",
+      "feasibility": "high",
+      "score": 90,
+      "current_status": "planned",
+      "current_stability": "stable",
+      "proposed_stability": "keep",
+      "has_verification": false,
+      "blockers": [],
+      "evidence": [
+        "src/main/search-engine.js:SearchEngine",
+        "test/test-search-engine-lifecycle.js"
+      ]
+    }
+  ],
+  "summary": {
+    "high": 4,
+    "medium": 0,
+    "low": 0,
+    "blocked": 0,
+    "stability_mutations": 0
+  }
+}

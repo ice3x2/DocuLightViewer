@@ -1,0 +1,83 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs-final-a-plus",
+  "timestamp": "2026-06-29T23:40:43.7855863+09:00",
+  "reviewers": [
+    {
+      "nickname": "Banach",
+      "focus": "product_research_alignment",
+      "overall_grade": "A+",
+      "blockers": []
+    },
+    {
+      "nickname": "Carver",
+      "focus": "mcp_contract_and_settings_boundary",
+      "overall_grade": "A+",
+      "blockers": []
+    },
+    {
+      "nickname": "Sagan",
+      "focus": "data_search_architecture",
+      "overall_grade": "A+",
+      "blockers": []
+    },
+    {
+      "nickname": "Boyle",
+      "focus": "security_operations",
+      "overall_grade": "A+",
+      "blockers": []
+    },
+    {
+      "nickname": "Poincare",
+      "focus": "code_trace_alignment",
+      "overall_grade": "A+",
+      "blockers": []
+    }
+  ],
+  "criterion_grades": {
+    "completeness": "A+",
+    "consistency": "A+",
+    "clarity": "A+",
+    "traceability": "A+",
+    "verifiability": "A+",
+    "feasibility": "A+",
+    "structure": "A+"
+  },
+  "verified_state": {
+    "active_target": "0.11.0-w1",
+    "target_0_11_0_w2_w1": {
+      "status_counts": {
+        "planned": 4
+      },
+      "stability_counts": {
+        "stable": 4
+      }
+    },
+    "target_0_11_0_w2": {
+      "status_counts": {
+        "planned": 19
+      },
+      "stability_counts": {
+        "stable": 19
+      }
+    },
+    "target_research_analysis_placeholders": 0,
+    "mcp_validate_spec": {
+      "strict": true,
+      "failOnWarning": true,
+      "errors": 0,
+      "warnings": 0
+    },
+    "cli_speckiwi_validate_json": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "final_result": "A+",
+  "notes": [
+    "CON-MCP-002 remains the six-tool baseline and CON-MCP-003 owns seven-tool smart_search parity.",
+    "knowledge.md distinguishes 0.10.16 baseline, 0.11.0-w1 active Wave 1, and 0.11.0-w2 Wave 2.",
+    "documentTags/document_tags_json/document_tags terminology is aligned across research and SRS.",
+    "compactSearchIndex and clearSearchIndex are settings-only controls and are not MCP tools.",
+    "Package smoke scope is release-gating for Windows x64, macOS arm64, Linux x64, with remaining OS/arch targets best-effort or skipped artifacts."
+  ]
+}

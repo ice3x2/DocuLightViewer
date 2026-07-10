@@ -1,0 +1,26 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "target": "0.11.0-w2",
+  "summary_after_srs": {
+    "countsByStatus": {
+      "discarded": 36,
+      "verified": 29,
+      "planned": 1
+    },
+    "countsByStability": {
+      "stable": 63,
+      "evolving": 3
+    },
+    "newWorkCandidates": [
+      "REL-DOC-007"
+    ],
+    "diagnostics": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "total": 66
+  },
+  "evaluated_requirements": [
+    "REL-DOC-007"
+  ]
+}

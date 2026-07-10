@@ -1,0 +1,19 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker",
+  "phase_count": 5,
+  "task_count": 8,
+  "req_ids": ["REL-DOC-007"],
+  "coverage": {
+    "REL-DOC-007": {
+      "ac_total": 9,
+      "ac_covered": 9,
+      "missing_ac_ids": []
+    }
+  },
+  "tdd_policy": "relaxed",
+  "notes": [
+    "Two red contract tasks precede all implementation tasks.",
+    "Implementation tasks keep Settings IPC names and MCP tool surface unchanged.",
+    "Final review task is non-code and records benchmark/package/review evidence after implementation."
+  ]
+}

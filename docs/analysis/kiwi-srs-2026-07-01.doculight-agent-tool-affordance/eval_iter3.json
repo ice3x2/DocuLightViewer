@@ -1,0 +1,48 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "iter": 3,
+  "evaluatedRequirement": "CON-MCP-010",
+  "evaluators": [
+    {
+      "agentId": "019f1cfb-b8f3-7a90-b992-20fe39c6059c",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findingCount": 0
+    },
+    {
+      "agentId": "019f1cfb-cfa1-7a31-a53b-4233bbf4d3de",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findingCount": 0
+    },
+    {
+      "agentId": "019f1cfb-e6a4-7a70-839b-b662aeda92ea",
+      "grade": "A+",
+      "summary": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findingCount": 0
+    }
+  ],
+  "mergedSummary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "gateResult": "a-plus",
+  "resolution": "Final three-subagent review reached A+ with zero findings. CON-MCP-010 is the active Wave 2 MCP client-profile conformance requirement."
+}

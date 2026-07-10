@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');
 const { Worker } = require('worker_threads');
 
 const RESPONSIVENESS_CONTRACT = Object.freeze({
@@ -234,6 +235,15 @@ class IndexingWorkerController {
 
     const jobId = requestedJobId || this._createJobId(kind);
     const config = this._createWorkerConfig(kind);
+    const sourceRootStatus = kind === 'rebuild' ? getSourceRootStatus(config.sourceRoot) : { ok: true };
+    if (!sourceRootStatus.ok) {
+      return {
+        started: false,
+        scheduled: false,
+        reason: sourceRootStatus.reason,
+        status: this.getStatus()
+      };
+    }
     const initialStatus = this._createStatus({ jobId, kind, state, phase });
     this._persistJob({
       jobId,
@@ -369,7 +379,7 @@ class IndexingWorkerController {
     const state = terminalStatus === 'completed'
       ? 'ready'
       : (terminalStatus === 'cancelled' ? 'cancelled' : 'failed');
-    const finalStatus = this._mergeStatus(job.status, {
+    const finalPatch = {
       active: false,
       state,
       phase: terminalStatus,
@@ -379,7 +389,25 @@ class IndexingWorkerController {
       currentPath: null,
       heartbeatAt: new Date().toISOString(),
       diagnostic
-    });
+    };
+    if (job.kind === 'rebuild') {
+      const previousSession = normalizeRebuildSession(job.status && job.status.rebuildSession);
+      const indexedCount = result && Number.isFinite(Number(result.indexed))
+        ? Math.max(0, Number(result.indexed))
+        : (previousSession ? previousSession.indexedCount : 0);
+      const totalCount = result && Number.isFinite(Number(result.scanned))
+        ? Math.max(indexedCount, Number(result.scanned))
+        : Math.max(indexedCount, previousSession ? previousSession.totalCount : 0);
+      finalPatch.rebuildSession = {
+        active: false,
+        indexedCount,
+        pendingCount: 0,
+        totalCount,
+        currentPath: null,
+        requestedBy: previousSession ? previousSession.requestedBy : null
+      };
+    }
+    const finalStatus = this._mergeStatus(job.status, finalPatch);
     this.lastJobStatus = finalStatus;
     if (this.activeJob && this.activeJob.jobId === job.jobId) {
       this.activeJob = null;
@@ -700,6 +728,19 @@ function mapJobState(status, kind) {
   if (status === 'cancelled') return 'cancelled';
   if (status === 'failed') return 'failed';
   return status || 'idle';
+}
+
+function getSourceRootStatus(sourceRoot) {
+  const normalized = sourceRoot ? path.resolve(sourceRoot) : '';
+  if (!normalized) return { ok: false, reason: 'source-root-unconfigured' };
+  try {
+    if (fs.statSync(normalized).isDirectory()) {
+      return { ok: true, reason: null };
+    }
+  } catch {
+    return { ok: false, reason: 'source-root-unavailable' };
+  }
+  return { ok: false, reason: 'source-root-unavailable' };
 }
 
 // @req REL-DOC-007

@@ -1,0 +1,60 @@
+{
+  "candidate_matches": [
+    {
+      "id": "DR-APP-002",
+      "scope": "APP",
+      "title": "Embedding settings are explicit and secrets are not stored in plaintext",
+      "relation_hint": "extends",
+      "similarity_score": 0.96
+    },
+    {
+      "id": "SEC-APP-003",
+      "scope": "APP",
+      "title": "Remote embedding governance supports project policy and offline-only mode",
+      "relation_hint": "depends_on",
+      "similarity_score": 0.86
+    },
+    {
+      "id": "FR-DOC-019",
+      "scope": "DOC",
+      "title": "Saved documents enqueue background smart indexing work",
+      "relation_hint": "extends",
+      "similarity_score": 0.95
+    },
+    {
+      "id": "FR-DOC-020",
+      "scope": "DOC",
+      "title": "Embedding and HNSW index provide optional semantic retrieval",
+      "relation_hint": "extends",
+      "similarity_score": 0.97
+    },
+    {
+      "id": "FR-DOC-021",
+      "scope": "DOC",
+      "title": "Hybrid ranking combines keyword semantic metadata link and freshness signals",
+      "relation_hint": "extends",
+      "similarity_score": 0.98
+    },
+    {
+      "id": "IR-MCP-014",
+      "scope": "MCP",
+      "title": "smart_search MCP tool provides read-only hybrid search",
+      "relation_hint": "supersedes",
+      "similarity_score": 0.98
+    },
+    {
+      "id": "CON-MCP-003",
+      "scope": "MCP",
+      "title": "stdio and HTTP transports expose equivalent seven-tool smart search contract",
+      "relation_hint": "supersedes",
+      "similarity_score": 0.93
+    }
+  ],
+  "relevant_scopes": ["APP", "DOC", "MCP"],
+  "conflicts_or_tensions": [
+    "IR-MCP-014 AC-2 currently defines smart_search limit default 10, while the new requirement sets MCP search default to 20.",
+    "CON-MCP-003 depends on IR-MCP-014, so superseding IR-MCP-014 requires a refreshed seven-tool parity constraint.",
+    "DR-APP-002 and FR-DOC-020 forbid silent destructive rebuilds; the new flow must treat Connect/Remove confirmation as the explicit user action that authorizes semantic invalidation and background indexing."
+  ],
+  "no_match_reason": null
+}

@@ -1,0 +1,91 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "evaluator": "subagent:Boole",
+  "iter": 1,
+  "target_before_resolution": "REL-DOC-006",
+  "findings": [
+    {
+      "id": "FND-HIGH-001",
+      "severity": "HIGH",
+      "axis": "ac_verifiability",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4151",
+      "description": "Responsiveness ACs did not define p95/p99/max latency or timeout thresholds.",
+      "suggested_action": "Add objective responsiveness thresholds for status/cancel IPC and event-loop heartbeat."
+    },
+    {
+      "id": "FND-HIGH-002",
+      "severity": "HIGH",
+      "axis": "native_packaging_trace",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/10.product-architecture.srs.md:1186",
+      "description": "Worker/native packaged-runtime validation was under-specified; OPS-ARCH-010 covered main-process lazy load but not worker/child runtime load.",
+      "suggested_action": "Require worker/child package smoke for better-sqlite3 and optional HNSW native load/degraded state."
+    },
+    {
+      "id": "FND-MED-001",
+      "severity": "MEDIUM",
+      "axis": "semantic_hnsw_coverage",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4150",
+      "description": "Semantic/HNSW maintenance responsiveness could be tested only through keyword rebuild/compact.",
+      "suggested_action": "Explicitly include semantic embedding reindex and HNSW build/compact in responsiveness criteria."
+    },
+    {
+      "id": "FND-MED-002",
+      "severity": "MEDIUM",
+      "axis": "backup_policy",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4156",
+      "description": "WAL-safe backup guidance was directionally correct but lacked concrete safe paths.",
+      "suggested_action": "Require SQLite backup API, checkpoint plus DB/WAL/SHM capture, or explicit user skip in redacted manifest."
+    },
+    {
+      "id": "FND-MED-003",
+      "severity": "MEDIUM",
+      "axis": "tokenizer_bound",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4154",
+      "description": "Tokenizer bounding lacked default/maximum bound and large single-file behavior.",
+      "suggested_action": "Reference default maxAnalysisChars 1200 and 160 MiB single-file fixture behavior."
+    },
+    {
+      "id": "FND-MED-004",
+      "severity": "MEDIUM",
+      "axis": "trace_completeness",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4171",
+      "description": "Trace links missed FR-DOC-023, FR-DOC-024, and FR-DOC-025.",
+      "suggested_action": "Add tokenizer, embedding/HNSW lifecycle, and smart_search fallback traces."
+    },
+    {
+      "id": "FND-LOW-001",
+      "severity": "LOW",
+      "axis": "trace_precision",
+      "req_id": "REL-DOC-006",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:4183",
+      "description": "Settings addition-site trace omitted button handlers around L631-L649.",
+      "suggested_action": "Expand Settings trace to L448-L649."
+    }
+  ],
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 2,
+    "MEDIUM": 4,
+    "LOW": 1
+  },
+  "resolution": {
+    "action": "superseded",
+    "new_requirement_id": "REL-DOC-007",
+    "resolved_findings": [
+      "FND-HIGH-001",
+      "FND-HIGH-002",
+      "FND-MED-001",
+      "FND-MED-002",
+      "FND-MED-003",
+      "FND-MED-004",
+      "FND-LOW-001"
+    ],
+    "post_resolution_validation": "mcp__speckiwi.validate_spec strict returned 0 errors and 0 warnings after index summary sync."
+  }
+}

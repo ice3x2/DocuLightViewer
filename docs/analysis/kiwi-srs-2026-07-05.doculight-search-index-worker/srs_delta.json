@@ -1,0 +1,63 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "classification": "update",
+  "mode": "live",
+  "mcp_calls": [
+    {
+      "tool": "add_requirement",
+      "result_id": "REL-DOC-005",
+      "ok": true,
+      "note": "Created with invalid proposed status and duplicated AC labels; immediately superseded."
+    },
+    {
+      "tool": "update_status",
+      "args": {
+        "id": "REL-DOC-005",
+        "status": "discarded"
+      },
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "REL-DOC-006",
+      "ok": true,
+      "note": "Created as first clean active requirement, then superseded after evaluator findings."
+    },
+    {
+      "tool": "update_status",
+      "args": {
+        "id": "REL-DOC-006",
+        "status": "discarded"
+      },
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "REL-DOC-007",
+      "ok": true,
+      "note": "Final active planned/evolving requirement with objective latency thresholds, worker-runtime package smoke, semantic/HNSW end-to-end coverage, concrete backup policy, and tokenizer bound defaults."
+    }
+  ],
+  "manual_index_sync": [
+    {
+      "file": "docs/spec/00.index.md",
+      "reason": "SpecKiwi MCP did not expose a summary-count refresh mutation; validate_spec reported summary count drift after add_requirement/update_status.",
+      "changes": [
+        "planned 0 -> 1",
+        "discarded 36 -> 38",
+        "reliability 5 -> 8"
+      ]
+    }
+  ],
+  "validate_spec_result": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "added_ids": [
+    "REL-DOC-007"
+  ],
+  "discarded_ids": [
+    "REL-DOC-005",
+    "REL-DOC-006"
+  ]
+}

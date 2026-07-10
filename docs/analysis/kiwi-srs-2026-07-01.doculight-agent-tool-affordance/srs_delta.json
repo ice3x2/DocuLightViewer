@@ -1,0 +1,255 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "classification": "new-feature",
+  "mode": "live",
+  "target": "0.11.0-w2",
+  "addedIds": [
+    "CON-MCP-008",
+    "CON-MCP-009",
+    "CON-MCP-010"
+  ],
+  "demotedIds": [],
+  "discardedIds": [
+    "CON-MCP-008",
+    "CON-MCP-009"
+  ],
+  "mcpCalls": [
+    {
+      "tool": "get_active_target",
+      "ok": true,
+      "result": {
+        "activeTarget": "0.11.0-w2",
+        "diagnosticsSummary": {
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    {
+      "tool": "add_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-008",
+      "filePath": "docs/spec/50.mcp-integration.srs.md",
+      "scope": "MCP",
+      "type": "constraint",
+      "status": "planned",
+      "stability": "stable"
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 2,
+        "warningCodes": [
+          "SRS-W019",
+          "SRS-W020"
+        ],
+        "resolution": "docs/spec/00.index.md planned and constraint counts were updated."
+      }
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "tool": "get_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-008",
+      "headingLine": 1731,
+      "acceptanceCriteriaCount": 14
+    },
+    {
+      "tool": "add_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-009",
+      "filePath": "docs/spec/50.mcp-integration.srs.md",
+      "scope": "MCP",
+      "type": "constraint",
+      "status": "planned",
+      "stability": "stable",
+      "supersedes": "CON-MCP-008"
+    },
+    {
+      "tool": "update_status",
+      "ok": true,
+      "id": "CON-MCP-008",
+      "status": "discarded"
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 2,
+        "warningCodes": [
+          "SRS-W019",
+          "SRS-W020"
+        ],
+        "resolution": "docs/spec/00.index.md discarded and constraint counts plus CON-MCP-009 cross-scope row were updated."
+      }
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "tool": "get_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-009",
+      "headingLine": 1808,
+      "acceptanceCriteriaCount": 17
+    },
+    {
+      "tool": "add_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-010",
+      "filePath": "docs/spec/50.mcp-integration.srs.md",
+      "scope": "MCP",
+      "type": "constraint",
+      "status": "planned",
+      "stability": "stable",
+      "supersedes": "CON-MCP-009"
+    },
+    {
+      "tool": "update_status",
+      "ok": true,
+      "id": "CON-MCP-009",
+      "status": "discarded"
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 2,
+        "warningCodes": [
+          "SRS-W019",
+          "SRS-W020"
+        ],
+        "resolution": "docs/spec/00.index.md discarded and constraint counts plus CON-MCP-010 cross-scope row were updated."
+      }
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "tool": "get_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-010",
+      "headingLine": 1889,
+      "acceptanceCriteriaCount": 18
+    }
+  ],
+  "scopeDocEdits": [
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "Requirements",
+      "op": "append",
+      "method": "speckiwi.add_requirement",
+      "requirementId": "CON-MCP-008"
+    },
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "Requirements",
+      "op": "append",
+      "method": "speckiwi.add_requirement",
+      "requirementId": "CON-MCP-009"
+    },
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "Requirements",
+      "op": "append",
+      "method": "speckiwi.add_requirement",
+      "requirementId": "CON-MCP-010"
+    },
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "Requirement metadata",
+      "op": "status update",
+      "method": "speckiwi.update_status",
+      "requirementId": "CON-MCP-008"
+    },
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "Requirement metadata",
+      "op": "status update",
+      "method": "speckiwi.update_status",
+      "requirementId": "CON-MCP-009"
+    },
+    {
+      "file": "docs/spec/00.index.md",
+      "sections": [
+        "Status Summary",
+        "Requirement Type Summary",
+        "Cross-scope Dependencies",
+        "Design Decisions",
+        "Reference Documents",
+        "Change Notes"
+      ],
+      "op": "manual index sync",
+      "method": "apply_patch"
+    }
+  ],
+  "newRequirementSummary": {
+    "id": "CON-MCP-010",
+    "supersedes": "CON-MCP-009",
+    "supersessionChain": [
+      "CON-MCP-010",
+      "CON-MCP-009",
+      "CON-MCP-008"
+    ],
+    "title": "Wave 2 MCP client-profile conformance uses strict path validation and bounded fixture oracles",
+    "dependencies": [
+      "IR-MCP-018",
+      "CON-MCP-007",
+      "FR-DOC-028",
+      "FR-DOC-025",
+      "SEC-DOC-003",
+      "CON-DOC-006",
+      "DR-DOC-013"
+    ],
+    "policyDecisions": [
+      "exactly eight MCP tools remain visible",
+      "no alias save/search tools",
+      "no MCP import/indexing/reconciliation controls",
+      "client-profile fixtures are deterministic and offline",
+      "broken links remain non-blocking redacted diagnostic graph edges",
+      "only resolved link edges affect resolved-link ranking and linkedTo/linkedFrom filters",
+      "non-resolved edge statuses use exact DR-DOC-013 canonical spelling",
+      "golden intent fixtures declare machine-readable expected-tool, argument, envelope, error, diagnostics, and redaction oracles",
+      "output bounds are validated through explicit numeric fixture oracle caps",
+      "fixture numeric caps must not exceed SRS ceilings",
+      "unsafe pathPrefix values must fail validation with redacted errors and are never accepted or coerced"
+    ]
+  },
+  "validateSpecResult": {
+    "ok": true,
+    "diagnostics": [],
+    "summary": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "changeNotesDiff": "2026-07-01 | Superseded agent-facing MCP conformance after second evaluator review | Replace CON-MCP-009 with CON-MCP-010 so output cap oracles have hard SRS ceilings and unsafe pathPrefix inputs always fail validation with redacted errors",
+  "externalSourcesReviewed": [
+    "https://modelcontextprotocol.io/specification/2025-11-25/server/tools",
+    "https://code.claude.com/docs/en/mcp",
+    "https://opencode.ai/docs/mcp-servers/",
+    "https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp",
+    "https://docs.openclaw.ai/"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "axis": "scope_creep",
+  "iter": 1,
+  "findings": [
+    {
+      "id": "scope_creep-1-1",
+      "severity": "MEDIUM",
+      "scope": "ARCH",
+      "requirement_id": "SEC-ARCH-003",
+      "type": "unnecessary",
+      "evidence": "src/main/index.js:L981-L993",
+      "evidence_path": "src/main/index.js",
+      "description": "SEC-ARCH-003(ARCH)과 SEC-APP-001(APP)이 동일한 코드(src/main/index.js:L981-993)에 대해 동일한 http/https 프로토콜 제한 동작을 기술하는 완전 중복 요구사항이다. scope_assignments_view.json에서 index.js는 APP 스코프의 primary 파일이며 ARCH 스코프의 primary_files_glob에 포함되지 않는다. ARCH 스코프 In-Scope 목록에 '외부 링크 개방 정책'이 명시되어 있으나, 이미 SEC-APP-001이 동일 내용을 APP에서 완전히 다루고 있어 SEC-ARCH-003는 APP 경계를 침범한 중복이다.",
+      "suggested_action": "merge"
+    },
+    {
+      "id": "scope_creep-1-2",
+      "severity": "MEDIUM",
+      "scope": "ARCH",
+      "requirement_id": "SEC-ARCH-004",
+      "type": "unnecessary",
+      "evidence": "src/main/index.js:L591-L598",
+      "evidence_path": "src/main/index.js",
+      "description": "SEC-ARCH-004(ARCH)과 SEC-APP-002(APP)이 동일한 코드(src/main/index.js:L591-598)에 대해 동일한 Unix 소켓 0o600 권한 제한 동작을 기술하는 완전 중복 요구사항이다. scope_assignments_view.json에서 index.js는 APP 스코프의 primary 파일이며 ARCH primary_files_glob에 없다. SEC-APP-002가 0o600 chmod와 cleanupStaleSocket 동작(index.js:L529-548 포함)을 더 상세하게 다루고 있어 SEC-ARCH-004는 제거 가능한 중복이다.",
+      "suggested_action": "merge"
+    },
+    {
+      "id": "scope_creep-1-3",
+      "severity": "LOW",
+      "scope": "WIN",
+      "requirement_id": "FR-WIN-019",
+      "type": "unnecessary",
+      "evidence": "src/main/window-manager.js:L1209-L1212",
+      "evidence_path": "src/main/window-manager.js",
+      "description": "FR-WIN-019 AC-3('열린 창 수가 상한이면 오류를 던진다')는 REL-WIN-001 AC-2('열린 창 수가 20 이상이면 createEmptyWindow도 오류를 던진다')와 동일 동작을 중복 기술한다. 창 수 상한 강제는 신뢰성 제약(REL-WIN-001)의 전담 사항이므로, FR-WIN-019는 빈 창 생성 기능 자체(드롭존 표시, pendingReady 등록, closed 시 정리)만 다루고 상한 강제 AC는 REL-WIN-001에만 남겨야 한다.",
+      "suggested_action": "merge"
+    }
+  ],
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 2,
+    "LOW": 1
+  }
+}

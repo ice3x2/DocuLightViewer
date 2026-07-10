@@ -1,0 +1,37 @@
+{
+  "axis": "missing",
+  "iter": 1,
+  "generated": "2026-06-27",
+  "evaluator_notes": "전수 점검 결과: 모든 인벤토리 항목이 최소 1개 요구사항에 매핑됨. 아래 findings 배열이 비어 있음은 진짜 미매핑 항목이 없음을 의미한다.",
+
+  "mapping_rationale": {
+    "rest_endpoints": "11개 전부 MCP 스코프(IR-MCP-007~012, OPS-MCP-001)에서 명시적으로 커버됨.",
+    "mcp_tools": "6개 전부 IR-MCP-001~006에서 양 transport 모두 trace link 포함.",
+    "ipc_actions": "44개(실제 수; 인벤토리 template 표기 43은 오기) 전부 커버. 7개 소켓 액션은 IR-APP-001, file-association 3개는 FR-APP-009, save/delete 3개는 FR-APP-008, zoom 3개는 IR-APP-006, always-on-top 3개는 IR-APP-007, navigate* 3개는 FR-WIN-014/015, export-pdf/cancel-export/pdf-render-complete는 FR-RENDER-020, 탭/이미지/검색/붙여넣기 관련 invoke들은 IR-APP-002 AC-4 + 각 기능 요구사항으로 흡수.",
+    "cli_commands": "12개 전부 OPS-ARCH-001/002, IR-MCP-007, FR-APP-001/002로 커버.",
+    "public_classes_or_funcs": "69개(실제 수; template 66은 오기) 전부 커버. WindowManager 클래스·메서드 24개는 FR-WIN-*/DR-WIN-*, link-parser 8개는 FR-TREE-*, frontmatter 4개는 FR-DOC-005~007, git-info 2개는 FR-DOC-008/REL-DOC-001, mcp-save 5개는 FR-DOC-001~003/016, SearchEngine 7개는 FR-DOC-009~013, tokenize는 FR-DOC-014, file-association 6개는 FR-APP-009/IR-APP-009, strings 3개는 FR-APP-007/IR-APP-005, mcp-http 3개는 IR-MCP-008/OPS-MCP-001(흡수), index.js 6개는 FR-APP-001~004/IR-APP-001/RENDER 각 요구사항(흡수). registerIpcHandlers·createToolHandlers 등 컨테이너 함수는 하위 요구사항들로 흡수 인정.",
+    "config_options": "20개 전부 DR-APP-001 AC-1~4에 명시 열거됨.",
+    "data_entities": "13개 전부 DR-WIN-001~004, DR-TREE-001, DR-DOC-001~005, IR-APP-004로 커버.",
+    "events_messages": "55개(실제 수; template 54는 오기) 전부 커버. main→renderer 18개는 IR-APP-002 AC-2 + 각 기능 요구사항, renderer→main send 17개는 IR-APP-002 AC-3 + 기능 요구사항, renderer→main invoke 20개는 IR-APP-002 AC-4 + 기능 요구사항."
+  },
+
+  "findings": [],
+
+  "coverage_summary": {
+    "rest_endpoints": "11/11",
+    "mcp_tools": "6/6",
+    "ipc_actions": "44/44",
+    "cli_commands": "12/12",
+    "public_classes_or_funcs": "69/69",
+    "config_options": "20/20",
+    "data_entities": "13/13",
+    "events_messages": "55/55"
+  },
+
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  }
+}

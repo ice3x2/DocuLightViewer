@@ -1,0 +1,57 @@
+{
+  "axis": "correctness",
+  "iter": 1,
+  "findings": [
+    {
+      "id": "correctness-1-1",
+      "severity": "MEDIUM",
+      "scope": "MCP",
+      "requirement_id": "IR-MCP-001",
+      "type": "wrong",
+      "evidence": "src/main/mcp-http.mjs:L129-L213",
+      "evidence_path": "src/main/mcp-http.mjs",
+      "description": "AC-2는 'content 가 MAX_CONTENT_SIZE(10MB)를 초과하면 isError true 를 반환한다'고 기술하나, 이 검사는 stdio 전송(mcp-server.mjs:L380-388)에만 존재하고 HTTP 전송(mcp-http.mjs open_markdown 핸들러 L129-213)에는 없다. mcp-http.mjs에는 MAX_CONTENT_SIZE 상수 자체가 없으며(grep 결과 0건) content 크기 검사 없이 windowManager.createWindow()로 바로 위임한다. 따라서 HTTP 경로에서는 10MB 초과 콘텐츠가 isError 없이 처리된다.",
+      "suggested_action": "AC-2 범위를 'stdio 전송에서만' 으로 한정하거나, HTTP 핸들러에도 동일한 크기 검사를 추가해야 함을 주석으로 명시"
+    },
+    {
+      "id": "correctness-1-2",
+      "severity": "MEDIUM",
+      "scope": "MCP",
+      "requirement_id": "IR-MCP-002",
+      "type": "wrong",
+      "evidence": "src/main/mcp-http.mjs:L215-L260",
+      "evidence_path": "src/main/mcp-http.mjs",
+      "description": "AC-3는 'content 가 MAX_CONTENT_SIZE(10MB)를 초과하면 isError true 를 반환한다'고 기술하나, update_markdown의 HTTP 핸들러(mcp-http.mjs L215-260)에는 크기 검사가 없다. stdio 전송(mcp-server.mjs L463-470)에는 동일한 MAX_CONTENT_SIZE 검사가 존재한다. HTTP 경로에서 appendMode=false인 일반 갱신 시 10MB 초과 콘텐츠가 isError 없이 처리된다(window-manager.js의 10MB 검사는 appendMode=true 누적 시에만 동작, L891).",
+      "suggested_action": "AC-3 범위를 'stdio 전송에서만' 으로 한정하거나, HTTP 핸들러에도 동일한 크기 검사를 추가해야 함을 주석으로 명시"
+    },
+    {
+      "id": "correctness-1-3",
+      "severity": "MEDIUM",
+      "scope": "MCP",
+      "requirement_id": "IR-MCP-001",
+      "type": "wrong",
+      "evidence": "src/main/mcp-http.mjs:L35",
+      "evidence_path": "src/main/mcp-http.mjs",
+      "description": "AC-7은 'stdio 와 HTTP 두 transport 모두 동일한 파라미터 집합으로 open_markdown 을 노출한다'고 기술하나, HTTP 스키마(mcp-http.mjs TOOLS 배열 L35)에는 alwaysOnTop 파라미터가 존재하고 stdio Zod 스키마(mcp-server.mjs L350-366)에는 없다. HTTP 핸들러는 alwaysOnTop ?? true 기본값으로 창 고정 여부를 제어(L191)하는 반면 stdio는 이 파라미터를 외부에 노출하지 않는다. 두 전송의 파라미터 집합이 동일하다는 AC-7 명세는 사실과 다르다.",
+      "suggested_action": "AC-7을 '두 전송의 핵심 파라미터 집합은 일치하며, HTTP 전송은 추가로 alwaysOnTop 파라미터를 노출한다'로 수정"
+    },
+    {
+      "id": "correctness-1-4",
+      "severity": "LOW",
+      "scope": "ARCH",
+      "requirement_id": "SEC-ARCH-002",
+      "type": "wrong",
+      "evidence": "src/renderer/settings.html:L6-L7",
+      "evidence_path": "src/renderer/settings.html",
+      "description": "AC-2는 'settings.html L6 에 Content-Security-Policy meta 태그가 존재한다'고 기술하나, 실제 settings.html의 CSP 태그는 두 줄에 걸쳐 있다(L6: <meta http-equiv=\"Content-Security-Policy\", L7: content=\"...\"). 단일 라인 L6에 태그 전체가 있는 것처럼 오해할 수 있으나 태그 시작은 L6로 정확하다. viewer.html의 CSP(L6-7)와 같은 형식이다.",
+      "suggested_action": "Evidence 범위를 L6-L7로 수정"
+    }
+  ],
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 3,
+    "LOW": 1,
+    "verified_requirements_approx": 85
+  }
+}

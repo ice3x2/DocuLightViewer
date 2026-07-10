@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "kiwi-srs-evaluation-resolution.v1",
+  "date": "2026-07-01",
+  "target": "0.11.0-w2",
+  "topic": "second-pass document-only save_document MCP SRS evaluation",
+  "iteration": 2,
+  "subagentReview": {
+    "agents": [
+      {
+        "agentId": "019f1c55-fc59-73d3-8ea8-8fed2814aa13",
+        "focus": "Tool usability across agent runtimes",
+        "grade": "A-"
+      },
+      {
+        "agentId": "019f1c55-e5aa-7213-b0c2-9063c82d3cc2",
+        "focus": "SRS completeness and consistency",
+        "grade": "A"
+      },
+      {
+        "agentId": "019f1c56-13df-7c81-b6b3-fcc99fd54d69",
+        "focus": "Implementation feasibility and traceability",
+        "grade": "B"
+      }
+    ],
+    "commonVerdict": "The replacement SRS was directionally sound but needed final cleanup for stale discarded dependencies, optional metadata typing, indexing response shape, forbidden-field conformance, save-to-search E2E coverage, and package-smoke fixture parity."
+  },
+  "resolvedFindings": [
+    {
+      "finding": "Active OPS-ARCH-005 depended on discarded OPS-ARCH-006.",
+      "resolution": "OPS-ARCH-010 supersedes OPS-ARCH-005 and depends on active OPS-ARCH-009 plus SEC-DOC-003."
+    },
+    {
+      "finding": "Active REL-DOC-003 depended on discarded SEC-DOC-002.",
+      "resolution": "REL-DOC-004 supersedes REL-DOC-003 and depends on active SEC-DOC-003."
+    },
+    {
+      "finding": "Implementation gate still needed to reference only live active requirements.",
+      "resolution": "CON-ARCH-006 supersedes CON-ARCH-005 and gates implementation on FR-DOC-028, IR-MCP-018, CON-MCP-007, SEC-DOC-003, OPS-ARCH-010, OPS-ARCH-009, and REL-DOC-004."
+    },
+    {
+      "finding": "Optional save_document metadata fields lacked explicit types and limits.",
+      "resolution": "IR-MCP-018 defines field-level types and limits for title, project, docName, description, docType, category, documentTags, and gitContextPath."
+    },
+    {
+      "finding": "indexing.queued was ambiguous relative to indexing.state.",
+      "resolution": "FR-DOC-028, IR-MCP-018, and CON-MCP-007 remove required queued boolean and use indexing.state plus optional diagnostic-only jobId."
+    },
+    {
+      "finding": "Forbidden-field conformance did not fully match the interface requirement.",
+      "resolution": "CON-MCP-007 expands conformance to the full forbidden field list and adds unknown-field behavioral rejection tests."
+    },
+    {
+      "finding": "Knowledge-store claim needed explicit retrieval verification.",
+      "resolution": "FR-DOC-028 and OPS-ARCH-009 add save_document -> indexing completion/degraded path -> search_documents/smart_search retrieval fixtures."
+    },
+    {
+      "finding": "Package smoke fixtures were not fully aligned with shared redaction fixtures.",
+      "resolution": "OPS-ARCH-009 adds Windows/UNC/POSIX/home/userData/raw gitContextPath/credential/provider/native failure cases."
+    },
+    {
+      "finding": "SEC-DOC-003 lacked direct code trace links to raw path emission sites.",
+      "resolution": "SEC-DOC-003 now traces current mcp-save logging/outcome and search_documents compatibility boundary sites."
+    }
+  ],
+  "newRequirements": [
+    "FR-DOC-028",
+    "IR-MCP-018",
+    "CON-MCP-007",
+    "OPS-ARCH-009",
+    "OPS-ARCH-010",
+    "REL-DOC-004",
+    "CON-ARCH-006"
+  ],
+  "discardedRequirements": [
+    "FR-DOC-027",
+    "IR-MCP-017",
+    "CON-MCP-006",
+    "OPS-ARCH-008",
+    "OPS-ARCH-005",
+    "REL-DOC-003",
+    "CON-ARCH-005"
+  ],
+  "nextEvaluation": "Run a final three-subagent A+ check focused on active requirements only and on absence of active depends_on links to discarded requirements."
+}

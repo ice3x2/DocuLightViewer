@@ -16,6 +16,8 @@ function wave2Assert(condition, message) {
   assert(condition, `Wave 2 MCP contract: save_document/smart_search ${message}`);
 }
 
+const FORBIDDEN_INDEXING_CONTROL_TOOL_RE = /(?:^|_)(?:rebuild|clear|retry|cancel|status|import|reconcil|model[-_]?change)(?:_|$)/i;
+
 function toolByName(tools, name) {
   return tools.find((tool) => tool.name === name);
 }
@@ -62,8 +64,12 @@ async function withFakeIpcServer(label, handler, run) {
         if (!line) continue;
         const message = JSON.parse(line);
         requests.push(message);
-        const result = handler(message);
-        socket.write(JSON.stringify({ id: message.id, result }) + '\n');
+        const handled = handler(message);
+        if (handled && handled.error) {
+          socket.write(JSON.stringify({ id: message.id, error: handled.error }) + '\n');
+          continue;
+        }
+        socket.write(JSON.stringify({ id: message.id, result: handled }) + '\n');
       }
     });
   });
@@ -78,7 +84,7 @@ async function withFakeIpcServer(label, handler, run) {
   }
 }
 
-async function validateStdioBridgeRuntime({ serverPath, label, expectedToolNames }) {
+async function validateStdioBridgeRuntime({ serverPath, args, label, expectedToolNames, extraEnv = {} }) {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
   await withFakeIpcServer(label, (message) => {
@@ -129,16 +135,24 @@ async function validateStdioBridgeRuntime({ serverPath, label, expectedToolNames
         }]
       };
     }
+    if (message.action === 'search_projects') {
+      return {
+        error: {
+          message: 'failed at C:\\Users\\secret\\project.md?token=rawsecret'
+        }
+      };
+    }
     return {};
   }, async (ipcPath, requests) => {
     const transport = new StdioClientTransport({
       command: process.execPath,
-      args: [serverPath],
+      args: args || [serverPath],
       cwd: root,
       env: {
         ...process.env,
         DOCULIGHT_MCP_IPC_PATH: ipcPath,
-        DOCLIGHT_APP_PATH: path.join(root, 'does-not-exist')
+        DOCLIGHT_APP_PATH: path.join(root, 'does-not-exist'),
+        ...extraEnv
       }
     });
     const client = new Client({ name: `wave2-${label}`, version: '0.0.0' });
@@ -188,6 +202,17 @@ async function validateStdioBridgeRuntime({ serverPath, label, expectedToolNames
       wave2Assert(!Object.prototype.hasOwnProperty.call(savePayload.indexing, 'importTool'), `${label} indexing.jobId does not imply MCP import control`);
       wave2Assert(!Object.prototype.hasOwnProperty.call(savePayload.indexing, 'reconciliationTool'), `${label} indexing.jobId does not imply MCP reconciliation control`);
       wave2Assert(requests.some((request) => request.action === 'save_document'), `${label} valid save_document reaches fake IPC once schema validation passes`);
+
+      const ipcErrorResult = await client.callTool({
+        name: 'search_projects',
+        arguments: {
+          query: 'secret'
+        }
+      });
+      const ipcErrorText = JSON.stringify(ipcErrorResult);
+      wave2Assert(ipcErrorResult.isError === true, `${label} IPC error is returned as a tool error`);
+      wave2Assert(!ipcErrorText.includes('C:\\Users\\secret'), `${label} IPC error redacts Windows absolute paths`);
+      wave2Assert(!ipcErrorText.includes('rawsecret'), `${label} IPC error redacts credential values`);
     } finally {
       await client.close();
     }
@@ -203,6 +228,7 @@ function assertSchemaTerms(source, label, terms) {
 (async () => {
   const { TOOLS } = await import('../src/main/mcp-http.mjs');
   const stdioSource = read('src/main/mcp-server.mjs');
+  const mainSource = read('src/main/index.js');
   const bundleSource = fs.existsSync(path.join(root, 'src/main/mcp-server.bundle.mjs'))
     ? read('src/main/mcp-server.bundle.mjs')
     : '';
@@ -239,6 +265,10 @@ function assertSchemaTerms(source, label, terms) {
   for (const forbidden of forbiddenToolNames) {
     wave2Assert(!httpNames.includes(forbidden), `HTTP tools/list rejects forbidden tool ${forbidden}`);
     wave2Assert(!stdioSource.includes(`'${forbidden}'`) && !stdioSource.includes(`"${forbidden}"`), `stdio source rejects forbidden tool ${forbidden}`);
+    wave2Assert(!bundleSource.includes(`'${forbidden}'`) && !bundleSource.includes(`"${forbidden}"`), `generated bundle rejects forbidden tool ${forbidden}`);
+  }
+  for (const name of httpNames) {
+    wave2Assert(!FORBIDDEN_INDEXING_CONTROL_TOOL_RE.test(name), `HTTP tool ${name} is not an indexing control or status tool`);
   }
 
   for (const name of expectedToolNames) {
@@ -252,6 +282,64 @@ function assertSchemaTerms(source, label, terms) {
   wave2Assert(stdioSource.includes('MCP_EXPLICIT_IPC_PATH'), 'stdio source treats explicit MCP IPC path as an opt-in endpoint');
   wave2Assert(stdioSource.includes('explicit MCP IPC server not found'), 'stdio source does not auto-launch packaged app for explicit MCP IPC path failures');
   wave2Assert(stdioSource.includes('dev profile IPC server not found'), 'stdio source does not auto-launch packaged app for dev profile');
+  wave2Assert(
+    stdioSource.includes('describeIpcEndpoint') &&
+      stdioSource.includes('REDACTED_MCP_IPC') &&
+      stdioSource.includes("describeIpcEndpoint('explicit')") &&
+      stdioSource.includes("describeIpcEndpoint('dev')"),
+    'stdio source redacts explicit and dev IPC endpoint classes'
+  );
+  wave2Assert(
+    stdioSource.includes('buildAutoLaunchEnv') &&
+      stdioSource.includes('delete env.ELECTRON_RUN_AS_NODE') &&
+      stdioSource.includes('delete env.DOCULIGHT_PACKAGED_MCP_STDIO'),
+    'stdio source strips stdio-only environment before auto-launching the app'
+  );
+  wave2Assert(
+    stdioSource.includes('redactString') &&
+      stdioSource.includes('sanitizeMcpErrorMessage') &&
+      stdioSource.includes('sanitizeMcpDiagnosticText'),
+    'stdio source sanitizes MCP-facing errors and stderr diagnostics'
+  );
+  wave2Assert(
+    stdioSource.includes('sanitizeMcpDiagnosticText(msg.id)') &&
+      bundleSource.includes('sanitizeMcpDiagnosticText(msg.id)'),
+    'stdio source and generated bundle sanitize unknown IPC response ids before stderr diagnostics'
+  );
+  wave2Assert(
+    !stdioSource.includes('path.basename(text)') &&
+      !bundleSource.includes('path.basename(text)'),
+    'stdio source and generated bundle do not expose credential-bearing process basenames in stderr diagnostics'
+  );
+  wave2Assert(
+    mainSource.includes('redactEarlyMcpStdioError') &&
+      mainSource.includes("Fatal:', redactEarlyMcpStdioError") &&
+      mainSource.includes('$1[REDACTED]@'),
+    'main --mcp-stdio early import failure path redacts startup errors, including URL userinfo credentials, before stderr diagnostics'
+  );
+  const ipcWriteStart = stdioSource.indexOf('const ok = ipcSocket.write(payload);');
+  const ipcWriteCatch = stdioSource.indexOf('} catch (err)', ipcWriteStart);
+  const ipcWriteBackpressureSlice = stdioSource.slice(ipcWriteStart, ipcWriteCatch);
+  wave2Assert(
+    ipcWriteStart !== -1 &&
+      ipcWriteCatch !== -1 &&
+      !ipcWriteBackpressureSlice.includes('Buffer full: retry once after reconnect') &&
+      !ipcWriteBackpressureSlice.includes('pendingRequests.delete(id)') &&
+      !ipcWriteBackpressureSlice.includes('sendIpcRequest(action, params, true)') &&
+      ipcWriteBackpressureSlice.includes("ipcSocket.once('drain'"),
+    'stdio IPC write backpressure keeps the pending request instead of retrying non-idempotent actions'
+  );
+  wave2Assert(mainSource.includes('--mcp-stdio'), 'main process declares a packaged executable stdio MCP entrypoint flag');
+  wave2Assert(mainSource.includes('DOCULIGHT_PACKAGED_MCP_STDIO') && mainSource.includes('process.env.DOCLIGHT_APP_PATH = process.execPath'), 'main process packaged stdio entrypoint points auto-launch at the current executable without recursion flags');
+  wave2Assert(
+    mainSource.indexOf('--mcp-stdio') !== -1 &&
+      mainSource.indexOf('--mcp-stdio') < mainSource.indexOf("require('electron')") &&
+      mainSource.indexOf('--mcp-stdio') < mainSource.indexOf("require('./search-engine')") &&
+      mainSource.indexOf('--mcp-stdio') < mainSource.indexOf('BrowserWindow') &&
+      mainSource.indexOf('--mcp-stdio') < mainSource.indexOf('Tray') &&
+      mainSource.indexOf('--mcp-stdio') < mainSource.indexOf('startMcpHttpServer'),
+    'main process dispatches --mcp-stdio before Electron, native/search, tray, and HTTP app services'
+  );
 
   assertSchemaTerms(stdioSource, 'stdio source save_document', [
     'inputSchema: SAVE_DOCUMENT_ZOD_SCHEMA',
@@ -445,6 +533,15 @@ function assertSchemaTerms(source, label, terms) {
     serverPath: 'src/main/mcp-server.mjs',
     label: 'source',
     expectedToolNames
+  });
+  await validateStdioBridgeRuntime({
+    serverPath: 'src/main/index.js',
+    args: ['src/main/index.js', '--mcp-stdio'],
+    label: 'main-entrypoint',
+    expectedToolNames,
+    extraEnv: {
+      ELECTRON_RUN_AS_NODE: '1'
+    }
   });
   await validateStdioBridgeRuntime({
     serverPath: 'src/main/mcp-server.bundle.mjs',

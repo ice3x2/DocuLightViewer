@@ -1,0 +1,15 @@
+{
+  "target": "0.10.16",
+  "draft_policy": "all_implemented",
+  "draft_policy_note": "User confirmed all features are implemented. Writers register code-backed requirements as status=implemented + Stability=stable with Code trace+evidence. Do NOT create INFERRED/draft items; if no code evidence exists, skip rather than speculate.",
+  "max_eval_iter": 3,
+  "scopes": [
+    { "name": "Product Architecture", "slug": "product-architecture", "prefix": "ARCH", "ordering": 10, "agent_id": "scope-agent-arch", "document": "docs/spec/10.product-architecture.srs.md", "primary_files_glob": ["package.json", "build/**", "src/main/mcp-server.bundle.mjs", "src/main/mcp-server.mjs", "src/main/preload.js"], "inventory_share": { "cli_commands": 9, "config_options": 0 } },
+    { "name": "Application Shell and IPC", "slug": "app-shell", "prefix": "APP", "ordering": 20, "agent_id": "scope-agent-app", "document": "docs/spec/20.app-shell.srs.md", "primary_files_glob": ["src/main/index.js", "src/main/preload.js", "src/main/strings.js", "src/main/file-association.js", "src/locales/**"], "inventory_share": { "ipc_actions": 43, "config_options": 20, "events_messages": 54, "public_classes_or_funcs": 15 } },
+    { "name": "Window Management and Navigation", "slug": "window-management", "prefix": "WIN", "ordering": 30, "agent_id": "scope-agent-win", "document": "docs/spec/30.window-management.srs.md", "primary_files_glob": ["src/main/window-manager.js"], "inventory_share": { "public_classes_or_funcs": 25, "data_entities": 4 } },
+    { "name": "Sidebar Tree Builder", "slug": "sidebar-tree", "prefix": "TREE", "ordering": 40, "agent_id": "scope-agent-tree", "document": "docs/spec/40.sidebar-tree.srs.md", "primary_files_glob": ["src/main/link-parser.js"], "inventory_share": { "public_classes_or_funcs": 8, "data_entities": 1 } },
+    { "name": "MCP Server Integration", "slug": "mcp-integration", "prefix": "MCP", "ordering": 50, "agent_id": "scope-agent-mcp", "document": "docs/spec/50.mcp-integration.srs.md", "primary_files_glob": ["src/main/mcp-server.mjs", "src/main/mcp-http.mjs"], "inventory_share": { "mcp_tools": 6, "rest_endpoints": 11, "public_classes_or_funcs": 3 } },
+    { "name": "Document Persistence and Search", "slug": "document-persistence", "prefix": "DOC", "ordering": 60, "agent_id": "scope-agent-doc", "document": "docs/spec/60.document-persistence.srs.md", "primary_files_glob": ["src/main/mcp-save.js", "src/main/frontmatter.js", "src/main/git-info.js", "src/main/search-engine.js", "src/main/tokenizer.js"], "inventory_share": { "public_classes_or_funcs": 19, "data_entities": 6 } },
+    { "name": "Renderer and Rendering Pipeline", "slug": "renderer-pipeline", "prefix": "RENDER", "ordering": 80, "agent_id": "scope-agent-render", "document": "docs/spec/80.renderer-pipeline.srs.md", "primary_files_glob": ["src/renderer/viewer.js", "src/renderer/viewer.html", "src/renderer/viewer.css", "src/renderer/settings.js", "src/renderer/tab-manager.js", "src/renderer/sidebar-search.js", "src/renderer/pdf-export-ui.js", "src/renderer/image-resolver.js"], "inventory_share": { "public_classes_or_funcs": 0 } }
+  ]
+}

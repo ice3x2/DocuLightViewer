@@ -1,8 +1,32 @@
 // src/main/index.js — Electron App Entry Point + IPC Socket Server
 // CommonJS module for Electron main process
 
+if (process.argv.includes('--mcp-stdio')) {
+  process.env.DOCULIGHT_PACKAGED_MCP_STDIO = '1';
+  if (!process.env.DOCLIGHT_APP_PATH && process.execPath) {
+    process.env.DOCLIGHT_APP_PATH = process.execPath;
+  }
+  import('./mcp-server.mjs').catch((err) => {
+    console.error('[doculight-mcp]', 'Fatal:', redactEarlyMcpStdioError(err && err.message ? err.message : String(err)));
+    process.exit(1);
+  });
+  return;
+}
+
+function redactEarlyMcpStdioError(value) {
+  return String(value == null ? 'Unknown MCP startup error' : value)
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)([^/?#\s"'<>@]+)@/gi, '$1[REDACTED]@')
+    .replace(/\b[A-Za-z]:(?:\\{1,2}|\/)[^\r\n"'<>|?*,;]+/g, '[REDACTED_PATH]')
+    .replace(/\\{2,}[^\\/\r\n"'<>|?*,;]+(?:\\{1,2}|\/)[^\r\n"'<>|?*,;]+/g, '[REDACTED_PATH]')
+    .replace(/(^|[\s"'=:(,{\[])(\/(?!\/)[^\s"'<>()[\]{}]*)/g, '$1[REDACTED_PATH]')
+    .replace(/([?&](?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|password|passwd|pwd|secret|credential|bearer|provider[_-]?key|embedding[_-]?key)=)([^&#\s]+)/gi, '$1[REDACTED]')
+    .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|password|passwd|pwd|secret|credential|bearer|provider[_-]?key|embedding[_-]?key)=)([^&#\s,;]+)/gi, '$1[REDACTED]');
+}
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog, safeStorage } = require('electron');
+const { spawn } = require('child_process');
 const net = require('net');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -19,6 +43,12 @@ const { createRedactor } = require('./redaction');
 const { createLinkedImporter } = require('./linked-import');
 const { createOpenedMarkdownRegistrar } = require('./opened-markdown-registrar');
 const { createNativeRebuildManager } = require('./native-rebuild-manager');
+const {
+  fetchRemoteImageForMediaViewer,
+  sanitizeDownloadFilename,
+  resolveImageMimeExtension
+} = require('./media-viewer-security');
+const { resolveReadablePastedMarkdownPath } = require('./pasted-markdown-path');
 const {
   createEmbeddingActivationRecord,
   migratePlaintextEmbeddingApiKey,
@@ -86,6 +116,11 @@ const windowManager = new WindowManager();
 let searchEngine = null; // Initialized after store is created
 let openedMarkdownRegistrar = null;
 let nativeRebuildManager = null;
+const mediaViewerWindowsByParent = new Map();
+const mediaViewerParentByWindowId = new Map();
+const mediaViewerWindows = new Map();
+const mediaViewerPayloads = new Map();
+const mediaViewerParentCloseListeners = new Map();
 
 // =============================================================================
 // File argument helpers
@@ -136,6 +171,19 @@ function openFileFromPath(filePath) {
   }
   windowManager.createWindow({ filePath: resolved, registerOpenedMarkdown: true });
   addRecentFile(resolved);
+}
+
+function normalizeRenderPastedContentInput(payload) {
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    return {
+      text: typeof payload.text === 'string' ? payload.text : '',
+      allowMarkdownFallback: payload.allowMarkdownFallback !== false
+    };
+  }
+  return {
+    text: typeof payload === 'string' ? payload : '',
+    allowMarkdownFallback: true
+  };
 }
 
 const store = new Store({
@@ -445,6 +493,12 @@ async function runPackageSmoke() {
       rawEchoFree: false
     },
     clientProfileOracle: readPackageSmokeClientProfileOracleSummary(),
+    packagedCliStdio: {
+      status: 'not_run',
+      stdoutPurity: 'not_checked',
+      redactedEndpointClass: null,
+      noIndexingControls: false
+    },
     indexPath: smokeRedactor.redactPath(indexPath)
   };
 
@@ -533,6 +587,15 @@ async function runPackageSmoke() {
       runtimeSearchEngine,
       smokeRoot
     });
+    const packagedCliStdio = await runPackageSmokePackagedCliStdio({
+      packageSmokeStore,
+      runtimeSearchEngine,
+      marker,
+      documentId: savePayload.documentId,
+      sourceRelativePath: savePayload.sourceRelativePath,
+      userDataPath,
+      redactor: smokeRedactor
+    });
     const nativeLoad = loadHnswlib({ forceUnavailable: true });
     const previousSemanticProvider = runtimeSearchEngine.options.semanticCandidateProvider;
     runtimeSearchEngine.options.semanticCandidateProvider = {
@@ -581,7 +644,8 @@ async function runPackageSmoke() {
         smartSearchDegradationReasons: nativeFailureSmartSearch.degradationReasons || []
       },
       workerNative,
-      redactionFixture
+      redactionFixture,
+      packagedCliStdio
     };
     if (!artifact.ok) {
       throw new Error('SQLite package smoke query returned no results');
@@ -960,8 +1024,708 @@ function writePackageSmokeArtifact(artifact) {
   }
 }
 
+async function runPackageSmokePackagedCliStdio({
+  packageSmokeStore,
+  runtimeSearchEngine,
+  marker,
+  documentId,
+  sourceRelativePath,
+  userDataPath,
+  redactor
+}) {
+  const forbiddenTools = [
+    'save_markdown',
+    'store_document',
+    'remember_document',
+    'rebuild_search_index',
+    'clear_search_index',
+    'retry_indexing',
+    'cancel_indexing',
+    'indexing_status',
+    'search_index_status',
+    'import_markdown_links',
+    'reconcile_broken_links',
+    'model_change_reindex',
+    'model-change-reindex'
+  ];
+  const evidence = {
+    status: 'running',
+    runtimeProfile: 'explicit-ipc',
+    redactedEndpointClass: '[REDACTED_MCP_IPC:explicit]',
+    stdoutPurity: 'not_checked',
+    stdoutJsonRpcMessageCount: 0,
+    stdoutNonJsonLineCount: null,
+    stdoutNonJsonLineSamples: [],
+    stderrDiagnostics: 'stderr_or_mcp_error_only',
+    stderrByteCount: 0,
+    initializeHandshake: false,
+    initializedNotification: false,
+    toolNames: [],
+    httpToolNames: [],
+    noIndexingControls: false,
+    saveDocument: { saved: false },
+    smartSearch: { found: false },
+    invalidSaveDocument: { rejected: false, rawEchoFree: false },
+    invalidSmartSearch: { pathPrefixRejected: false, rawEchoFree: false },
+    crossTransportMarkerIdentity: {
+      markerSavedBy: 'cli-stdio',
+      markerSearchedBy: 'cli-stdio-and-http-tools-list-parity',
+      matched: false
+    }
+  };
+
+  const ipcServer = await startPackageSmokeMcpIpcServer({
+    packageSmokeStore,
+    runtimeSearchEngine
+  });
+  const cliMarker = `xopsarch013cli${Date.now()}${process.pid}z`;
+  packageSmokeStore.set('mcpPort', allocatePackageSmokeMcpPort());
+  fs.mkdirSync(userDataPath, { recursive: true });
+  const { startMcpHttpServer } = await import('./mcp-http.mjs');
+  const packageSmokeHttpServer = await startMcpHttpServer(windowManager, packageSmokeStore, userDataPath, runtimeSearchEngine);
+
+  try {
+    const httpAddress = packageSmokeHttpServer.address();
+    const httpPort = httpAddress && typeof httpAddress.port === 'number' ? httpAddress.port : null;
+    const httpToolList = await postPackageSmokeMcpHttp(httpPort, 'tools/list', {});
+    evidence.httpToolNames = ((httpToolList.result && httpToolList.result.tools) || [])
+      .map((tool) => tool.name)
+      .sort();
+
+    const stdoutProbe = await runPackageSmokeRawStdioProbe({ forbiddenTools, redactor });
+    const stdioEvidence = await runPackageSmokeStdioMcpClient({
+      marker: cliMarker,
+      forbiddenTools,
+      documentId,
+      sourceRelativePath
+    });
+    if (typeof runtimeSearchEngine.rebuild === 'function') {
+      await runtimeSearchEngine.rebuild();
+    }
+    const httpSmartSearch = await runPackageSmokeHttpSmartSearch({
+      port: httpPort,
+      marker: cliMarker,
+      expectedDocumentId: stdioEvidence.saveDocument && stdioEvidence.saveDocument.documentId,
+      expectedSourceRelativePath: stdioEvidence.saveDocument && stdioEvidence.saveDocument.sourceRelativePath
+    });
+    const httpSearchDocuments = await runPackageSmokeHttpSearchDocuments({
+      port: httpPort,
+      marker: cliMarker,
+      expectedSourceRelativePath: stdioEvidence.saveDocument && stdioEvidence.saveDocument.sourceRelativePath
+    });
+    Object.assign(evidence, stdioEvidence, stdoutProbe);
+    evidence.httpSmartSearch = httpSmartSearch;
+    evidence.httpSearchDocuments = httpSearchDocuments;
+    evidence.noIndexingControls = evidence.toolNames.every((name) => !isForbiddenMcpIndexingControlToolName(name, forbiddenTools));
+    evidence.crossTransportMarkerIdentity.matched = Boolean(
+      arraysEqual(evidence.toolNames, evidence.httpToolNames) &&
+      evidence.saveDocument.saved &&
+      evidence.smartSearch.found &&
+      evidence.httpSearchDocuments.found &&
+      evidence.stdoutPurity === 'mcp_jsonrpc_only' &&
+      evidence.initializeHandshake === true &&
+      evidence.initializedNotification === true
+    );
+    evidence.crossTransportMarkerIdentity.markerSearchedBy = 'http-search_documents';
+    evidence.status = evidence.crossTransportMarkerIdentity.matched ? 'passed' : 'failed';
+    return evidence;
+  } finally {
+    await closePackageSmokeHttpServer(packageSmokeHttpServer);
+    await closePackageSmokeServer(ipcServer);
+    if (process.platform !== 'win32') {
+      try { fs.unlinkSync(PIPE_PATH); } catch { /* ignore */ }
+    }
+  }
+}
+
+async function runPackageSmokeHttpSmartSearch({
+  port,
+  marker,
+  expectedDocumentId,
+  expectedSourceRelativePath
+}) {
+  const response = await postPackageSmokeMcpHttp(port, 'tools/call', {
+    name: 'smart_search',
+    arguments: {
+      query: marker,
+      limit: 5,
+      includeDiagnostics: true
+    }
+  });
+  const result = response && response.result ? response.result : {};
+  const text = result.content && result.content[0] ? result.content[0].text : '{}';
+  let payload = {};
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = {};
+  }
+  const match = Array.isArray(payload.results)
+    ? payload.results.find((item) =>
+        item.documentId === expectedDocumentId ||
+        item.sourceRelativePath === expectedSourceRelativePath)
+    : null;
+  const firstResult = Array.isArray(payload.results) && payload.results[0] ? payload.results[0] : null;
+  return {
+    found: Boolean(match),
+    resultCount: Array.isArray(payload.results) ? payload.results.length : 0,
+    queryToken: marker,
+    expectedIdentity: {
+      documentId: expectedDocumentId || null,
+      sourceRelativePath: expectedSourceRelativePath || null
+    },
+    firstResultIdentity: firstResult ? {
+      documentId: firstResult.documentId || null,
+      sourceRelativePath: firstResult.sourceRelativePath || null,
+      title: firstResult.title || null,
+      snippet: firstResult.snippet || null,
+      redactedPathPresent: Boolean(firstResult.redactedPath)
+    } : null,
+    degraded: payload.degraded === true,
+    degradationReasons: payload.degradationReasons || []
+  };
+}
+
+async function runPackageSmokeHttpSearchDocuments({ port, marker, expectedSourceRelativePath }) {
+  const response = await postPackageSmokeMcpHttp(port, 'tools/call', {
+    name: 'search_documents',
+    arguments: {
+      query: marker,
+      limit: 5
+    }
+  });
+  const result = response && response.result ? response.result : {};
+  const text = result.content && result.content[0] ? String(result.content[0].text || '') : '';
+  return {
+    found: Boolean(expectedSourceRelativePath && text.includes(expectedSourceRelativePath)),
+    resultCountTextPresent: /^Found\s+\d+\s+result/i.test(text),
+    sourceRelativePathMatched: Boolean(expectedSourceRelativePath && text.includes(expectedSourceRelativePath))
+  };
+}
+
+function containsRawSensitiveText(text, values) {
+  const haystack = String(text || '');
+  return values.some((value) => {
+    if (value == null) return false;
+    const raw = String(value);
+    const escaped = JSON.stringify(raw).slice(1, -1);
+    return haystack.includes(raw) || haystack.includes(escaped);
+  });
+}
+
+async function runPackageSmokeRawStdioProbe({ forbiddenTools, redactor }) {
+  const launch = resolvePackageSmokeCliStdioLaunch();
+  const evidence = {
+    launchMode: launch.mode,
+    stdoutPurity: 'not_checked',
+    stdoutJsonRpcMessageCount: 0,
+    stdoutNonJsonLineCount: 0,
+    stdoutNonJsonLineSamples: [],
+    stderrByteCount: 0,
+    initializeHandshake: false,
+    initializedNotification: false,
+    noIndexingControls: false
+  };
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(launch.command, launch.args, {
+      cwd: process.cwd(),
+      env: makePackageSmokeCliStdioEnv(launch),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
+    });
+    let stdoutBuffer = '';
+    let stderrBytes = 0;
+    let settled = false;
+    let toolsListed = false;
+    let closeTimer = null;
+
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(closeTimer);
+      flushStdoutRemainder();
+      if (child.stdin && !child.stdin.destroyed) {
+        try { child.stdin.end(); } catch { /* ignore */ }
+      }
+      if (child.exitCode === null && !child.killed) {
+        try { child.kill('SIGTERM'); } catch { /* ignore */ }
+      }
+      evidence.stderrByteCount = stderrBytes;
+      evidence.stdoutPurity = evidence.stdoutNonJsonLineCount === 0 ? 'mcp_jsonrpc_only' : 'mixed_stdout';
+      if (err) reject(err);
+      else resolve(evidence);
+    };
+
+    const send = (message) => {
+      child.stdin.write(JSON.stringify(message) + '\n');
+    };
+
+    const recordStdoutProtocolViolation = (line) => {
+      evidence.stdoutNonJsonLineCount += 1;
+      const sample = String(line || '').slice(0, 120);
+      evidence.stdoutNonJsonLineSamples.push(
+        redactor && typeof redactor.redactString === 'function'
+          ? redactor.redactString(sample)
+          : sample
+      );
+    };
+
+    const handleMessage = (message) => {
+      if (message && message.jsonrpc === '2.0') {
+        evidence.stdoutJsonRpcMessageCount += 1;
+      }
+      if (message && message.id === 1 && message.result) {
+        evidence.initializeHandshake = true;
+        evidence.initializedNotification = true;
+        send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+        send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+        return;
+      }
+      if (message && message.id === 2 && message.result) {
+        const toolNames = ((message.result.tools || []).map((tool) => tool.name)).sort();
+        evidence.rawProbeToolNames = toolNames;
+        evidence.noIndexingControls = toolNames.every((name) => !isForbiddenMcpIndexingControlToolName(name, forbiddenTools));
+        toolsListed = true;
+        if (child.stdin && !child.stdin.destroyed) {
+          child.stdin.end();
+        }
+        closeTimer = setTimeout(() => finish(), 250);
+      }
+    };
+
+    const processStdoutLines = () => {
+      let newlineIndex;
+      while ((newlineIndex = stdoutBuffer.indexOf('\n')) !== -1) {
+        const line = stdoutBuffer.slice(0, newlineIndex).replace(/\r$/, '');
+        stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+        if (!line.trim()) continue;
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          recordStdoutProtocolViolation(line);
+          continue;
+        }
+        if (!message || message.jsonrpc !== '2.0') {
+          recordStdoutProtocolViolation(line);
+          continue;
+        }
+        handleMessage(message);
+      }
+    };
+
+    const flushStdoutRemainder = () => {
+      if (!stdoutBuffer.trim()) {
+        stdoutBuffer = '';
+        return;
+      }
+      const trailingLine = stdoutBuffer.replace(/\r$/, '');
+      stdoutBuffer = '';
+      let message;
+      try {
+        message = JSON.parse(trailingLine);
+      } catch {
+        recordStdoutProtocolViolation(trailingLine);
+        return;
+      }
+      if (!message || message.jsonrpc !== '2.0') {
+        recordStdoutProtocolViolation(trailingLine);
+        return;
+      }
+      handleMessage(message);
+    };
+
+    const timer = setTimeout(() => {
+      finish(new Error(`Package CLI raw stdio probe timed out before tools/list=${toolsListed}`));
+    }, 10_000);
+
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdoutBuffer += chunk;
+      processStdoutLines();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderrBytes += Buffer.byteLength(chunk);
+    });
+    child.on('error', finish);
+    child.on('spawn', () => {
+      send({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-03-26',
+          capabilities: {},
+          clientInfo: { name: 'doculight-package-cli-raw-stdio-smoke', version: '0.0.0' }
+        }
+      });
+    });
+    child.on('close', () => {
+      flushStdoutRemainder();
+      if (toolsListed) finish();
+    });
+  });
+}
+
+async function runPackageSmokeStdioMcpClient({ marker, forbiddenTools, documentId, sourceRelativePath }) {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const launch = resolvePackageSmokeCliStdioLaunch();
+  const transport = new StdioClientTransport({
+    command: launch.command,
+    args: launch.args,
+    cwd: process.cwd(),
+    env: makePackageSmokeCliStdioEnv(launch),
+    stderr: 'pipe'
+  });
+  const client = new Client({ name: 'doculight-package-cli-stdio-smoke', version: '0.0.0' });
+  try {
+    await client.connect(transport);
+    const toolList = await client.listTools();
+    const toolNames = toolList.tools.map((tool) => tool.name).sort();
+
+    const invalidSaveResult = await client.callTool({
+      name: 'save_document',
+      arguments: {
+        content: '# Invalid package CLI save',
+        filePath: 'C:\\Users\\secret\\package-cli.md'
+      }
+    });
+    const invalidSaveText = JSON.stringify(invalidSaveResult);
+    const invalidSmartSearchResult = await client.callTool({
+      name: 'smart_search',
+      arguments: {
+        query: marker,
+        filters: { pathPrefix: 'C:\\Users\\secret\\package-cli.md?token=rawsecret' },
+        includeDiagnostics: true
+      }
+    });
+    const invalidSmartSearchText = JSON.stringify(invalidSmartSearchResult);
+
+    const saveResult = await client.callTool({
+      name: 'save_document',
+      arguments: {
+        content: `# Package CLI Stdio\n\nUnique marker: ${marker}\n`,
+        title: 'Package CLI Stdio',
+        project: 'DocuLight',
+        docType: 'note',
+        category: 'package-smoke',
+        documentTags: ['package-cli-stdio']
+      }
+    });
+    const savePayload = JSON.parse(saveResult.content[0].text);
+
+    if (typeof runtimeSearchRefreshForPackageSmoke === 'function') {
+      await runtimeSearchRefreshForPackageSmoke();
+    }
+
+    const smartSearchResult = await client.callTool({
+      name: 'smart_search',
+      arguments: {
+        query: marker,
+        limit: 5,
+        includeDiagnostics: true
+      }
+    });
+    const smartSearchPayload = JSON.parse(smartSearchResult.content[0].text);
+    const smartSearchMatch = Array.isArray(smartSearchPayload.results)
+      ? smartSearchPayload.results.find((item) =>
+          item.documentId === savePayload.documentId ||
+          item.sourceRelativePath === savePayload.sourceRelativePath ||
+          JSON.stringify(item).includes(marker))
+      : null;
+    const smartSearchFirstResult = Array.isArray(smartSearchPayload.results) && smartSearchPayload.results[0]
+      ? smartSearchPayload.results[0]
+      : null;
+
+    return {
+      launchMode: launch.mode,
+      toolNames,
+      noIndexingControls: toolNames.every((name) => !isForbiddenMcpIndexingControlToolName(name, forbiddenTools)),
+      saveDocument: {
+        saved: savePayload.saved === true,
+        documentId: savePayload.documentId || null,
+        sourceRelativePath: savePayload.sourceRelativePath || null,
+        indexingJobIdPresent: Boolean(savePayload.indexing && savePayload.indexing.jobId)
+      },
+      smartSearch: {
+        found: Boolean(smartSearchMatch),
+        resultCount: Array.isArray(smartSearchPayload.results) ? smartSearchPayload.results.length : 0,
+        matchedBy: smartSearchMatch
+          ? (smartSearchMatch.documentId === savePayload.documentId || smartSearchMatch.sourceRelativePath === savePayload.sourceRelativePath ? 'identity' : 'unique-marker')
+          : 'none',
+        firstResultIdentity: smartSearchFirstResult ? {
+          documentId: smartSearchFirstResult.documentId || null,
+          sourceRelativePath: smartSearchFirstResult.sourceRelativePath || null,
+          markerPresent: JSON.stringify(smartSearchFirstResult).includes(marker)
+        } : null,
+        degraded: smartSearchPayload.degraded === true,
+        degradationReasons: smartSearchPayload.degradationReasons || []
+      },
+      invalidSaveDocument: {
+        rejected: invalidSaveResult.isError === true,
+        rawEchoFree: !containsRawSensitiveText(invalidSaveText, ['C:\\Users\\secret', 'package-cli.md'])
+      },
+      invalidSmartSearch: {
+        pathPrefixRejected: invalidSmartSearchResult.isError === true,
+        rawEchoFree: !containsRawSensitiveText(invalidSmartSearchText, ['C:\\Users\\secret', 'package-cli.md', 'token=rawsecret', 'rawsecret'])
+      }
+    };
+  } finally {
+    try { await client.close(); } catch { /* ignore */ }
+  }
+}
+
+function makePackageSmokeCliStdioEnv(launch) {
+  return {
+    ...process.env,
+    ...launch.env,
+    DOCULIGHT_MCP_IPC_PATH: PIPE_PATH,
+    DOCLIGHT_APP_PATH: process.execPath
+  };
+}
+
+const FORBIDDEN_MCP_INDEXING_CONTROL_PATTERN = /(?:^|_)(?:rebuild|clear|retry|cancel|status|import|reconcil\w*|model_change|reindex)(?:_|$)/i;
+
+function normalizeMcpToolNameForPolicy(name) {
+  return String(name || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[-\s]+/g, '_')
+    .toLowerCase();
+}
+
+function isForbiddenMcpIndexingControlToolName(name, forbiddenTools = []) {
+  const rawName = String(name || '');
+  const normalizedName = normalizeMcpToolNameForPolicy(rawName);
+  return forbiddenTools.includes(rawName) ||
+    forbiddenTools.includes(normalizedName) ||
+    FORBIDDEN_MCP_INDEXING_CONTROL_PATTERN.test(normalizedName);
+}
+
+function resolvePackageSmokeCliStdioLaunch() {
+  if (process.platform === 'win32' && process.resourcesPath) {
+    return {
+      mode: 'windows-electron-run-as-node-asar-index',
+      command: process.execPath,
+      args: [path.join(process.resourcesPath, 'app.asar', 'src', 'main', 'index.js'), '--mcp-stdio'],
+      env: { ELECTRON_RUN_AS_NODE: '1' }
+    };
+  }
+  return {
+    mode: 'direct-executable-mcp-stdio',
+    command: process.execPath,
+    args: ['--mcp-stdio'],
+    env: {}
+  };
+}
+
+let runtimeSearchRefreshForPackageSmoke = null;
+
+async function startPackageSmokeMcpIpcServer({ packageSmokeStore, runtimeSearchEngine }) {
+  cleanupStaleSocket();
+  runtimeSearchRefreshForPackageSmoke = async () => {
+    if (typeof runtimeSearchEngine.rebuild === 'function') {
+      await runtimeSearchEngine.rebuild();
+    } else if (typeof runtimeSearchEngine.ensureFresh === 'function') {
+      await runtimeSearchEngine.ensureFresh();
+    }
+  };
+  const sockets = new Set();
+  const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    socket.setEncoding('utf8');
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!line) continue;
+        handlePackageSmokeIpcLine(socket, line, { packageSmokeStore, runtimeSearchEngine });
+      }
+    });
+  });
+  server._packageSmokeSockets = sockets;
+  await listenPackageSmokeServer(server, PIPE_PATH);
+  return server;
+}
+
+async function handlePackageSmokeIpcLine(socket, line, { packageSmokeStore, runtimeSearchEngine }) {
+  let message = null;
+  try {
+    message = JSON.parse(line);
+    const params = message.params || {};
+    let result;
+    switch (message.action) {
+      case 'save_document':
+        result = await saveDocumentToStore(packageSmokeStore, params, runtimeSearchEngine);
+        break;
+      case 'search_documents':
+        await runtimeSearchRefreshForPackageSmoke();
+        result = {
+          results: runtimeSearchEngine.search(params.query, {
+            limit: params.limit,
+            project: params.project,
+            docType: params.docType
+          }),
+          totalIndexed: runtimeSearchEngine.docMeta.size,
+          indexStatus: runtimeSearchEngine.getStatus()
+        };
+        break;
+      case 'smart_search':
+        await runtimeSearchRefreshForPackageSmoke();
+        result = await buildSmartSearchToolResult(params, {
+          searchEngine: runtimeSearchEngine,
+          store: packageSmokeStore
+        });
+        break;
+      case 'list_viewers':
+        result = { windows: [] };
+        break;
+      case 'close_viewer':
+        result = { closed: 0 };
+        break;
+      case 'open_markdown':
+      case 'update_markdown':
+        result = { windowId: 'package-smoke-window', title: params.title || 'Package Smoke', upserted: false };
+        break;
+      default:
+        socket.write(JSON.stringify({ id: message.id, error: `Unknown action: ${message.action}` }) + '\n');
+        return;
+    }
+    socket.write(JSON.stringify({ id: message.id, result }) + '\n');
+  } catch (err) {
+    socket.write(JSON.stringify({
+      id: message && message.id ? message.id : null,
+      error: err && err.message ? err.message : String(err)
+    }) + '\n');
+  }
+}
+
+function listenPackageSmokeServer(server, ipcPath) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(ipcPath, () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
+}
+
+function closePackageSmokeServer(server) {
+  return new Promise((resolve) => {
+    if (!server) {
+      resolve();
+      return;
+    }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      const sockets = server._packageSmokeSockets || new Set();
+      for (const socket of sockets) {
+        try { socket.destroy(); } catch { /* ignore */ }
+      }
+      finish();
+    }, 1_000);
+    try {
+      server.close(() => finish());
+    } catch {
+      finish();
+    }
+  });
+}
+
+function closePackageSmokeHttpServer(server) {
+  return new Promise((resolve) => {
+    if (!server) {
+      resolve();
+      return;
+    }
+    if (typeof server._mcpClose === 'function') {
+      server._mcpClose();
+      resolve();
+      return;
+    }
+    server.close(() => resolve());
+  });
+}
+
+function postPackageSmokeMcpHttp(port, method, params) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      id: `package-smoke-${Date.now()}`,
+      method,
+      params
+    });
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: '/mcp',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, (res) => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          done(resolve, JSON.parse(data));
+        } catch (err) {
+          done(reject, err);
+        }
+      });
+    });
+    req.setTimeout(10_000, () => {
+      req.destroy(new Error(`Package smoke MCP HTTP request timed out for ${method}`));
+    });
+    req.on('error', (err) => done(reject, err));
+    req.write(body);
+    req.end();
+  });
+}
+
+function allocatePackageSmokeMcpPort() {
+  return 35000 + (process.pid % 20000);
+}
+
+function arraysEqual(left, right) {
+  return Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.length === right.length &&
+    left.every((value, index) => value === right[index]);
+}
+
+function isDocumentStoreSourceRootConfigured() {
+  const sourceRoot = String(store.get('mcpAutoSavePath', '') || '').trim();
+  if (!sourceRoot) return false;
+  try {
+    return fs.statSync(sourceRoot).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function initializeSearchEngineIfConfigured() {
-  if (!searchEngine || !store.get('mcpAutoSave', false) || !store.get('mcpAutoSavePath', '')) {
+  if (!searchEngine || !isDocumentStoreSourceRootConfigured()) {
     return;
   }
   searchEngine.initialize().catch(err => {
@@ -982,7 +1746,24 @@ function startNativeRepairIfNeeded() {
 }
 
 function getIndexingStatusPayload() {
-  const status = searchEngine ? searchEngine.getStatus() : { state: 'unavailable' };
+  const sourceRootConfigured = isDocumentStoreSourceRootConfigured();
+  const rawStatus = searchEngine ? searchEngine.getStatus() : { state: 'unavailable' };
+  const status = {
+    ...rawStatus,
+    sourceRootConfigured,
+    canRebuild: sourceRootConfigured
+  };
+  if (!sourceRootConfigured) {
+    status.state = 'storage-not-configured';
+    status.indexedCount = 0;
+    status.pendingCount = 0;
+    status.failedCount = 0;
+    status.currentPath = null;
+    status.phase = null;
+    status.progress = null;
+    status.rebuildSession = null;
+    status.errorSummary = null;
+  }
   if (!nativeRebuildManager) return status;
   const nativeRepair = nativeRebuildManager.getStatus();
   const nativeActive = nativeRepair && (nativeRepair.active || nativeRepair.state === 'checking' || nativeRepair.state === 'repairing');
@@ -1048,6 +1829,289 @@ function sanitizeSettingsPayload(settingsPayload) {
   delete settings.apiKey;
   settings.semanticSearch = sanitizeEmbeddingSettingsForRenderer(getStoredEmbeddingSettings());
   return settings;
+}
+
+function isRemoteHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || ''));
+}
+
+function isSafeRendererImageSrc(value) {
+  return /^(data:image\/|blob:)/i.test(String(value || ''));
+}
+
+function getRemoteImageFetchOptions() {
+  const allowPrivateNetworkOverride =
+    process.env.DOCULIGHT_MEDIA_VIEWER_ALLOW_PRIVATE_REMOTE === '1' &&
+    (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'dev');
+  return {
+    allowPrivateNetworkForTests: allowPrivateNetworkOverride,
+    maxBytes: 10 * 1024 * 1024,
+    timeoutMs: 10000
+  };
+}
+
+function redactMediaError(err) {
+  const code = err && err.code ? String(err.code) : 'media_error';
+  return {
+    code,
+    message: code
+  };
+}
+
+function normalizeMediaTitle(title, fallbackKey) {
+  const value = String(title || '').trim();
+  return value.slice(0, 160) || t(fallbackKey);
+}
+
+function decodeDataUrl(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:([^;,]+)(;base64)?,([\s\S]*)$/);
+  if (!match) {
+    const err = new Error('Invalid data URL.');
+    err.code = 'invalid_data_url';
+    throw err;
+  }
+  const mime = match[1].toLowerCase();
+  const bytes = match[2]
+    ? Buffer.from(match[3] || '', 'base64')
+    : Buffer.from(decodeURIComponent(match[3] || ''), 'utf-8');
+  return { bytes, mime };
+}
+
+function normalizeMediaViewerRequest(payload) {
+  const input = payload && typeof payload === 'object' ? payload : {};
+  if (input.type === 'mermaid') {
+    return {
+      type: 'mermaid',
+      title: normalizeMediaTitle(input.title, 'viewer.media.mermaidTitle'),
+      mermaidSource: String(input.mermaidSource || ''),
+      fileName: sanitizeDownloadFilename(input.fileName || input.title || 'mermaid.svg', 'image/svg+xml')
+    };
+  }
+
+  if (input.type === 'image') {
+    return {
+      type: 'image',
+      title: normalizeMediaTitle(input.title || input.alt, 'viewer.media.imageTitle'),
+      source: String(input.source || ''),
+      displaySrc: String(input.displaySrc || input.source || ''),
+      alt: String(input.alt || input.title || ''),
+      mime: String(input.mime || ''),
+      fileName: input.fileName ? String(input.fileName) : ''
+    };
+  }
+
+  const err = new Error('Unsupported media type.');
+  err.code = 'unsupported_media_type';
+  throw err;
+}
+
+async function prepareMediaViewerPayload(payload) {
+  const normalized = normalizeMediaViewerRequest(payload);
+  if (normalized.type !== 'image') return normalized;
+
+  const sourceForFetch = isRemoteHttpUrl(normalized.source) ? normalized.source : normalized.displaySrc;
+  if (isRemoteHttpUrl(sourceForFetch)) {
+    const remote = await fetchRemoteImageForMediaViewer(sourceForFetch, getRemoteImageFetchOptions());
+    return {
+      ...normalized,
+      source: sourceForFetch,
+      displaySrc: `data:${remote.mime};base64,${remote.bytes.toString('base64')}`,
+      mime: remote.mime,
+      fileName: remote.safeFileName
+    };
+  }
+
+  if (!isSafeRendererImageSrc(normalized.displaySrc)) {
+    const err = new Error('Image payload must use a safe renderer source.');
+    err.code = 'unsafe_image_payload';
+    throw err;
+  }
+
+  return {
+    ...normalized,
+    source: '',
+    displaySrc: normalized.displaySrc
+  };
+}
+
+function registerMediaViewerWindow(parentWindowId, mediaWindow) {
+  if (!mediaViewerWindowsByParent.has(parentWindowId)) {
+    mediaViewerWindowsByParent.set(parentWindowId, new Set());
+  }
+  mediaViewerWindowsByParent.get(parentWindowId).add(mediaWindow.id);
+  mediaViewerParentByWindowId.set(mediaWindow.id, parentWindowId);
+  mediaViewerWindows.set(mediaWindow.id, mediaWindow);
+}
+
+function isRegisteredMediaViewerWindow(candidateWindow) {
+  return !!candidateWindow && !candidateWindow.isDestroyed() && mediaViewerWindows.has(candidateWindow.id);
+}
+
+function getManagedMarkdownViewerWindowId(candidateWindow) {
+  if (!candidateWindow || candidateWindow.isDestroyed()) return null;
+  return windowManager.findWindowId(candidateWindow) || null;
+}
+
+function removeMediaViewerParentCloseListener(parentWindowId) {
+  const entry = mediaViewerParentCloseListeners.get(parentWindowId);
+  if (!entry) return;
+  if (entry.parentWindow && !entry.parentWindow.isDestroyed()) {
+    entry.parentWindow.removeListener('closed', entry.listener);
+  }
+  mediaViewerParentCloseListeners.delete(parentWindowId);
+}
+
+function removeMediaViewerWindow(mediaWindowId) {
+  const parentWindowId = mediaViewerParentByWindowId.get(mediaWindowId);
+  if (parentWindowId && mediaViewerWindowsByParent.has(parentWindowId)) {
+    const linked = mediaViewerWindowsByParent.get(parentWindowId);
+    linked.delete(mediaWindowId);
+    if (linked.size === 0) {
+      mediaViewerWindowsByParent.delete(parentWindowId);
+      removeMediaViewerParentCloseListener(parentWindowId);
+    }
+  }
+  mediaViewerParentByWindowId.delete(mediaWindowId);
+  mediaViewerWindows.delete(mediaWindowId);
+  mediaViewerPayloads.delete(mediaWindowId);
+}
+
+function detachMediaViewerParent(parentWindowId) {
+  const linked = mediaViewerWindowsByParent.get(parentWindowId);
+  if (!linked) return;
+  for (const mediaWindowId of linked) {
+    mediaViewerParentByWindowId.delete(mediaWindowId);
+  }
+  mediaViewerWindowsByParent.delete(parentWindowId);
+  mediaViewerParentCloseListeners.delete(parentWindowId);
+}
+
+function ensureMediaViewerParentCloseListener(parentWindowId, parentWindow) {
+  if (!parentWindow || parentWindow.isDestroyed() || mediaViewerParentCloseListeners.has(parentWindowId)) return;
+  const listener = () => detachMediaViewerParent(parentWindowId);
+  mediaViewerParentCloseListeners.set(parentWindowId, { parentWindow, listener });
+  parentWindow.once('closed', listener);
+}
+
+function propagateAlwaysOnTopToMediaViewers(parentWindowId, alwaysOnTop) {
+  const linked = mediaViewerWindowsByParent.get(parentWindowId);
+  if (!linked) return;
+  for (const mediaWindowId of linked) {
+    const mediaWindow = mediaViewerWindows.get(mediaWindowId);
+    if (!mediaWindow || mediaWindow.isDestroyed()) continue;
+    mediaWindow.setAlwaysOnTop(!!alwaysOnTop);
+    mediaWindow.webContents.send('always-on-top-changed', { alwaysOnTop: !!alwaysOnTop });
+  }
+}
+
+async function createMediaViewerWindow(parentWindowId, payload, parentAlwaysOnTop, parentWindow = null) {
+  const preparedPayload = await prepareMediaViewerPayload(payload);
+  const mediaWindow = new BrowserWindow({
+    width: 1100,
+    height: 780,
+    minWidth: 420,
+    minHeight: 320,
+    title: preparedPayload.title,
+    icon: nativeImage.createFromPath(ICON_PATH),
+    backgroundColor: '#ffffff',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+
+  if (parentAlwaysOnTop) {
+    mediaWindow.setAlwaysOnTop(true);
+  }
+
+  registerMediaViewerWindow(parentWindowId, mediaWindow);
+  mediaViewerPayloads.set(mediaWindow.id, preparedPayload);
+  ensureMediaViewerParentCloseListener(parentWindowId, parentWindow);
+  mediaWindow.once('ready-to-show', () => mediaWindow.show());
+  mediaWindow.on('closed', () => removeMediaViewerWindow(mediaWindow.id));
+  mediaWindow.webContents.once('did-finish-load', () => {
+    if (!mediaWindow.isDestroyed()) {
+      mediaWindow.webContents.send('media-viewer-payload', preparedPayload);
+    }
+  });
+
+  await mediaWindow.loadFile(path.join(__dirname, '..', 'renderer', 'media-viewer.html'));
+  return { success: true, mediaWindowId: mediaWindow.id };
+}
+
+async function resolveImageDownloadAsset(request) {
+  const source = String(request.source || '');
+  const displaySrc = String(request.displaySrc || '');
+
+  if (displaySrc.startsWith('data:')) {
+    const decoded = decodeDataUrl(displaySrc);
+    return {
+      bytes: decoded.bytes,
+      mime: decoded.mime,
+      fileName: sanitizeDownloadFilename(request.fileName || request.title || 'image', decoded.mime)
+    };
+  }
+
+  const src = source || displaySrc;
+  if (String(src).startsWith('data:')) {
+    const decoded = decodeDataUrl(src);
+    return {
+      bytes: decoded.bytes,
+      mime: decoded.mime,
+      fileName: sanitizeDownloadFilename(request.fileName || request.title || 'image', decoded.mime)
+    };
+  }
+
+  if (isRemoteHttpUrl(src)) {
+    const remote = await fetchRemoteImageForMediaViewer(src, getRemoteImageFetchOptions());
+    return { bytes: remote.bytes, mime: remote.mime, fileName: remote.safeFileName };
+  }
+
+  const err = new Error('Unsupported image source.');
+  err.code = 'unsupported_image_source';
+  throw err;
+}
+
+async function downloadMediaAssetForSender(senderWindow, request) {
+  const input = request && typeof request === 'object' ? request : {};
+  if (input.type === 'mermaid') {
+    const svg = String(input.svg || '');
+    if (!svg.trim()) {
+      const err = new Error('Missing SVG data.');
+      err.code = 'missing_svg';
+      throw err;
+    }
+    const fileName = sanitizeDownloadFilename(input.fileName || input.title || 'mermaid.svg', 'image/svg+xml');
+    const saveResult = await dialog.showSaveDialog(senderWindow, {
+      title: t('viewer.media.download'),
+      defaultPath: fileName,
+      filters: [{ name: 'SVG', extensions: ['svg'] }]
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+    await fs.promises.writeFile(saveResult.filePath, svg, 'utf-8');
+    return { success: true };
+  }
+
+  if (input.type === 'image') {
+    const asset = await resolveImageDownloadAsset(input);
+    const ext = resolveImageMimeExtension(asset.mime);
+    const fileName = sanitizeDownloadFilename(asset.fileName || input.fileName || input.title || 'image', asset.mime);
+    const saveResult = await dialog.showSaveDialog(senderWindow, {
+      title: t('viewer.media.download'),
+      defaultPath: fileName,
+      filters: ext ? [{ name: asset.mime, extensions: [ext.slice(1)] }] : undefined
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+    await fs.promises.writeFile(saveResult.filePath, asset.bytes);
+    return { success: true };
+  }
+
+  const err = new Error('Unsupported media type.');
+  err.code = 'unsupported_media_type';
+  throw err;
 }
 
 function sanitizeEmbeddingSettingsForRenderer(settingsPayload = getStoredEmbeddingSettings()) {
@@ -1265,18 +2329,27 @@ async function validateEmbeddingModelConfig(input = {}) {
   }
 
   const requestedDimensions = normalizeOptionalPositiveInt(input.dimensions);
-  const validationBody = { model, input: 'DocuLight embedding validation' };
-  if (requestedDimensions) validationBody.dimensions = requestedDimensions;
-  const validationResponse = await fetchWithTimeout(normalized.embeddingsURL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(validationBody)
-  }, timeoutMs);
-  if (!validationResponse.ok) {
-    throw createEmbeddingHttpError('embeddings', validationResponse.status);
-  }
-  const validationPayload = await validationResponse.json();
-  const dimensions = requestedDimensions || extractEmbeddingDimensions(validationPayload);
+  const validationProvider = createOpenAICompatibleEmbeddingProvider({
+    fetchImpl: (url, options = {}) => fetchWithTimeout(url, options, timeoutMs),
+    getEmbeddingConfig: () => ({
+      baseURL: normalized.baseURL,
+      model,
+      dimensions: requestedDimensions,
+      timeout: timeoutMs
+    }),
+    getApiKey: () => apiKeyInfo.key
+  });
+  const validationResult = await validationProvider.embed({
+    baseURL: normalized.baseURL,
+    model,
+    inputs: ['DocuLight embedding validation'],
+    dimensions: requestedDimensions,
+    timeoutMs
+  });
+  const validationVector = Array.isArray(validationResult?.embeddings)
+    ? validationResult.embeddings[0]
+    : null;
+  const dimensions = requestedDimensions || (Array.isArray(validationVector) ? validationVector.length : null);
   if (!dimensions) {
     const err = new Error('Embedding dimensions could not be discovered from validation response');
     err.code = 'EMBEDDING_DIMENSIONS_REQUIRED';
@@ -1284,7 +2357,7 @@ async function validateEmbeddingModelConfig(input = {}) {
   }
 
   const chunkSize = normalizePositiveInt(input.chunkSize, EMBEDDING_DEFAULT_CHUNK_SIZE);
-  const chunkOverlap = normalizePositiveInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP);
+  const chunkOverlap = normalizeNonNegativeInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP);
   return {
     ok: true,
     status: 'connected',
@@ -2127,6 +3200,14 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('indexing:start-rebuild', () => {
+    if (!isDocumentStoreSourceRootConfigured()) {
+      return {
+        started: false,
+        scheduled: false,
+        reason: 'source-root-unconfigured',
+        status: getIndexingStatusPayload()
+      };
+    }
     return searchEngine.startRebuild();
   });
 
@@ -2135,10 +3216,25 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('indexing:retry-failures', () => {
+    if (!isDocumentStoreSourceRootConfigured()) {
+      return {
+        started: false,
+        scheduled: false,
+        reason: 'source-root-unconfigured',
+        status: getIndexingStatusPayload()
+      };
+    }
     return searchEngine.retryFailures();
   });
 
   ipcMain.handle('indexing:compact', async () => {
+    if (!isDocumentStoreSourceRootConfigured()) {
+      return {
+        compacted: false,
+        reason: 'source-root-unconfigured',
+        status: getIndexingStatusPayload()
+      };
+    }
     return searchEngine.compact();
   });
 
@@ -2148,7 +3244,13 @@ function registerIpcHandlers() {
 
   ipcMain.handle('indexing:open-data-dir', async () => {
     const dataDir = searchEngine.getIndexDataDir();
-    if (!dataDir) return { success: false, error: 'mcpAutoSavePath is not configured' };
+    if (!dataDir || !isDocumentStoreSourceRootConfigured()) {
+      return {
+        success: false,
+        reason: 'source-root-unconfigured',
+        error: 'Document store path is not configured'
+      };
+    }
     const error = await shell.openPath(dataDir);
     return { success: !error, error: error || null, dataDir };
   });
@@ -2202,7 +3304,7 @@ function registerIpcHandlers() {
   ipcMain.handle('embedding:validate-model', async (_event, settings) => {
     try {
       const result = await validateEmbeddingModelConfig(settings || {});
-      return { success: true, ...result };
+      return { ...result, success: result.ok === true };
     } catch (err) {
       return {
         success: false,
@@ -2261,7 +3363,7 @@ function registerIpcHandlers() {
       const semanticReindex = searchEngine && typeof searchEngine.queueSemanticReindexForActiveDocuments === 'function'
         ? searchEngine.queueSemanticReindexForActiveDocuments({ requestedBy: 'embedding-registration' })
         : { queued: 0, jobs: [] };
-      if (semanticReindex && semanticReindex.reason) {
+      if (semanticReindex && semanticReindex.reason && semanticReindex.skipped !== true) {
         return {
           success: false,
           status: {
@@ -2307,10 +3409,11 @@ function registerIpcHandlers() {
         }),
         secretMigration: normalizeSecretMigrationState(previousSettings.secretMigration),
         semanticIndexing: {
-          status: 'queued',
+          status: semanticReindex.skipped === true ? 'idle' : 'queued',
           progress_current: 0,
           progress_total: 0,
-          queuedAt: validatedAt
+          queuedAt: semanticReindex.skipped === true ? null : validatedAt,
+          skippedReason: semanticReindex.skipped === true ? semanticReindex.reason : null
         }
       };
       store.set('semanticSearch', nextSettings);
@@ -2368,21 +3471,44 @@ function registerIpcHandlers() {
   ipcMain.on('navigate-to', (event, filePath) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const windowId = windowManager.findWindowId(win);
-    if (windowId) windowManager.navigateTo(windowId, filePath);
+    if (windowId) {
+      Promise.resolve(windowManager.navigateTo(windowId, filePath)).catch(err => {
+        console.error(`[doculight] navigate-to error: ${err && err.message}`);
+      });
+    }
   });
 
   // History: go back
   ipcMain.on('navigate-back', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const windowId = windowManager.findWindowId(win);
-    if (windowId) windowManager.navigateBack(windowId);
+    if (windowId) {
+      Promise.resolve(windowManager.navigateBack(windowId)).catch(err => {
+        console.error(`[doculight] navigate-back error: ${err && err.message}`);
+      });
+    }
   });
 
   // History: go forward
   ipcMain.on('navigate-forward', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const windowId = windowManager.findWindowId(win);
-    if (windowId) windowManager.navigateForward(windowId);
+    if (windowId) {
+      Promise.resolve(windowManager.navigateForward(windowId)).catch(err => {
+        console.error(`[doculight] navigate-forward error: ${err && err.message}`);
+      });
+    }
+  });
+
+  // History: jump to an existing breadcrumb entry and truncate the trail
+  ipcMain.on('navigate-to-history-index', (event, index) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const windowId = windowManager.findWindowId(win);
+    if (windowId) {
+      Promise.resolve(windowManager.navigateToHistoryIndex(windowId, index)).catch(err => {
+        console.error(`[doculight] navigate-to-history-index error: ${err && err.message}`);
+      });
+    }
   });
 
   // Open an external URL in the user's default browser (http/https only)
@@ -2425,6 +3551,34 @@ function registerIpcHandlers() {
   // i18n: provide locale strings to renderer
   ipcMain.handle('get-strings', () => {
     return getAllStrings();
+  });
+
+  ipcMain.handle('media-viewer:open', async (event, payload) => {
+    try {
+      const parentWindow = BrowserWindow.fromWebContents(event.sender);
+      if (!parentWindow) return { error: 'media_viewer_parent_unavailable' };
+      const parentWindowId = getManagedMarkdownViewerWindowId(parentWindow);
+      if (!parentWindowId) return { error: 'media_viewer_parent_unavailable' };
+      return await createMediaViewerWindow(parentWindowId, payload, parentWindow.isAlwaysOnTop(), parentWindow);
+    } catch (err) {
+      return { error: redactMediaError(err) };
+    }
+  });
+
+  ipcMain.handle('media-viewer:get-payload', async (event) => {
+    const mediaWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!isRegisteredMediaViewerWindow(mediaWindow)) return { error: 'media_viewer_unavailable' };
+    return mediaViewerPayloads.get(mediaWindow.id) || { error: 'media_viewer_payload_unavailable' };
+  });
+
+  ipcMain.handle('media-viewer:download', async (event, request) => {
+    try {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      if (!isRegisteredMediaViewerWindow(senderWindow)) return { error: 'media_viewer_unavailable' };
+      return await downloadMediaAssetForSender(senderWindow, request);
+    } catch (err) {
+      return { error: redactMediaError(err) };
+    }
   });
 
   // Settings: get all settings
@@ -2486,6 +3640,7 @@ function registerIpcHandlers() {
 
     if ('mcpAutoSavePath' in settings && settings.mcpAutoSavePath !== oldMcpAutoSavePath && searchEngine) {
       searchEngine.resetForSourceRootChange();
+      initializeSearchEngineIfConfigured();
     }
 
     return { success: true };
@@ -2551,7 +3706,8 @@ function registerIpcHandlers() {
         filePath: filePath.replace(/\\/g, '/'),
         windowId,
         imageBasePath: path.dirname(filePath).replace(/\\/g, '/'),
-        platform: process.platform
+        platform: process.platform,
+        navigationTrail: windowManager.getNavigationTrailPayload(windowId)
       });
 
       // step28 Phase 2: 배치 스트리밍 로드 단일 진입점으로 통합
@@ -2608,6 +3764,7 @@ function registerIpcHandlers() {
     if (windowId) {
       const entry = windowManager.getWindowEntry(windowId);
       if (entry) entry.meta.alwaysOnTop = !current;
+      propagateAlwaysOnTopToMediaViewers(windowId, !current);
     }
     event.sender.send('always-on-top-changed', { alwaysOnTop: !current });
   });
@@ -2621,6 +3778,7 @@ function registerIpcHandlers() {
     if (windowId) {
       const entry = windowManager.getWindowEntry(windowId);
       if (entry) entry.meta.alwaysOnTop = !!value;
+      propagateAlwaysOnTopToMediaViewers(windowId, !!value);
     }
     event.sender.send('always-on-top-changed', { alwaysOnTop: !!value });
   });
@@ -2634,6 +3792,7 @@ function registerIpcHandlers() {
       if (windowId) {
         const entry = windowManager.getWindowEntry(windowId);
         if (entry) entry.meta.alwaysOnTop = false;
+        propagateAlwaysOnTopToMediaViewers(windowId, false);
       }
       event.sender.send('always-on-top-changed', { alwaysOnTop: false });
     }
@@ -3286,9 +4445,23 @@ function registerIpcHandlers() {
   });
 
   // === Render Pasted Content (FR-22-004) ===
-  ipcMain.handle('render-pasted-content', async (event, content) => {
+  ipcMain.handle('render-pasted-content', async (event, payload) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    if (!win) return;
+    if (!win) return { success: false, error: 'window not found' };
+
+    const { text: content, allowMarkdownFallback } = normalizeRenderPastedContentInput(payload);
+    const pastedFilePath = await resolveReadablePastedMarkdownPath(content);
+    if (pastedFilePath) {
+      const windowId = windowManager.findWindowId(win);
+      if (!windowId) return { success: false, error: 'window not found' };
+      await windowManager.navigateTo(windowId, pastedFilePath);
+      return { success: true, source: 'file' };
+    }
+
+    if (!allowMarkdownFallback) {
+      return { success: false, ignored: true, reason: 'not_readable_markdown_path' };
+    }
+
     const title = extractTitleFromContent(content) || 'Pasted';
     win.webContents.send('render-markdown', {
       markdown: content,
@@ -3296,6 +4469,7 @@ function registerIpcHandlers() {
       title: title,
       source: 'paste'
     });
+    return { success: true, source: 'paste' };
   });
 
   // Read a local image file and return it as a base64 data URL.

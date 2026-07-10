@@ -1,0 +1,9 @@
+{"seq":1,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH001-01","relation":"depends_on","ok":true}
+{"seq":2,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH001-02","relation":"depends_on","ok":true}
+{"seq":3,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH002-01","relation":"depends_on","ok":true}
+{"seq":4,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH002-02","relation":"depends_on","ok":true}
+{"seq":5,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH003-01","relation":"depends_on","ok":true}
+{"seq":6,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH004-01","relation":"depends_on","ok":true}
+{"seq":7,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH004-02","relation":"depends_on","ok":true}
+{"seq":8,"call":"add_trace_link","id":"REL-DOC-007","type":"Task","reference":"T-PH005-01","relation":"depends_on","ok":true}
+{"seq":9,"call":"add_verification_evidence","id":"REL-DOC-007","type":"plan","reference":"docs/plans/2026-07-05.doculight.index-worker.plan.md","covers":"AC-1..AC-9","ok":true}

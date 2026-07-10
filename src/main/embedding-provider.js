@@ -37,24 +37,90 @@ function createOpenAICompatibleEmbeddingProvider(options = {}) {
       const body = { model, input: inputs };
       const dimensions = normalizeOptionalPositiveInt(request.dimensions || config.dimensions);
       if (dimensions) body.dimensions = dimensions;
-      const response = await fetchWithTimeout(fetchImpl, `${baseURL}/embeddings`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-      }, timeoutMs);
+      let response = await postEmbeddingRequest(fetchImpl, `${baseURL}/embeddings`, body, headers, timeoutMs);
+      let retriedWithoutDimensions = false;
+      if (!response.ok && dimensions && await shouldRetryWithoutDimensions(response)) {
+        response = await postEmbeddingRequest(fetchImpl, `${baseURL}/embeddings`, { model, input: inputs }, headers, timeoutMs);
+        retriedWithoutDimensions = true;
+      }
       if (!response.ok) {
         const err = new Error(`Embedding endpoint returned HTTP ${response.status}`);
         err.code = 'embedding_endpoint_unreachable';
         throw err;
       }
       const payload = await response.json();
+      const embeddings = extractEmbeddingVectors(payload);
+      if (retriedWithoutDimensions && !embeddings.every((vector) => vector.length === dimensions)) {
+        const err = new Error(`Embedding response dimensions mismatch: expected ${dimensions}`);
+        err.code = 'embedding_dimensions_mismatch';
+        throw err;
+      }
       return {
-        embeddings: extractEmbeddingVectors(payload),
+        embeddings,
         model,
         purpose: request.purpose || 'document'
       };
     }
   };
+}
+
+function postEmbeddingRequest(fetchImpl, url, body, headers, timeoutMs) {
+  return fetchWithTimeout(fetchImpl, url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  }, timeoutMs);
+}
+
+function isDimensionParameterRetryStatus(status) {
+  return status === 400 || status === 422;
+}
+
+async function shouldRetryWithoutDimensions(response) {
+  if (!response || !isDimensionParameterRetryStatus(response.status)) return false;
+  const message = await readEmbeddingErrorMessage(response);
+  return isDimensionParameterUnsupportedMessage(message);
+}
+
+async function readEmbeddingErrorMessage(response) {
+  try {
+    if (typeof response.json === 'function') {
+      const payload = await response.json();
+      return stringifyErrorPayload(payload);
+    }
+    if (typeof response.text === 'function') {
+      return String(await response.text());
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function stringifyErrorPayload(payload) {
+  if (payload == null) return '';
+  if (typeof payload === 'string') return payload;
+  if (payload && typeof payload === 'object') {
+    const error = payload.error && typeof payload.error === 'object' ? payload.error : payload;
+    const parts = [
+      error.message,
+      error.type,
+      error.param,
+      error.code
+    ].filter((value) => value !== undefined && value !== null);
+    if (parts.length > 0) return parts.map((value) => String(value)).join(' ');
+  }
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return '';
+  }
+}
+
+function isDimensionParameterUnsupportedMessage(message) {
+  const normalized = String(message || '').toLowerCase();
+  if (!normalized) return false;
+  return normalized.includes('dimension') || normalized.includes('matryoshka');
 }
 
 function normalizeEmbeddingBaseURL(rawBaseURL) {

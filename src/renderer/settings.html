@@ -126,7 +126,7 @@
         <label class="section-label" data-i18n="settings.mcpAutoSave">Save Documents from MCP</label>
         <div class="checkbox-group">
           <label class="checkbox-label">
-            <input type="checkbox" id="mcpAutoSave-checkbox">
+            <input type="checkbox" id="mcpAutoSave-checkbox" disabled>
             <span data-i18n="settings.mcpAutoSaveCheckbox">Auto-save</span>
           </label>
           <small class="hint" data-i18n="settings.mcpAutoSaveHint">Auto-save files opened via MCP to disk</small>
@@ -183,7 +183,7 @@
             Set a document store path before enabling opened Markdown registration.
           </small>
         </div>
-        <button type="button" id="indexing-manage-btn" class="indexing-manage-button" data-i18n="settings.indexingManage">
+        <button type="button" id="indexing-manage-btn" class="indexing-manage-button" data-i18n="settings.indexingManage" disabled>
           Manage search index
         </button>
         <small class="hint" data-i18n="settings.indexingManageHint">
@@ -252,6 +252,56 @@
           <button type="button" id="indexing-back-btn" data-i18n="settings.indexingBack">Back to settings</button>
         </div>
       </section>
+
+      <section id="embedding-registration-view" class="settings-view embedding-registration-view hidden" aria-labelledby="settings-title">
+        <div class="form-group">
+          <label for="embedding-url-input" data-i18n="settings.embeddingModelUrl">URL</label>
+          <input type="url" id="embedding-url-input" placeholder="https://provider.example/v1">
+        </div>
+        <div class="form-group">
+          <label for="embedding-key-input" data-i18n="settings.embeddingModelKey">API key</label>
+          <input type="password" id="embedding-key-input" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="embedding-model-input" data-i18n="settings.embeddingModelName">Model name</label>
+          <input type="text" id="embedding-model-input">
+        </div>
+        <div class="embedding-grid">
+          <div class="form-group">
+            <label for="embedding-chunk-size-input" data-i18n="settings.embeddingChunkSize">Chunk size</label>
+            <input type="number" id="embedding-chunk-size-input" min="1" value="900">
+          </div>
+          <div class="form-group">
+            <label for="embedding-chunk-overlap-input" data-i18n="settings.embeddingChunkOverlap">Chunk overlap</label>
+            <input type="number" id="embedding-chunk-overlap-input" min="0" value="120">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="embedding-project-policy-mode" data-i18n="settings.embeddingProjectPolicy">Project policy</label>
+          <select id="embedding-project-policy-mode">
+            <option value="allow-all" data-i18n="settings.embeddingProjectPolicyAllowAll">Allow all projects</option>
+            <option value="allow-list" data-i18n="settings.embeddingProjectPolicyAllowList">Allow listed projects only</option>
+            <option value="deny-list" data-i18n="settings.embeddingProjectPolicyDenyList">Block listed projects</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="embedding-project-policy-list" data-i18n="settings.embeddingProjectPolicyList">Project names</label>
+          <textarea id="embedding-project-policy-list" rows="2" data-i18n-placeholder="settings.embeddingProjectPolicyListPlaceholder"></textarea>
+        </div>
+        <label class="checkbox-label">
+          <input type="checkbox" id="embedding-offline-only-checkbox">
+          <span data-i18n="settings.embeddingOfflineOnly">Offline-only mode: do not send document chunks to a remote embedding provider.</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="embedding-policy-confirm-checkbox">
+          <span data-i18n="settings.embeddingPolicyConfirm">I understand remote embeddings can send document chunks to the configured provider and may incur provider retention, cost, or quota impact.</span>
+        </label>
+        <div id="embedding-dialog-status" class="status-indicator hidden"></div>
+        <div class="button-group embedding-registration-button-group">
+          <button type="button" id="embedding-cancel-btn" data-i18n="settings.embeddingModelCancel">Cancel</button>
+          <button type="button" id="embedding-connect-btn" data-i18n="settings.embeddingModelConnect" disabled>Connect</button>
+        </div>
+      </section>
     </form>
   </div>
 
@@ -264,59 +314,6 @@
   </div>
 
   <div id="mcp-copy-toast" class="mcp-toast"></div>
-
-  <div id="embedding-modal" class="modal-overlay hidden">
-    <div class="modal-content modal-small">
-      <h3 data-i18n="settings.embeddingModelRegister">Register embedding model</h3>
-      <div class="form-group">
-        <label for="embedding-url-input" data-i18n="settings.embeddingModelUrl">URL</label>
-        <input type="url" id="embedding-url-input" placeholder="https://provider.example/v1">
-      </div>
-      <div class="form-group">
-        <label for="embedding-key-input" data-i18n="settings.embeddingModelKey">API key</label>
-        <input type="password" id="embedding-key-input" autocomplete="off">
-      </div>
-      <div class="form-group">
-        <label for="embedding-model-input" data-i18n="settings.embeddingModelName">Model name</label>
-        <input type="text" id="embedding-model-input">
-      </div>
-      <div class="embedding-grid">
-        <div class="form-group">
-          <label for="embedding-chunk-size-input" data-i18n="settings.embeddingChunkSize">Chunk size</label>
-          <input type="number" id="embedding-chunk-size-input" min="1" value="900">
-        </div>
-        <div class="form-group">
-          <label for="embedding-chunk-overlap-input" data-i18n="settings.embeddingChunkOverlap">Chunk overlap</label>
-          <input type="number" id="embedding-chunk-overlap-input" min="0" value="120">
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="embedding-project-policy-mode" data-i18n="settings.embeddingProjectPolicy">Project policy</label>
-        <select id="embedding-project-policy-mode">
-          <option value="allow-all" data-i18n="settings.embeddingProjectPolicyAllowAll">Allow all projects</option>
-          <option value="allow-list" data-i18n="settings.embeddingProjectPolicyAllowList">Allow listed projects only</option>
-          <option value="deny-list" data-i18n="settings.embeddingProjectPolicyDenyList">Block listed projects</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="embedding-project-policy-list" data-i18n="settings.embeddingProjectPolicyList">Project names</label>
-        <textarea id="embedding-project-policy-list" rows="2" data-i18n-placeholder="settings.embeddingProjectPolicyListPlaceholder"></textarea>
-      </div>
-      <label class="checkbox-label">
-        <input type="checkbox" id="embedding-offline-only-checkbox">
-        <span data-i18n="settings.embeddingOfflineOnly">Offline-only mode: do not send document chunks to a remote embedding provider.</span>
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="embedding-policy-confirm-checkbox">
-        <span data-i18n="settings.embeddingPolicyConfirm">I understand remote embeddings can send document chunks to the configured provider and may incur provider retention, cost, or quota impact.</span>
-      </label>
-      <div id="embedding-dialog-status" class="status-indicator hidden"></div>
-      <div class="button-group modal-button-group">
-        <button type="button" id="embedding-cancel-btn" data-i18n="settings.embeddingModelCancel">Cancel</button>
-        <button type="button" id="embedding-connect-btn" data-i18n="settings.embeddingModelConnect">Connect</button>
-      </div>
-    </div>
-  </div>
 
   <script src="./settings.js"></script>
 </body>

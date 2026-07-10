@@ -1,0 +1,37 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2.v01",
+  "type": "subagent-policy-review",
+  "target": "0.11.0-w2",
+  "reviewer": "019f1eb8-5be7-71f2-853b-c6de55f670c3",
+  "scope": ["FR-TREE-009", "DR-DOC-013", "CON-DOC-006", "SEC-DOC-003", "docs/research/knowledge_store/knowledge.md"],
+  "verdict": "pass_with_document_cleanup",
+  "findings": [
+    {
+      "severity": "info",
+      "area": "policy_sufficiency",
+      "summary": "No new SRS requirement is needed. Active requirements sufficiently define canonical broken-link behavior."
+    },
+    {
+      "severity": "low",
+      "area": "research_wording",
+      "summary": "knowledge.md candidate resolution wording could be read as winner-selection and was clarified."
+    },
+    {
+      "severity": "low",
+      "area": "research_wording",
+      "summary": "knowledge.md unresolved count wording was replaced with canonical non-resolved status counts."
+    },
+    {
+      "severity": "info",
+      "area": "trace_precision",
+      "summary": "FR-TREE-009 has a compatibility trace to test/test-link-extraction.js:L10-L87 while the file currently has 78 lines. Planner should use exact current line references or file-level references."
+    }
+  ],
+  "policy_invariants_confirmed": [
+    "Only resolved edges participate in ranking and linked filters.",
+    "Non-resolved edges are diagnostics-only and must not create document rows, source rows, destination files, recursive import jobs, or link boosts.",
+    "No synthetic broken/missing diagnostic tokens should be injected into BM25/FTS.",
+    "MCP tools must not expose recursive import, rebuild, retry, cancel, or broken-link reconciliation controls.",
+    "Raw href, normalized href, canonical path, source root, destination path, userData path, and credential-bearing values are internal-only."
+  ]
+}

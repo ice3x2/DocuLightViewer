@@ -1,0 +1,47 @@
+{
+  "target": "0.11.0-w2",
+  "validate_spec": {
+    "strict": true,
+    "failOnWarning": true,
+    "ok": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "summarize_target": {
+    "countsByStatus": {
+      "planned": 22,
+      "discarded": 2,
+      "verified": 1
+    },
+    "countsByType": {
+      "operational": 2,
+      "constraint": 3,
+      "data": 5,
+      "security": 3,
+      "functional": 9,
+      "interface": 2,
+      "reliability": 1
+    },
+    "countsByStability": {
+      "stable": 25
+    },
+    "total": 25,
+    "diagnosticsSummary": {
+      "errors": 0,
+      "warnings": 0,
+      "byCode": {}
+    }
+  },
+  "final_reviewer": {
+    "agent": "Sagan",
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "pipeline_event": {
+    "file": "kiwi/pipeline.jsonl",
+    "run_id": "2026-07-01.doculight.embedding-settings-hybrid",
+    "status": "TASK_DONE"
+  }
+}

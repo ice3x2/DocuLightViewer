@@ -1,0 +1,68 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2",
+  "type": "subagent-review-resolution",
+  "summary": {
+    "review_agents": 2,
+    "critical_findings": 1,
+    "high_findings": 3,
+    "medium_findings": 4,
+    "resolved_findings": 8,
+    "validator_after_resolution": {
+      "command": "node C:\\Users\\beom\\.codex\\skills\\kiwi-planner\\scripts\\validator.mjs docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md docs/plans/2026-07-02.doculight.0-11-0-w2.sidecar.json --target 0.11.0-w2 --inventory-file docs/analysis/kiwi-planner-2026-07-02.doculight.0-11-0-w2/inventory.json --out docs/plans/2026-07-02.doculight.0-11-0-w2.validator-script.json --dry-run",
+      "errors": 0,
+      "warnings": 0
+    },
+    "speckiwi_strict_after_resolution": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "resolutions": [
+    {
+      "finding": "PM compatibility required task_id aliases and traces[].req_id in the sidecar.",
+      "resolution": "Added task_id and traces arrays to all ten tasks while preserving validator-compatible id and req_ids fields."
+    },
+    {
+      "finding": "PH-007 smart_search before import/adoption made link-filter behavior depend on a later identity workflow.",
+      "resolution": "Swapped PH-007 to Import And Adoption and PH-008 to Smart Search; updated phase dependencies, task details, coverage, risks, and checklist."
+    },
+    {
+      "finding": "File ownership was too broad and could cause needless edits to generated or overloaded modules.",
+      "resolution": "Moved Wave 2 work into dedicated modules such as redaction.js, source-ledger-store.js, indexing-service.js, hnsw-index.js, smart-search.js, linked-import.js, and legacy-adoption.js, keeping existing files as adapters."
+    },
+    {
+      "finding": "Generated mcp-server.bundle.mjs was listed as a direct edit target.",
+      "resolution": "Removed the generated bundle from direct task files and kept regeneration only through npm run bundle:mcp."
+    },
+    {
+      "finding": "HNSW native packaging risk was detected too late.",
+      "resolution": "PH-004 now includes lazy import, degraded-load checks, bundle exclusion, rebuild/asarUnpack handling, and package smoke coverage."
+    },
+    {
+      "finding": "Red phase could pass for the wrong reason if test:wave2 was missing or failed on syntax.",
+      "resolution": "PH-001 DoD now requires the script to exist and each contract file to fail on expected Wave 2 assertion signatures."
+    },
+    {
+      "finding": "DR-DOC-013 and CON-DOC-007 had weak direct TDD traces.",
+      "resolution": "Added direct PH-007 contract test cases for DR-DOC-013 duplicate/source identity and CON-DOC-007 bounded traversal/no-MCP-import policy."
+    },
+    {
+      "finding": "Broken-link wording could drift from canonical FR-TREE-009 statuses.",
+      "resolution": "Research wording and plan tasks now use canonical non-resolved diagnostics; only resolved links can rank or satisfy linked filters."
+    },
+    {
+      "finding": "md_sha256 manual-record was weak drift evidence.",
+      "resolution": "Recorded a normalized sha256-excluding-md_sha256 value in the plan and sidecar."
+    },
+    {
+      "finding": "sidecar_path was ambiguous for validator canonicalization.",
+      "resolution": "Set the frontmatter sidecar_path to the same-directory filename expected by the validator."
+    }
+  ],
+  "remaining_risks": [
+    {
+      "risk": "Implementation still needs code-level verification through kiwi-pm and kiwi-review-fix-loop.",
+      "status": "open_until_pm_execution"
+    }
+  ]
+}

@@ -19,6 +19,7 @@ const main = read('src/main/index.js');
 const settingsHtml = read('src/renderer/settings.html');
 const settingsJs = read('src/renderer/settings.js');
 const settingsCss = read('src/renderer/settings.css');
+const searchEngineSource = read('src/main/search-engine.js');
 const embeddingProviderPath = path.join(root, 'src/main/embedding-provider.js');
 wave2Assert(fs.existsSync(embeddingProviderPath), 'main process has an OpenAI-compatible embedding provider module');
 const embeddingProvider = read('src/main/embedding-provider.js');
@@ -46,6 +47,10 @@ const activationRecordBlock = main.slice(
   main.indexOf("require('./embedding-settings')"),
   main.indexOf('function normalizeEmbeddingSemanticIndexing')
 );
+const embeddingValidationBlock = main.slice(
+  main.indexOf('async function validateEmbeddingModelConfig'),
+  main.indexOf('function normalizeOptionalPositiveInt')
+);
 
 wave2Assert(
   settingsHtml.includes('embedding-model-status') || settingsHtml.includes('embedding-status'),
@@ -56,12 +61,25 @@ wave2Assert(
   'Settings registration requires remote embedding retention/cost confirmation'
 );
 wave2Assert(
+  settingsHtml.includes('id="embedding-registration-view"') &&
+    settingsHtml.includes('class="settings-view embedding-registration-view hidden"'),
+  'Settings registration uses an in-window settings view instead of a modal dialog'
+);
+wave2Assert(
+  !settingsHtml.includes('id="embedding-modal"'),
+  'Settings registration no longer uses a modal overlay'
+);
+wave2Assert(
   settingsHtml.includes('embedding-project-policy-mode') && settingsHtml.includes('embedding-project-policy-list'),
   'Settings registration exposes project policy controls'
 );
 wave2Assert(
   settingsHtml.includes('embedding-offline-only-checkbox'),
   'Settings registration exposes offline-only governance'
+);
+wave2Assert(
+  /id="embedding-connect-btn"[^>]*disabled/.test(settingsHtml),
+  'Settings registration keeps Connect disabled until background validation succeeds'
 );
 
 for (const apiName of [
@@ -154,6 +172,17 @@ wave2Assert(
   'renderer sends explicit retention/cost confirmation state'
 );
 wave2Assert(
+  settingsJs.includes('showEmbeddingRegistrationView') &&
+    settingsJs.includes("setSettingsTitle('settings.embeddingModelRegister')") &&
+    settingsJs.includes('embeddingRegistrationView.classList.remove'),
+  'renderer opens embedding registration as a settings view with the page title updated'
+);
+wave2Assert(
+  settingsJs.includes('closeEmbeddingRegistrationView') &&
+    settingsJs.includes('showMainSettingsView()'),
+  'renderer returns from embedding registration to the main settings view'
+);
+wave2Assert(
   settingsJs.includes('projectPolicy') && settingsJs.includes('offlineOnly'),
   'renderer sends project policy and offline-only governance state'
 );
@@ -162,8 +191,15 @@ wave2Assert(
   'successful embedding registration does not start broad search index rebuild'
 );
 wave2Assert(
-  main.includes('semanticIndexing') && main.includes("status: 'queued'"),
-  'successful embedding registration marks semantic indexing queued without destructive rebuild'
+  main.includes('semanticIndexing') &&
+    main.includes("status: semanticReindex.skipped === true ? 'idle' : 'queued'") &&
+    main.includes('queuedAt: semanticReindex.skipped === true ? null : validatedAt'),
+  'successful embedding registration marks semantic indexing queued when a source root is configured without destructive rebuild'
+);
+wave2Assert(
+  main.includes("status: semanticReindex.skipped === true ? 'idle' : 'queued'") &&
+    main.includes('skippedReason: semanticReindex.skipped === true ? semanticReindex.reason : null'),
+  'successful embedding registration can persist a connected model with idle semantic indexing when no document store source root is configured'
 );
 wave2Assert(
   embeddingSaveBlock.includes('queueSemanticReindexForActiveDocuments'),
@@ -175,8 +211,9 @@ wave2Assert(
 );
 wave2Assert(
   embeddingSaveBlock.includes("semantic-reindex-unavailable") &&
+    embeddingSaveBlock.includes('semanticReindex.skipped !== true') &&
     embeddingSaveBlock.indexOf("semantic-reindex-unavailable") < embeddingSaveBlock.indexOf("store.set('semanticSearch', nextSettings)"),
-  'embedding registration rejects semantic reindex enqueue failure before persisting provider settings'
+  'embedding registration rejects hard semantic reindex enqueue failures before persisting provider settings'
 );
 wave2Assert(
   embeddingSaveBlock.includes('clearSemanticDerivedState') && embeddingClearBlock.includes('clearSemanticDerivedState'),
@@ -193,6 +230,14 @@ for (const fingerprintTerm of ['baseURLHash', 'dimensions', 'encodingFormat', 'c
 wave2Assert(
   main.includes('getSemanticIndexingProgress') && main.includes('semanticIndexingProgress'),
   'embedding model status uses semantic indexing job progress instead of keyword rebuild-only progress'
+);
+const semanticProgressBlock = searchEngineSource.slice(
+  searchEngineSource.indexOf('getSemanticIndexingProgress()'),
+  searchEngineSource.indexOf('getStatus(options = {})')
+);
+wave2Assert(
+  semanticProgressBlock.includes("job.jobType === 'index_document'"),
+  'embedding model status excludes keyword rebuild, compact, and clear jobs from semantic indexing progress'
 );
 wave2Assert(
   embeddingProvider.includes('/embeddings') &&
@@ -219,6 +264,56 @@ wave2Assert(
   'renderer validates embedding connection before saving provider settings'
 );
 wave2Assert(
+  embeddingValidationBlock.includes('createOpenAICompatibleEmbeddingProvider') &&
+    embeddingValidationBlock.includes("inputs: ['DocuLight embedding validation']") &&
+    !embeddingValidationBlock.includes('validationBody.dimensions'),
+  'Settings embedding validation uses the shared OpenAI-compatible provider dimension fallback'
+);
+wave2Assert(
+  settingsJs.includes('EMBEDDING_VALIDATION_DEBOUNCE_MS') &&
+    settingsJs.includes('function scheduleEmbeddingValidation') &&
+    settingsJs.includes('async function validateEmbeddingRegistration') &&
+    settingsJs.includes('let embeddingValidationSequence') &&
+    settingsJs.includes('let embeddingValidationReady'),
+  'renderer performs debounced background embedding validation and tracks the latest validation state'
+);
+wave2Assert(
+  settingsJs.includes('embeddingConnectBtn.disabled = !embeddingValidationReady') &&
+    settingsJs.includes('embeddingValidationInputs') &&
+    settingsJs.includes("addEventListener('input', scheduleEmbeddingValidation)") &&
+    settingsJs.includes("addEventListener('change', scheduleEmbeddingValidation)"),
+  'renderer enables Connect only after the current registration inputs validate successfully'
+);
+wave2Assert(
+  settingsJs.includes('validation.ok === true') &&
+    !settingsJs.includes('validation.success || validation.ok') &&
+    !settingsJs.includes('!validation.success && !validation.ok'),
+  'renderer treats only ok=true embedding validation as a connectable remote model'
+);
+wave2Assert(
+  main.includes('success: result.ok === true'),
+  'main embedding validation IPC reports success only when model validation ok=true'
+);
+wave2Assert(
+  settingsJs.includes('settings.embeddingValidationOfflineBlocked') &&
+    settingsJs.indexOf('if (payload.offlineOnly)') < settingsJs.indexOf('settings.embeddingValidationOfflineBlocked') &&
+    !/if \(payload\.offlineOnly\)[\s\S]{0,180}setEmbeddingValidationReady\(true\)/.test(settingsJs),
+  'offline-only mode blocks remote Connect validation instead of enabling the Connect button'
+);
+wave2Assert(
+  settingsJs.includes('let embeddingConnectionInProgress') &&
+    settingsJs.includes('function setEmbeddingRegistrationInputsDisabled') &&
+    settingsJs.includes('setEmbeddingRegistrationInputsDisabled(true)') &&
+    settingsJs.includes('setEmbeddingRegistrationInputsDisabled(false)'),
+  'renderer locks registration inputs while Connect is saving a validated payload'
+);
+wave2Assert(
+  settingsJs.includes('function isEmbeddingChunkConfigValid') &&
+    settingsJs.includes('settings.embeddingValidationInvalidChunk') &&
+    settingsJs.includes('if (!isEmbeddingChunkConfigValid())'),
+  'renderer rejects invalid chunk settings before enabling Connect'
+);
+wave2Assert(
   settingsJs.includes('settings.embeddingModelRemoveConfirm'),
   'renderer confirms embedding model removal'
 );
@@ -233,11 +328,11 @@ wave2Assert(
 );
 wave2Assert(
   main.includes('normalizePositiveInt(input.chunkSize, EMBEDDING_DEFAULT_CHUNK_SIZE)') &&
-    main.includes('normalizePositiveInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP)') &&
+    main.includes('normalizeNonNegativeInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP)') &&
     main.includes('chunkSize: validation.chunkSize') &&
     main.includes('chunkOverlap: validation.chunkOverlap') &&
     main.includes('createEmbeddingFingerprint({ baseURL: normalized.baseURL, model, dimensions, chunkSize, chunkOverlap })'),
-  'custom chunk size and overlap flow through validation, fingerprint, and saved chunker configuration'
+  'custom chunk size and non-negative overlap flow through validation, fingerprint, and saved chunker configuration'
 );
 
 wave2Assert(settingsCss.includes('embedding') && /success|connected/i.test(settingsCss), 'settings CSS has connected embedding status style');
@@ -260,6 +355,11 @@ for (const locale of ['en', 'ko', 'ja', 'es']) {
     'settings.embeddingOfflineOnly',
     'settings.embeddingPolicyConfirm',
     'settings.embeddingPolicyRequired',
+    'settings.embeddingValidationPending',
+    'settings.embeddingValidationChecking',
+    'settings.embeddingValidationReady',
+    'settings.embeddingValidationOfflineBlocked',
+    'settings.embeddingValidationInvalidChunk',
     'settings.embeddingModelRemoveConfirm'
   ]) {
     wave2Assert(Object.prototype.hasOwnProperty.call(data, key), `${locale} locale contains ${key}`);
@@ -337,6 +437,109 @@ for (const [relativePath, content] of [
     dimensions: 3
   });
   wave2Assert(requestBody && requestBody.dimensions === 3, 'embedding provider sends configured dimensions when present');
+
+  const dimensionFallbackRequests = [];
+  const dimensionFallbackProvider = createOpenAICompatibleEmbeddingProvider({
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      dimensionFallbackRequests.push(body);
+      if (Object.prototype.hasOwnProperty.call(body, 'dimensions')) {
+        return {
+          ok: false,
+          status: 400,
+          async json() {
+            return { error: { message: 'dimensions parameter is unsupported' } };
+          }
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { data: [{ embedding: [1, 0, 0] }] };
+        }
+      };
+    }
+  });
+  const fallbackResult = await dimensionFallbackProvider.embed({
+    baseURL: 'https://example.test/v1',
+    model: 'fixture',
+    inputs: ['dimension-fallback'],
+    dimensions: 3
+  });
+  wave2Assert(
+    fallbackResult.embeddings[0].length === 3 &&
+      dimensionFallbackRequests.length === 2 &&
+      dimensionFallbackRequests[0].dimensions === 3 &&
+      !Object.prototype.hasOwnProperty.call(dimensionFallbackRequests[1], 'dimensions'),
+    'embedding provider retries without dimensions when an OpenAI-compatible endpoint rejects the dimensions parameter'
+  );
+
+  const unrelated400Requests = [];
+  const unrelated400Provider = createOpenAICompatibleEmbeddingProvider({
+    fetchImpl: async (_url, options) => {
+      unrelated400Requests.push(JSON.parse(options.body));
+      return {
+        ok: false,
+        status: 400,
+        async json() {
+          return { error: { message: 'model does not exist' } };
+        }
+      };
+    }
+  });
+  let unrelated400Rejected = false;
+  try {
+    await unrelated400Provider.embed({
+      baseURL: 'https://example.test/v1',
+      model: 'missing-model',
+      inputs: ['unrelated-400'],
+      dimensions: 3
+    });
+  } catch (err) {
+    unrelated400Rejected = err && err.code === 'embedding_endpoint_unreachable';
+  }
+  wave2Assert(
+    unrelated400Rejected && unrelated400Requests.length === 1,
+    'embedding provider does not retry non-dimension 400/422 failures'
+  );
+
+  const mismatchProvider = createOpenAICompatibleEmbeddingProvider({
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      if (Object.prototype.hasOwnProperty.call(body, 'dimensions')) {
+        return {
+          ok: false,
+          status: 400,
+          async json() {
+            return { error: { message: 'dimensions parameter is unsupported' } };
+          }
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { data: [{ embedding: [1, 0] }] };
+        }
+      };
+    }
+  });
+  let mismatchRejected = false;
+  try {
+    await mismatchProvider.embed({
+      baseURL: 'https://example.test/v1',
+      model: 'fixture',
+      inputs: ['dimension-mismatch'],
+      dimensions: 3
+    });
+  } catch (err) {
+    mismatchRejected = err && err.code === 'embedding_dimensions_mismatch';
+  }
+  wave2Assert(
+    mismatchRejected,
+    'embedding provider rejects a dimensions fallback when the returned vector length does not match configured dimensions'
+  );
 
   const activationRecord = createEmbeddingActivationRecord({
     endpointHost: 'Example.TEST:443',

@@ -1,0 +1,95 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "validation": {
+    "mcp_validate_spec": {
+      "strict": true,
+      "failOnWarning": true,
+      "errors": 0,
+      "warnings": 0
+    },
+    "cli_speckiwi_validate_json": {
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "targets": {
+    "0.11.0-w1": {
+      "status_counts": {
+        "planned": 4
+      },
+      "stability_counts": {
+        "stable": 4
+      },
+      "requirement_ids": [
+        "OPS-ARCH-004",
+        "IR-APP-010",
+        "IR-MCP-013",
+        "FR-DOC-018"
+      ]
+    },
+    "0.11.0-w2": {
+      "status_counts": {
+        "planned": 19
+      },
+      "stability_counts": {
+        "stable": 19
+      },
+      "requirement_ids": [
+        "OPS-ARCH-005",
+        "CON-ARCH-004",
+        "OPS-ARCH-006",
+        "DR-APP-002",
+        "SEC-APP-003",
+        "FR-TREE-008",
+        "IR-MCP-014",
+        "CON-MCP-003",
+        "DR-DOC-006",
+        "FR-DOC-019",
+        "DR-DOC-007",
+        "FR-DOC-020",
+        "FR-DOC-021",
+        "SEC-DOC-001",
+        "DR-DOC-008",
+        "FR-DOC-022",
+        "SEC-DOC-002",
+        "DR-DOC-009",
+        "REL-DOC-003"
+      ]
+    }
+  },
+  "decision": "The two-wave split is appropriate: Wave 1 removes current indexing/save parity risks before Wave 2 adds SQLite, embedding, HNSW, link graph, and read-only smart_search.",
+  "post_eval_update": {
+    "wave2_total": 19,
+    "added_after_initial_validation": [
+      "OPS-ARCH-006",
+      "DR-DOC-009",
+      "REL-DOC-003"
+    ],
+    "iter3_resolution": [
+      "Moved smart-search-contract-v1 fixture notes to IR-MCP-014 and reused them from CON-MCP-003.",
+      "Aligned knowledge.md smart_search input and response examples with the finalized SRS contract.",
+      "Made diagnostics and error envelope deterministic for conformance fixtures.",
+      "Updated DOC/TREE scope boundaries and filled Research / Analysis placeholders for key Wave 2 requirements."
+    ],
+    "iter4_resolution": [
+      "Corrected remaining CON-MCP-002/CON-MCP-003 parity wording in knowledge.md.",
+      "Added compactSearchIndex to the research IPC candidate list.",
+      "Aligned native package smoke scope to release-gating Windows x64, macOS arm64, Linux x64 and best-effort/skipped artifacts for the remaining OS/arch targets.",
+      "Filled all remaining target 0.11.0-w1 and 0.11.0-w2 Research / Analysis placeholders.",
+      "Aligned knowledge.md terminology to documentTags/document_tags_json/document_tags."
+    ],
+    "final_a_plus_review": {
+      "path": "docs/analysis/kiwi-srs-2026-06-29.doculight-smart-search/final_a_plus_review.json",
+      "reviewers": [
+        "Banach",
+        "Carver",
+        "Sagan",
+        "Boyle",
+        "Poincare"
+      ],
+      "overall_grade": "A+",
+      "blockers": 0
+    },
+    "validator_status_after_update": "mcp validate_spec strict failOnWarning and speckiwi validate both returned 0 errors and 0 warnings"
+  }
+}

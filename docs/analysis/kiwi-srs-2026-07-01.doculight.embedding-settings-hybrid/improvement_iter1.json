@@ -1,0 +1,44 @@
+{
+  "iter": 1,
+  "status": "applied",
+  "changes": [
+    {
+      "file": "docs/spec/10.product-architecture.srs.md",
+      "summary": "Updated CON-ARCH-004 AC-2, AC-5, Trace Links, and Research / Analysis from discarded IR-MCP-014/CON-MCP-003 to IR-MCP-015/CON-MCP-004 and current non-discarded Wave 2 IDs."
+    },
+    {
+      "file": "docs/spec/10.product-architecture.srs.md",
+      "summary": "Updated OPS-ARCH-006 package smoke dependency from CON-MCP-003 to CON-MCP-004."
+    },
+    {
+      "file": "docs/spec/60.document-persistence.srs.md",
+      "summary": "Updated SEC-DOC-002 trace links from IR-MCP-014/CON-MCP-003 to IR-MCP-015/CON-MCP-004."
+    },
+    {
+      "file": "docs/spec/20.app-shell.srs.md",
+      "summary": "Added FR-APP-011 AC-8 requiring Settings UI to render 0..100 percent indexing progress after successful Connect enqueues semantic indexing."
+    },
+    {
+      "file": "docs/spec/60.document-persistence.srs.md",
+      "summary": "Changed FR-DOC-025 SQLite keyword search trace from verifies to compatibility_reference."
+    },
+    {
+      "file": "docs/spec/00.index.md",
+      "summary": "Updated cross-scope dependency map to IR-MCP-015 / CON-MCP-004."
+    },
+    {
+      "file": "docs/research/knowledge_store/knowledge.md",
+      "summary": "Updated smart_search research references to default limit 20 and superseding MCP IDs."
+    }
+  ],
+  "mcp_limitation": "SpecKiwi append_section_note has a 500-character limit and no trace-link remove/replace tool was exposed, so active requirement section cleanup that removed stale trace rows required manual patching followed by strict validate_spec.",
+  "verification": {
+    "validate_spec": {
+      "ok": true,
+      "errors": 0,
+      "warnings": 0
+    },
+    "old_active_id_scan": "No IR-MCP-014 or CON-MCP-003 references remain outside discarded MCP blocks after cleanup.",
+    "old_research_limit_scan": "No default limit 10 reference remains in active research/spec files after cleanup."
+  }
+}

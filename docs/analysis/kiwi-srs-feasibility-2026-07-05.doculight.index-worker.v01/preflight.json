@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "target": "0.11.0-w2",
+  "mcp": true,
+  "halted": false,
+  "tools_detected": {
+    "get_active_target": true,
+    "list_requirements": true,
+    "get_requirement": true,
+    "validate_spec": true,
+    "summarize_target": true,
+    "update_stability": true
+  }
+}

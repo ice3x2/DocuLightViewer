@@ -1,0 +1,101 @@
+{
+  "run_id": "2026-06-30.doculight.0-11-0-w1",
+  "target": "0.11.0-w1",
+  "generated_at": "2026-06-30T10:05:09+09:00",
+  "mode": "max",
+  "grade": "A+",
+  "findings": [
+    {
+      "id": "W1-RFL-001",
+      "severity": "medium",
+      "status": "fixed",
+      "area": "test/mcp-http.e2e.js",
+      "summary": "Targeted MCP HTTP E2E tests selected the first viewer window, which could be an empty viewer when another DocuLight instance owned the fixed Windows IPC pipe.",
+      "resolution": "Added getViewerContaining() and switched DOM assertions in TC-20, TC-23, and TC-24 to wait for the viewer containing expected rendered text."
+    },
+    {
+      "id": "W1-RFL-002",
+      "severity": "low",
+      "status": "accepted",
+      "area": "runtime process environment",
+      "summary": "A user-installed DocuLight.exe can own the fixed named pipe during local E2E runs.",
+      "resolution": "No product change in Wave 1. The targeted E2E assertions now avoid relying on the pipe-backed list_viewers result for renderer DOM selection."
+    },
+    {
+      "id": "W1-RFL-003",
+      "severity": "high",
+      "status": "fixed",
+      "area": "src/main/search-engine.js",
+      "summary": "A per-file read/index failure during rebuild could produce and commit a partial replacement index instead of preserving the last committed index.",
+      "resolution": "Rebuild now aborts before consolidate/save when any file fails and restores the previous committed in-memory index. test/test-search-engine-lifecycle.js now verifies partial index/read failure rollback and failed file diagnostics."
+    },
+    {
+      "id": "W1-RFL-004",
+      "severity": "medium",
+      "status": "fixed",
+      "area": "src/main/mcp-save.js, src/main/window-manager.js",
+      "summary": "MCP update_markdown with filePath could skip save/dirty handling because the shared save helper only considered lastRenderedContent or params.content.",
+      "resolution": "filePath updates now retain canonical rendered content in the window entry, and saveMcpUpdatedContent can persist source file updates. test/test-mcp-http-save-parity.js covers filePath update persistence."
+    },
+    {
+      "id": "W1-RFL-005",
+      "severity": "medium",
+      "status": "fixed",
+      "area": "test/test-mcp-http-save-parity.js, test/test-mcp-tool-parity.js, test/test-settings-indexing-contract.js",
+      "summary": "Reviewer evidence gaps remained for stdio/HTTP shared fixture parity, required parameter/enum parity, and Settings status payload fields.",
+      "resolution": "Tests now cover shared stdio/http helper fixture parity, parsed source/bundle tool-name parity, query requirement and docType enum checks, and direct Settings indexing status payload fields."
+    },
+    {
+      "id": "W1-RFL-006",
+      "severity": "medium",
+      "status": "fixed",
+      "area": "docs/spec",
+      "summary": "SRS trace links still described pre-implementation negative gaps after the requirements were moved to implemented.",
+      "resolution": "Trace tables for FR-DOC-018, IR-APP-010, IR-MCP-013, and OPS-ARCH-004 now reference current implementation and test evidence. Strict SpecKiwi validation passes with 0 warnings."
+    },
+    {
+      "id": "W1-RFL-007",
+      "severity": "high",
+      "status": "fixed",
+      "area": "src/main/mcp-http.mjs, src/main/index.js, src/main/window-manager.js, test/test-mcp-http-save-parity.js",
+      "summary": "HTTP open_markdown could still save frontmatter-only project/docType documents under default/note because save path metadata depended on explicit params and real WindowManager did not store project/docType metadata.",
+      "resolution": "WindowManager now stores project/docType metadata from explicit params or document frontmatter, HTTP and stdio open_markdown pass WindowManager-resolved metadata to saveMcpFile, and test/test-mcp-http-save-parity.js covers the frontmatter-only {project}/{type} save path."
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run test:wave1",
+      "result": "passed"
+    },
+    {
+      "command": "node test/test-tokenizer.js",
+      "result": "passed"
+    },
+    {
+      "command": "npm run bundle:mcp",
+      "result": "passed"
+    },
+    {
+      "command": "npx playwright test test/mcp-http.e2e.js --grep TC-15/TC-20/TC-23/TC-24/TC-32",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed with line-ending warnings only"
+    },
+    {
+      "command": "speckiwi validate strict failOnWarning",
+      "result": "passed with 0 errors and 0 warnings"
+    },
+    {
+      "command": "subagent final A+ review",
+      "result": "Nash A+, Tesla A+, Anscombe follow-up A+ after W1-RFL-007"
+    }
+  ],
+  "requirements": [
+    "FR-DOC-018",
+    "IR-APP-010",
+    "IR-MCP-013",
+    "OPS-ARCH-004"
+  ]
+}

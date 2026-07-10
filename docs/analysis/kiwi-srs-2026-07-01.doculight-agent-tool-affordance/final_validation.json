@@ -1,0 +1,64 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "target": "0.11.0-w2",
+  "activeRequirement": "CON-MCP-010",
+  "supersededRequirements": [
+    "CON-MCP-008",
+    "CON-MCP-009"
+  ],
+  "validateSpec": {
+    "ok": true,
+    "errors": 0,
+    "warnings": 0,
+    "diagnostics": []
+  },
+  "targetSummary": {
+    "countsByStatus": {
+      "discarded": 32,
+      "planned": 28,
+      "verified": 1
+    },
+    "countsByType": {
+      "operational": 5,
+      "constraint": 19,
+      "data": 8,
+      "security": 4,
+      "functional": 18,
+      "interface": 5,
+      "reliability": 2
+    },
+    "countsByStability": {
+      "stable": 61
+    },
+    "diagnosticsSummary": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "newWorkCandidateIncludes": [
+      "CON-MCP-010"
+    ],
+    "newWorkCandidateExcludes": [
+      "CON-MCP-008",
+      "CON-MCP-009"
+    ]
+  },
+  "finalEvaluation": {
+    "iter": 3,
+    "subagents": 3,
+    "grades": [
+      "A+",
+      "A+",
+      "A+"
+    ],
+    "findings": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    }
+  },
+  "localChecks": [
+    "analysis JSON parse: pass",
+    "git diff --check scoped files: pass"
+  ]
+}

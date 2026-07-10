@@ -68,6 +68,7 @@
   let mcpAutoSaveEnabled = false;
   let currentProject = '';
   let saveAsFilePath = null;
+  let navigationTrail = [];
 
   // Find-in-page state
   let findBarVisible = false;
@@ -266,6 +267,9 @@
 
     await Promise.all(imgs.map(async (img) => {
       const src = img.getAttribute('src') || '';
+      if (src && !img.getAttribute('data-original-src')) {
+        img.setAttribute('data-original-src', src);
+      }
 
       // Skip data URIs and web URLs — they load fine without help
       if (!src ||
@@ -293,6 +297,7 @@
         const result = await window.doclight.readImageAsDataUrl(filePath);
         if (result && result.dataUrl) {
           img.setAttribute('src', result.dataUrl);
+          img.setAttribute('data-resolved-source', filePath);
         }
       } catch (e) { /* silently ignore unreadable images */ }
     }));
@@ -401,9 +406,13 @@
   }
 
   // === Rendering Pipeline ===
+  let markdownRenderGeneration = 0;
+
   async function renderMarkdown(markdown) {
     const contentEl = document.getElementById('content');
     if (!contentEl) return;
+    const renderGeneration = ++markdownRenderGeneration;
+    disposeInlineMediaController();
 
     // Step 0: Extract frontmatter (before markdown parsing)
     const { meta, body } = parseFrontmatter(markdown);
@@ -452,9 +461,11 @@
     // We resolve each image via IPC so the main process reads and returns
     // the binary as a base64 data URL, which Chromium accepts unconditionally.
     await resolveLocalImages(contentEl);
+    if (renderGeneration !== markdownRenderGeneration) return;
 
     // Step 4: Render Mermaid diagrams
     await renderMermaidDiagrams(contentEl);
+    if (renderGeneration !== markdownRenderGeneration) return;
 
     // Step 5: Highlight code blocks
     if (typeof hljs !== 'undefined') {
@@ -462,6 +473,9 @@
         hljs.highlightElement(block);
       });
     }
+
+    attachCodeBlockCopyAffordances(contentEl);
+    setupMediaExpandAffordances(contentEl);
 
     // Step 6: Build TOC from headings
     buildToc();
@@ -480,9 +494,11 @@
 
       try {
         const id = `mermaid-${Date.now()}-${idx++}`;
-        const { svg } = await mermaid.render(id, block.textContent.trim());
+        const source = block.textContent.trim();
+        const { svg } = await mermaid.render(id, source);
         const div = document.createElement('div');
         div.className = 'mermaid';
+        div.setAttribute('data-mermaid-source', source);
         div.innerHTML = svg;
         pre.replaceWith(div);
       } catch (err) {
@@ -507,6 +523,487 @@
     setTimeout(() => {
       warningEl.style.display = 'none';
     }, 3000);
+  }
+
+  function normalizeBreadcrumbTrail(trail) {
+    if (!Array.isArray(trail)) return [];
+    const normalized = trail
+      .filter(item => item && typeof item.index === 'number')
+      .map(item => ({
+        index: item.index,
+        filePath: item.filePath || '',
+        label: item.label || item.filePath || t('viewer.untitled'),
+        current: item.current === true
+      }));
+    if (normalized.length && !normalized.some(item => item.current)) {
+      normalized[normalized.length - 1].current = true;
+    }
+    return normalized;
+  }
+
+  function navigateBreadcrumbToIndex(index) {
+    const tabMod = window.DocuLight && window.DocuLight.modules && window.DocuLight.modules.tabManager;
+    if (tabMod && tabMod.isEnabled && tabMod.isEnabled() && tabMod.navigateBreadcrumbToIndex) {
+      tabMod.navigateBreadcrumbToIndex(index);
+      return;
+    }
+    if (window.doclight && window.doclight.navigateToHistoryIndex) {
+      window.doclight.navigateToHistoryIndex(index);
+    }
+  }
+
+  const INLINE_MEDIA_ZOOM_STEP = 10;
+  const INLINE_MEDIA_MANUAL_MIN = 25;
+  const INLINE_MEDIA_MAX = 100;
+  const INLINE_MEDIA_HEIGHT_RATIO = 0.9;
+  const INLINE_MEDIA_EPSILON = 0.01;
+  let inlineMediaResizeObserver = null;
+  let inlineMediaMutationObserver = null;
+  let inlineMediaResizeFrame = null;
+
+  function createMediaExpandButton(payloadFactory) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'media-expand-button media-inline-tool-button';
+    button.setAttribute('title', t('viewer.media.expand'));
+    button.setAttribute('aria-label', t('viewer.media.expand'));
+    button.textContent = '⛶';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const payload = payloadFactory();
+      window.doclight.openMediaViewer(payload).then((result) => {
+        if (result && result.error) showMediaError(result.error);
+      }).catch(showMediaError);
+    });
+    return button;
+  }
+
+  function createInlineMediaToolButton(className, labelKey, icon, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `media-inline-tool-button ${className}`;
+    button.setAttribute('title', t(labelKey));
+    button.setAttribute('aria-label', t(labelKey));
+    button.textContent = icon;
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  function getInlineMediaAspectRatio(media) {
+    if (media && media.tagName === 'IMG' && media.naturalWidth > 0 && media.naturalHeight > 0) {
+      return media.naturalWidth / media.naturalHeight;
+    }
+
+    const svg = media && media.matches && media.matches('.mermaid') ? media.querySelector('svg') : null;
+    const viewBox = svg && svg.viewBox && svg.viewBox.baseVal;
+    if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+      return viewBox.width / viewBox.height;
+    }
+
+    if (svg) {
+      const width = Number.parseFloat(svg.getAttribute('width'));
+      const height = Number.parseFloat(svg.getAttribute('height'));
+      if (width > 0 && height > 0) return width / height;
+    }
+    return 0;
+  }
+
+  function calculateInlineAutoFitPercent(media, contentWidth, viewportHeight) {
+    const aspectRatio = getInlineMediaAspectRatio(media);
+    if (!(aspectRatio > 0) || !(contentWidth > 0) || !(viewportHeight > 0)) {
+      return INLINE_MEDIA_MAX;
+    }
+    const rawPercent = viewportHeight * INLINE_MEDIA_HEIGHT_RATIO * aspectRatio / contentWidth * 100;
+    const fittedPercent = rawPercent < INLINE_MEDIA_EPSILON
+      ? rawPercent
+      : Math.floor(rawPercent * 100) / 100;
+    return Math.min(INLINE_MEDIA_MAX, fittedPercent);
+  }
+
+  function applyInlineMediaPercent(entry, percent) {
+    const normalizedPercent = percent < INLINE_MEDIA_EPSILON
+      ? percent
+      : Math.round(percent * 100) / 100;
+    const boundedPercent = Math.max(
+      entry.minPercent,
+      Math.min(INLINE_MEDIA_MAX, normalizedPercent)
+    );
+    entry.currentPercent = boundedPercent;
+    const widthValue = `${boundedPercent}%`;
+    if (entry.wrapper.style.getPropertyValue('--inline-media-width') !== widthValue) {
+      entry.wrapper.style.setProperty('--inline-media-width', widthValue);
+    }
+    entry.zoomOut.disabled = boundedPercent <= entry.minPercent + INLINE_MEDIA_EPSILON;
+    entry.zoomIn.disabled = boundedPercent >= INLINE_MEDIA_MAX - INLINE_MEDIA_EPSILON;
+  }
+
+  function positionInlineMediaToolbar(entry, container) {
+    const content = document.getElementById('content') || container;
+    if (!entry || !entry.wrapper || !entry.toolbar || !content) return;
+
+    const wrapperRect = entry.wrapper.getBoundingClientRect();
+    const contentRect = content.getBoundingClientRect();
+    const layoutWidth = Number.parseFloat(getComputedStyle(entry.wrapper).width);
+    const horizontalScale = layoutWidth > 0 ? wrapperRect.width / layoutWidth : 1;
+    const rightValue = `${(wrapperRect.right - contentRect.right) / horizontalScale}px`;
+    if (entry.wrapper.style.getPropertyValue('--inline-media-toolbar-right') !== rightValue) {
+      entry.wrapper.style.setProperty('--inline-media-toolbar-right', rightValue);
+    }
+  }
+
+  function initializeInlineMediaEntry(entry, container, viewport) {
+    const availableWidth = entry.wrapper.parentElement
+      ? entry.wrapper.parentElement.clientWidth
+      : container.clientWidth;
+    const autoFitPercent = calculateInlineAutoFitPercent(
+      entry.media,
+      availableWidth,
+      viewport.clientHeight
+    );
+    entry.autoFitPercent = autoFitPercent;
+    entry.minPercent = Math.min(INLINE_MEDIA_MANUAL_MIN, autoFitPercent);
+    if (!entry.userAdjusted) applyInlineMediaPercent(entry, autoFitPercent);
+    positionInlineMediaToolbar(entry, container);
+  }
+
+  function disposeInlineMediaController() {
+    if (inlineMediaResizeObserver) {
+      inlineMediaResizeObserver.disconnect();
+      inlineMediaResizeObserver = null;
+    }
+    if (inlineMediaMutationObserver) {
+      inlineMediaMutationObserver.disconnect();
+      inlineMediaMutationObserver = null;
+    }
+    if (inlineMediaResizeFrame !== null) {
+      cancelAnimationFrame(inlineMediaResizeFrame);
+      inlineMediaResizeFrame = null;
+    }
+  }
+
+  function setupInlineMediaController(container, entries) {
+    disposeInlineMediaController();
+
+    const viewport = document.getElementById('viewer-container');
+    if (!container || !viewport || !entries.length) return;
+
+    const initializeReadyEntry = (entry) => {
+      const ratio = getInlineMediaAspectRatio(entry.media);
+      if (ratio > 0) initializeInlineMediaEntry(entry, container, viewport);
+    };
+
+    const refreshEntries = () => {
+      entries.forEach((entry) => {
+        if (!entry.userAdjusted) initializeReadyEntry(entry);
+        positionInlineMediaToolbar(entry, container);
+      });
+    };
+
+    const scheduleRefresh = () => {
+      if (inlineMediaResizeFrame !== null) cancelAnimationFrame(inlineMediaResizeFrame);
+      inlineMediaResizeFrame = requestAnimationFrame(() => {
+        inlineMediaResizeFrame = null;
+        refreshEntries();
+      });
+    };
+
+    entries.forEach((entry) => {
+      applyInlineMediaPercent(entry, INLINE_MEDIA_MAX);
+      positionInlineMediaToolbar(entry, container);
+      if (entry.media.tagName === 'IMG' && !(entry.media.complete && entry.media.naturalWidth > 0)) {
+        entry.media.addEventListener('load', () => initializeReadyEntry(entry), { once: true });
+      } else {
+        initializeReadyEntry(entry);
+      }
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      inlineMediaResizeObserver = new ResizeObserver(scheduleRefresh);
+      inlineMediaResizeObserver.observe(container);
+      inlineMediaResizeObserver.observe(viewport);
+      entries.forEach((entry) => inlineMediaResizeObserver.observe(entry.wrapper));
+    }
+
+    if (typeof MutationObserver !== 'undefined') {
+      inlineMediaMutationObserver = new MutationObserver(scheduleRefresh);
+      inlineMediaMutationObserver.observe(container, {
+        attributes: true,
+        attributeFilter: ['class', 'style'],
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+
+  function showMediaError(error) {
+    const message = error && error.message ? error.message : (error && error.code ? error.code : String(error || 'media_error'));
+    const warningEl = document.getElementById('performance-warning');
+    const textEl = document.getElementById('warning-text');
+    if (!warningEl || !textEl) return;
+    textEl.textContent = t('viewer.media.error', { message });
+    warningEl.style.display = 'block';
+    setTimeout(() => {
+      warningEl.style.display = 'none';
+    }, 5000);
+  }
+
+  function wrapMediaElement(element, className) {
+    if (!element || element.closest('.media-expand-wrapper')) return null;
+    const wrapper = document.createElement(element.tagName === 'IMG' ? 'span' : 'div');
+    wrapper.className = `media-expand-wrapper ${className || ''}`.trim();
+    element.replaceWith(wrapper);
+    wrapper.appendChild(element);
+    return wrapper;
+  }
+
+  function createInlineMediaEntry(wrapper, media, payloadFactory) {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'media-inline-toolbar';
+    toolbar.setAttribute('role', 'toolbar');
+    toolbar.setAttribute('aria-label', t('viewer.media.toolbarAriaLabel'));
+
+    const entry = {
+      wrapper,
+      media,
+      currentPercent: INLINE_MEDIA_MAX,
+      autoFitPercent: INLINE_MEDIA_MAX,
+      minPercent: INLINE_MEDIA_MANUAL_MIN,
+      userAdjusted: false,
+      toolbar,
+      zoomOut: null,
+      zoomIn: null
+    };
+
+    const expand = createMediaExpandButton(payloadFactory);
+    entry.zoomOut = createInlineMediaToolButton(
+      'media-inline-zoom-out',
+      'viewer.media.zoomOut',
+      '-',
+      () => {
+        entry.userAdjusted = true;
+        applyInlineMediaPercent(entry, entry.currentPercent - INLINE_MEDIA_ZOOM_STEP);
+      }
+    );
+    entry.zoomIn = createInlineMediaToolButton(
+      'media-inline-zoom-in',
+      'viewer.media.zoomIn',
+      '+',
+      () => {
+        entry.userAdjusted = true;
+        applyInlineMediaPercent(entry, entry.currentPercent + INLINE_MEDIA_ZOOM_STEP);
+      }
+    );
+
+    toolbar.append(expand, entry.zoomOut, entry.zoomIn);
+    wrapper.appendChild(toolbar);
+    return entry;
+  }
+
+  function setupMediaExpandAffordances(container) {
+    disposeInlineMediaController();
+    if (!container || container.querySelector('.empty-state')) return;
+    if (document.body.classList.contains('pdf-mode')) return;
+
+    const entries = [];
+
+    container.querySelectorAll('.mermaid[data-mermaid-source]').forEach((mermaidEl, index) => {
+      const wrapper = wrapMediaElement(mermaidEl, 'media-expand-wrapper-mermaid');
+      if (!wrapper) return;
+      entries.push(createInlineMediaEntry(wrapper, mermaidEl, () => ({
+        type: 'mermaid',
+        title: t('viewer.media.mermaidTitle', { index: index + 1 }),
+        mermaidSource: mermaidEl.getAttribute('data-mermaid-source') || ''
+      })));
+    });
+
+    container.querySelectorAll('img[src]').forEach((img) => {
+      const wrapper = wrapMediaElement(img, 'media-expand-wrapper-image');
+      if (!wrapper) return;
+      entries.push(createInlineMediaEntry(wrapper, img, () => {
+        const originalSrc = img.getAttribute('data-original-src') || img.getAttribute('src') || '';
+        const resolvedSource = img.getAttribute('data-resolved-source') || '';
+        const displaySrc = img.getAttribute('src') || '';
+        return {
+          type: 'image',
+          title: img.getAttribute('title') || img.getAttribute('alt') || t('viewer.media.imageTitle'),
+          alt: img.getAttribute('alt') || '',
+          source: resolvedSource || originalSrc,
+          displaySrc,
+          fileName: originalSrc.split('/').pop() || ''
+        };
+      }));
+    });
+
+    setupInlineMediaController(container, entries);
+  }
+
+  const CODE_COPY_FEEDBACK_MS = 650;
+  const CODE_COPY_FADE_MS = 180;
+
+  function setCodeCopyButtonLabel(button, copied) {
+    button.textContent = copied ? t('viewer.codeBlockCopied') : t('viewer.codeBlockCopy');
+    button.setAttribute('aria-label', copied ? t('viewer.codeBlockCopiedAriaLabel') : t('viewer.codeBlockCopyAriaLabel'));
+    button.setAttribute('title', button.getAttribute('aria-label'));
+  }
+
+  function clearCodeCopyTimers(button) {
+    if (button._codeCopyFadeTimer) {
+      clearTimeout(button._codeCopyFadeTimer);
+      button._codeCopyFadeTimer = null;
+    }
+    if (button._codeCopyResetTimer) {
+      clearTimeout(button._codeCopyResetTimer);
+      button._codeCopyResetTimer = null;
+    }
+  }
+
+  function showCodeCopiedFeedback(pre, button) {
+    clearCodeCopyTimers(button);
+    pre.classList.remove('code-copy-dismissed', 'code-copy-fading');
+    pre.classList.add('code-copy-copied');
+    setCodeCopyButtonLabel(button, true);
+
+    button._codeCopyFadeTimer = setTimeout(() => {
+      pre.classList.add('code-copy-fading');
+      button._codeCopyResetTimer = setTimeout(() => {
+        pre.classList.remove('code-copy-copied', 'code-copy-fading');
+        pre.classList.add('code-copy-dismissed');
+        setCodeCopyButtonLabel(button, false);
+      }, CODE_COPY_FADE_MS);
+    }, CODE_COPY_FEEDBACK_MS);
+  }
+
+  function createCodeCopyButton(pre, code) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'code-copy-button';
+    setCodeCopyButtonLabel(button, false);
+    button.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const text = code.textContent || code.innerText || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        showCodeCopiedFeedback(pre, button);
+      } catch (err) {
+        console.warn('Failed to copy code block', err);
+      }
+    });
+    return button;
+  }
+
+  function attachCodeBlockCopyAffordances(container) {
+    if (!container || container.querySelector('.empty-state')) return;
+    if (document.body.classList.contains('pdf-mode')) return;
+
+    container.querySelectorAll('pre > code').forEach((code) => {
+      const pre = code.parentElement;
+      if (!pre || pre.tagName !== 'PRE') return;
+      if (code.classList.contains('language-mermaid') || pre.closest('.mermaid')) return;
+      if (Array.from(pre.children).some((child) => child.classList && child.classList.contains('code-copy-button'))) return;
+
+      pre.classList.add('code-copy-host');
+      pre.addEventListener('mouseleave', () => {
+        pre.classList.remove('code-copy-dismissed');
+      });
+      pre.addEventListener('focusin', () => {
+        pre.classList.remove('code-copy-dismissed');
+      });
+      pre.appendChild(createCodeCopyButton(pre, code));
+    });
+  }
+
+  function renderBreadcrumbTrail(trail) {
+    const breadcrumbEl = document.getElementById('viewer-breadcrumb');
+    if (!breadcrumbEl) return;
+
+    navigationTrail = normalizeBreadcrumbTrail(trail);
+    if (window.DocuLight && window.DocuLight.state) {
+      window.DocuLight.state.navigationTrail = navigationTrail;
+    }
+
+    breadcrumbEl.setAttribute('aria-label', t('viewer.breadcrumbAriaLabel'));
+    breadcrumbEl.innerHTML = '';
+
+    if (document.body.classList.contains('pdf-mode') || navigationTrail.length < 2) {
+      breadcrumbEl.classList.add('hidden');
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    navigationTrail.forEach((item, position) => {
+      if (position > 0) {
+        const separator = document.createElement('span');
+        separator.className = 'viewer-breadcrumb-separator';
+        separator.setAttribute('aria-hidden', 'true');
+        separator.textContent = '>';
+        frag.appendChild(separator);
+      }
+
+      if (item.current || position === navigationTrail.length - 1) {
+        const current = document.createElement('span');
+        current.className = 'viewer-breadcrumb-current';
+        current.setAttribute('aria-current', 'page');
+        current.setAttribute('aria-label', t('viewer.breadcrumbCurrentAriaLabel', { label: item.label }));
+        current.setAttribute('title', item.filePath);
+        current.textContent = item.label;
+        frag.appendChild(current);
+        return;
+      }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'viewer-breadcrumb-segment';
+      button.dataset.breadcrumbIndex = String(item.index);
+      button.setAttribute('title', item.filePath);
+      button.setAttribute('aria-label', t('viewer.breadcrumbSegmentAriaLabel', { label: item.label }));
+      button.textContent = item.label;
+      button.addEventListener('click', () => navigateBreadcrumbToIndex(item.index));
+      frag.appendChild(button);
+    });
+
+    breadcrumbEl.appendChild(frag);
+    breadcrumbEl.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      breadcrumbEl.scrollLeft = breadcrumbEl.scrollWidth;
+    });
+  }
+
+  function hasUnsafeHrefScheme(href) {
+    return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(href) && !/^[A-Za-z]:[/\\]/.test(href);
+  }
+
+  function stripHrefSuffix(href) {
+    const hashIndex = href.indexOf('#');
+    const queryIndex = href.indexOf('?');
+    let endIndex = href.length;
+    if (hashIndex >= 0) endIndex = Math.min(endIndex, hashIndex);
+    if (queryIndex >= 0) endIndex = Math.min(endIndex, queryIndex);
+    return href.slice(0, endIndex);
+  }
+
+  function getLocalMarkdownHrefTarget(href) {
+    if (!href || href.startsWith('#') || href.startsWith('http://') || href.startsWith('https://')) {
+      return null;
+    }
+    if (href.startsWith('//') || href.startsWith('\\\\') || href.includes('://') || hasUnsafeHrefScheme(href)) {
+      return null;
+    }
+
+    const target = stripHrefSuffix(href).trim();
+    if (!target) return null;
+
+    const fileName = target.replace(/\\/g, '/').split('/').pop() || '';
+    const dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0) return target;
+
+    const ext = fileName.slice(dotIndex).toLowerCase();
+    return (ext === '.md' || ext === '.markdown') ? target : null;
   }
 
   // === IPC Handlers ===
@@ -542,11 +1039,12 @@
       window.DocuLight.state.imageBasePath = data.imageBasePath || null;
       if (data.platform) window.DocuLight.state.platform = data.platform;
     }
+    document.body.classList.toggle('pdf-mode', data.pdfMode === true);
+    renderBreadcrumbTrail(data.pdfMode ? [] : (data.navigationTrail || []));
     renderMarkdown(data.markdown);
 
     // PDF mode: hide UI elements and signal completion
     if (data.pdfMode) {
-      document.body.classList.add('pdf-mode');
       // Hide non-content UI
       const floatingBtns = document.getElementById('floating-buttons');
       const sidebarContainer = document.getElementById('sidebar-container');
@@ -596,6 +1094,7 @@
         var cEl = document.getElementById('content');
         if (cEl) activeTab.renderedHtml = cEl.innerHTML;
         activeTab.filePath = data.filePath || activeTab.filePath;
+        activeTab.navigationTrail = normalizeBreadcrumbTrail(data.navigationTrail || activeTab.navigationTrail || []);
         if (data.filePath) {
           var h1El = cEl && cEl.querySelector('h1');
           if (h1El) {
@@ -624,6 +1123,7 @@
   // update-markdown: content update for existing window
   cleanups.push(window.doclight.onUpdateMarkdown((data) => {
     currentFilePath = data.filePath || null;
+    renderBreadcrumbTrail(data.navigationTrail || []);
     // Update originalContent for Save As (FR-21-002)
     if (!data.filePath && data.markdown != null) {
       originalContent = data.markdown;
@@ -929,6 +1429,9 @@
   cleanups.push(window.doclight.onEmptyWindow(() => {
     const contentEl = document.getElementById('content');
     if (!contentEl) return;
+    markdownRenderGeneration += 1;
+    disposeInlineMediaController();
+    renderBreadcrumbTrail([]);
     contentEl.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📄</div>
@@ -1355,12 +1858,32 @@
     }
   });
 
-  // === MD Paste on Empty Page (FR-22-004) ===
+  function getCurrentPastePlatform() {
+    var state = window.DocuLight && window.DocuLight.state;
+    if (state && state.platform) return state.platform;
+    var platform = (navigator && navigator.platform) ? navigator.platform.toLowerCase() : '';
+    return platform.indexOf('win') >= 0 ? 'win32' : '';
+  }
+
+  function looksLikeAbsoluteMarkdownPathPaste(text) {
+    if (typeof text !== 'string') return false;
+    var value = text.trim();
+    if (!value || /[\r\n]/.test(value)) return false;
+    if ((value[0] === '"' && value[value.length - 1] === '"') ||
+        (value[0] === "'" && value[value.length - 1] === "'")) {
+      value = value.slice(1, -1).trim();
+    }
+    if (!/\.md$/i.test(value)) return false;
+    var platform = getCurrentPastePlatform();
+    if (platform === 'win32') return /^[A-Za-z]:[\\/]/.test(value);
+    return value[0] === '/';
+  }
+
+  // === MD Paste on Empty Page / Absolute Path Paste (FR-RENDER-025, FR-WIN-014) ===
   document.addEventListener('paste', function (e) {
     var contentEl = document.getElementById('content');
     var isEmpty = !currentFilePath && (!contentEl || !contentEl.hasChildNodes() ||
                   !!contentEl.querySelector('.empty-state'));
-    if (!isEmpty) return;
 
     var active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
@@ -1372,12 +1895,20 @@
     }
     if (!text || !text.trim()) return;
 
+    var isPathPaste = looksLikeAbsoluteMarkdownPathPaste(text);
+    if (!isEmpty && !isPathPaste) return;
+
     e.preventDefault();
-    originalContent = text;
-    currentFilePath = null;
-    saveAsFilePath = null;
-    savedFilePath = null;
-    window.doclight.renderPastedContent(text);
+    if (isEmpty) {
+      originalContent = text;
+      currentFilePath = null;
+      saveAsFilePath = null;
+      savedFilePath = null;
+    }
+    var allowMarkdownFallback = isEmpty;
+    window.doclight.renderPastedContent(isPathPaste
+      ? { text: text, allowMarkdownFallback: allowMarkdownFallback }
+      : text);
   });
 
   // === Find in Page ===
@@ -2236,22 +2767,23 @@
       return;
     }
 
-    // Local .md links - navigate
-    if (href.endsWith('.md') || (!href.startsWith('#') && !href.includes('://'))) {
-      if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
-        window.DocuLight.fn.navigateToForTab(href);
-      } else {
-        window.doclight.navigateTo(href);
-      }
-      return;
-    }
-
     // Anchor links - scroll to element
     if (href.startsWith('#')) {
       const targetId = href.substring(1);
       const target = document.getElementById(targetId);
       if (target) {
         target.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+
+    // Local .md links - navigate
+    const localMarkdownTarget = getLocalMarkdownHrefTarget(href);
+    if (localMarkdownTarget) {
+      if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+        window.DocuLight.fn.navigateToForTab(localMarkdownTarget);
+      } else {
+        window.doclight.navigateTo(localMarkdownTarget);
       }
       return;
     }
@@ -2578,6 +3110,7 @@
         sidebarTree: null,
         tabs: [],
         activeTabIndex: 0,
+        navigationTrail: [],
         settings: {},
         platform: null,
         showFrontmatterName: false
@@ -2590,6 +3123,7 @@
       },
       fn: {
         renderMarkdown: renderMarkdown,
+        renderBreadcrumbTrail: renderBreadcrumbTrail,
         renderSidebarTree: renderSidebarTree,
         updateSidebarHighlight: updateSidebarHighlight,
         scrollToTextMatch: scrollToTextMatch,
@@ -2642,6 +3176,7 @@
 
   // === Cleanup on unload ===
   window.addEventListener('beforeunload', () => {
+    disposeInlineMediaController();
     cleanups.forEach(fn => { if (typeof fn === 'function') fn(); });
   });
 

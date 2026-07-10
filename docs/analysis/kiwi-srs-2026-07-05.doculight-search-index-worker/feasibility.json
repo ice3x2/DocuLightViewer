@@ -1,0 +1,20 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "requirement_id": "REL-DOC-007",
+  "implementability": "high",
+  "product_fit": "core",
+  "rationale": "The codebase already has Settings IPC controls, source-ledger job fields, SQLite store wrappers, HNSW wrappers, and existing package native rebuild policy. The change is high effort but feasible within the repository by introducing an indexing worker controller and tests.",
+  "code_evidence": [
+    "src/main/search-engine.js:L1545-L1593",
+    "src/main/search-sqlite-store.js:L101-L188",
+    "src/main/source-ledger-store.js:L304",
+    "src/renderer/settings.js:L448-L598"
+  ],
+  "blockers": [],
+  "conditions": [
+    "Implementation must preserve the existing Settings IPC/preload contract.",
+    "MCP must not gain rebuild/compact/cancel/clear controls.",
+    "Large-corpus benchmark must use temp index data, not userData or the source corpus root."
+  ],
+  "external_module_required": false
+}

@@ -1,0 +1,226 @@
+{
+  "project_slug": "doculight",
+  "entry_points": {
+    "package_main": "src/main/index.js",
+    "package_bin": {
+      "doculight-mcp": "src/main/mcp-server.mjs"
+    },
+    "scripts": {
+      "start": "electron .",
+      "dev": "electron . --dev",
+      "mcp": "node src/main/mcp-server.mjs",
+      "bundle:mcp": "esbuild src/main/mcp-server.mjs --bundle --platform=node --target=node20 --format=esm --outfile=src/main/mcp-server.bundle.mjs",
+      "build:win": "electron-builder --win",
+      "build:mac": "electron-builder --mac",
+      "build:linux": "electron-builder --linux"
+    },
+    "electron_main": "src/main/index.js",
+    "mcp_stdio_entry": "src/main/mcp-server.mjs",
+    "mcp_http_entry": "src/main/mcp-http.mjs"
+  },
+  "top_dirs": {
+    "src/main": "Electron main process — CJS (.js) + ESM MCP files (.mjs). Core modules: index.js (app lifecycle, IPC socket server, tray), window-manager.js (BrowserWindow lifecycle), link-parser.js (sidebar tree builder), mcp-server.mjs (stdio MCP via @modelcontextprotocol/sdk), mcp-http.mjs (HTTP JSON-RPC 2.0 MCP embedded in Electron), frontmatter.js (YAML injection), mcp-save.js (auto-save), search-engine.js (BM25), tokenizer.js (Korean+English), git-info.js (git metadata), strings.js (i18n), preload.js (contextBridge), file-association.js (Windows .md ProgID)",
+    "src/renderer": "Renderer UI — viewer.html/js/css (main markdown viewer), settings.html/js/css (settings editor), tab-manager.js (multi-doc tabs), sidebar-search.js (file search filter), pdf-export-ui.js (PDF export modal), image-resolver.js (local image data URI). lib/ contains vendored: marked, DOMPurify, highlight.js, mermaid",
+    "src/locales": "i18n JSON files — ko.json, en.json, ja.json, es.json (all 4 must stay in sync)",
+    "test": "E2E tests (Playwright): doclight.e2e.js, doclight.step19.e2e.js, mcp-http.e2e.js, sidebar-async.e2e.js. Manual scripts: test-link-tree.js, test-tokenizer.js, test-frontmatter.js, test-mcp-autosave.js, test-sidebar-tree.js, test-batch-streaming.js. Fixtures in test/fixtures/",
+    "docs/plan": "Implementation plans per step (step17–step29) and feature branches (pivot, mcp-stability-and-packaging-improvements, bm25-search, step20–step22). Each step has phases, verification docs, integration-test-guide, final-validation.",
+    "docs/spec": "SpecKiwi SRS source of truth. Currently has stub documents only (00.index.md with empty Active Target, 10.product-architecture.srs.md as stub, 90.appendix.md). SRS is draft/empty — no requirements defined yet.",
+    "docs/release-note": "Release notes: v0.10.7, v0.10.8, v0.10.9, v0.10.15",
+    "docs/test": "Test fixture documents (image-test.md, doculight-logo.svg)",
+    "assets": "App icon assets",
+    "build": "Build resources for electron-builder",
+    "dist": "electron-builder output (packaged apps)"
+  },
+  "deps": {
+    "production": {
+      "@modelcontextprotocol/sdk": "^1.12.1",
+      "electron-store": "^8.2.0",
+      "pdf-lib": "^1.17.1",
+      "wink-bm25-text-search": "^3.1.2",
+      "zod": "^4.0.0"
+    },
+    "devDependencies": {
+      "@playwright/test": "^1.58.2",
+      "electron": "^33.4.0",
+      "electron-builder": "^25.1.8",
+      "esbuild": "^0.25.0"
+    },
+    "vendored_in_renderer_lib": {
+      "marked": "v17 (src/renderer/lib/marked.min.js)",
+      "DOMPurify": "(src/renderer/lib/purify.min.js)",
+      "highlight.js": "(src/renderer/lib/highlight.min.js + CSS themes)",
+      "mermaid": "(src/renderer/lib/mermaid.min.js)"
+    }
+  },
+  "api_surface": {
+    "mcp_tools_shared": {
+      "description": "6 MCP tools exposed in both mcp-server.mjs (stdio) and mcp-http.mjs (HTTP). mcp-server.mjs uses @modelcontextprotocol/sdk + Zod; mcp-http.mjs uses raw HTTP JSON-RPC 2.0.",
+      "files": ["src/main/mcp-server.mjs", "src/main/mcp-http.mjs"],
+      "tools": [
+        {
+          "name": "open_markdown",
+          "description": "Open or upsert a named Markdown viewer window. Params: content|filePath, title, size (s/m/l/f), foreground, alwaysOnTop, windowName (upsert key), severity (info/success/warning/error), tags[], flash, progress (-1~1.0), autoCloseSeconds, project, docName, description, docType, projectPath, noSave"
+        },
+        {
+          "name": "update_markdown",
+          "description": "Update existing window by windowId. Params: windowId (required), content|filePath, title, appendMode, separator, severity, tags, flash, progress, autoCloseSeconds, project, docName, description, docType, projectPath, noSave"
+        },
+        {
+          "name": "close_viewer",
+          "description": "Close window(s). Params: windowId (optional), tag (optional). No params = close all."
+        },
+        {
+          "name": "list_viewers",
+          "description": "List open viewer windows. Params: tag (optional filter)"
+        },
+        {
+          "name": "search_documents",
+          "description": "BM25 full-text search over saved MCP documents. Params: query (required), limit, project, docType. Requires mcpAutoSave enabled."
+        },
+        {
+          "name": "search_projects",
+          "description": "Search/list projects from saved document frontmatter. Params: query (optional), limit. Requires mcpAutoSave enabled."
+        }
+      ]
+    },
+    "ipc_actions_ndjson": {
+      "description": "ndjson over Named Pipe (\\\\.\\ pipe\\doculight-ipc on Windows / /tmp/doculight-ipc.sock on Unix). Request: {id, action, params}. Response: {id, result} | {id, error:{message}}",
+      "file": "src/main/index.js",
+      "handler_function": "handleIpcMessage",
+      "actions": [
+        "open_markdown",
+        "update_markdown",
+        "close_viewer",
+        "list_viewers",
+        "search_documents",
+        "search_projects",
+        "rebuild_index"
+      ]
+    },
+    "http_routes": {
+      "description": "HTTP MCP server embedded in Electron (mcp-http.mjs). Default port 52580. Bound port written to {userData}/mcp-port.",
+      "file": "src/main/mcp-http.mjs",
+      "base_url": "http://127.0.0.1:{mcpPort}",
+      "routes": [
+        { "method": "GET",    "path": "/mcp", "purpose": "SSE stream for server-to-client notifications (MCP Streamable HTTP spec). Required by Claude Code HTTP transport." },
+        { "method": "POST",   "path": "/mcp", "purpose": "JSON-RPC 2.0 endpoint — tools/list, tools/call, initialize, ping" },
+        { "method": "DELETE", "path": "/mcp", "purpose": "Session termination (stateless — just acknowledges)" }
+      ]
+    },
+    "electron_ipc_contextbridge": {
+      "description": "window.doclight contextBridge API between renderer and main. Exposed via preload.js.",
+      "file": "src/main/preload.js",
+      "main_to_renderer_events": [
+        "empty-window", "render-markdown", "update-markdown",
+        "sidebar-tree", "sidebar-tree-start", "sidebar-tree-batch", "sidebar-tree-done", "sidebar-tree-error",
+        "sidebar-highlight", "theme-changed", "settings-changed", "panel-visibility",
+        "set-severity", "auto-close-start", "always-on-top-changed",
+        "export-progress", "set-saved-file-path", "set-mcp-state"
+      ],
+      "renderer_to_main_sends": [
+        "navigate-to", "navigate-back", "navigate-forward", "open-external",
+        "window-ready", "zoom-in", "zoom-out", "zoom-reset",
+        "release-always-on-top", "toggle-always-on-top", "set-always-on-top",
+        "file-dropped", "file-opened-in-tab", "cancel-export", "pdf-render-complete",
+        "open-default-apps-settings", "show-in-explorer"
+      ],
+      "renderer_to_main_invokes": [
+        "cancel-sidebar-tree-load", "check-port-available",
+        "get-settings", "save-settings", "get-strings",
+        "register-file-association", "unregister-file-association", "get-file-association-status",
+        "pick-directory", "export-pdf",
+        "read-file-for-tab", "check-file-mtime", "open-file-dialog", "search-sidebar-content",
+        "read-image-as-data-url",
+        "save-as", "quick-save", "delete-auto-saved-file",
+        "mcp-manual-save", "render-pasted-content"
+      ]
+    }
+  },
+  "ui_present": {
+    "present": true,
+    "renderer_files": [
+      "src/renderer/viewer.html",
+      "src/renderer/viewer.js",
+      "src/renderer/viewer.css",
+      "src/renderer/settings.html",
+      "src/renderer/settings.js",
+      "src/renderer/settings.css",
+      "src/renderer/tab-manager.js",
+      "src/renderer/sidebar-search.js",
+      "src/renderer/pdf-export-ui.js",
+      "src/renderer/image-resolver.js"
+    ],
+    "vendored_libs_dir": "src/renderer/lib/",
+    "notes": "Sidebar is merged link-tree + directory tree. Tab support optional (enableTabs setting, default false). Light/dark theme. i18n (ko/en/ja/es)."
+  },
+  "existing_docs": {
+    "root": [
+      "README.md",
+      "CLAUDE.md",
+      "AGENTS.md"
+    ],
+    "docs/spec": [
+      "docs/spec/00.index.md (SpecKiwi SRS index — Active Target empty, Status: draft, no requirements defined)",
+      "docs/spec/10.product-architecture.srs.md (stub — no requirements written yet)",
+      "docs/spec/90.appendix.md"
+    ],
+    "docs/plan": [
+      "docs/plan/srs.pivot.md",
+      "docs/plan/srs.step18.md",
+      "docs/plan/srs.step19.md",
+      "docs/plan/srs.step20.md",
+      "docs/plan/srs.step21.md",
+      "docs/plan/srs.step22.md",
+      "docs/plan/pivot/ (6 phase docs + verification + integration + final-validation)",
+      "docs/plan/step17/ through step22/ (per-step phase plans, verifications, completion reports)",
+      "docs/plan/mcp-stability-and-packaging-improvements/ (6 phase docs)",
+      "docs/plan/bm25-search/ (research-report + implementation-plan)"
+    ],
+    "docs/release-note": [
+      "docs/release-note/v0.10.7.md",
+      "docs/release-note/v0.10.8.md",
+      "docs/release-note/v0.10.9.md",
+      "docs/release-note/v0.10.15.md"
+    ]
+  },
+  "size_metrics": {
+    "app_version": "0.10.16",
+    "src_file_count_approx": 36,
+    "src_source_files_excluding_vendored_libs": 22,
+    "total_loc_src_js_mjs": 10898,
+    "per_file_loc": {
+      "src/main/index.js": 1907,
+      "src/main/window-manager.js": 1431,
+      "src/renderer/viewer.js": 2648,
+      "src/main/mcp-server.mjs": 722,
+      "src/main/mcp-http.mjs": 666,
+      "src/renderer/tab-manager.js": 466,
+      "src/renderer/settings.js": 455,
+      "src/main/link-parser.js": 445,
+      "src/renderer/sidebar-search.js": 389,
+      "src/main/file-association.js": 372,
+      "src/main/search-engine.js": 370,
+      "src/renderer/pdf-export-ui.js": 204,
+      "src/main/preload.js": 184,
+      "src/main/mcp-save.js": 163,
+      "src/renderer/image-resolver.js": 141,
+      "src/main/frontmatter.js": 133,
+      "src/main/git-info.js": 78,
+      "src/main/strings.js": 68,
+      "src/main/tokenizer.js": 56
+    },
+    "module_boundary_hints": {
+      "core_window_lifecycle": ["src/main/index.js", "src/main/window-manager.js", "src/main/preload.js"],
+      "mcp_protocol": ["src/main/mcp-server.mjs", "src/main/mcp-http.mjs"],
+      "mcp_document_management": ["src/main/mcp-save.js", "src/main/frontmatter.js", "src/main/git-info.js"],
+      "search": ["src/main/search-engine.js", "src/main/tokenizer.js"],
+      "sidebar_tree": ["src/main/link-parser.js"],
+      "renderer_core": ["src/renderer/viewer.js", "src/renderer/viewer.html", "src/renderer/viewer.css"],
+      "renderer_settings": ["src/renderer/settings.js", "src/renderer/settings.html", "src/renderer/settings.css"],
+      "renderer_features": ["src/renderer/tab-manager.js", "src/renderer/sidebar-search.js", "src/renderer/pdf-export-ui.js", "src/renderer/image-resolver.js"],
+      "i18n": ["src/main/strings.js", "src/locales/ko.json", "src/locales/en.json", "src/locales/ja.json", "src/locales/es.json"],
+      "platform_integration": ["src/main/file-association.js"],
+      "tests": ["test/doclight.e2e.js", "test/mcp-http.e2e.js", "test/sidebar-async.e2e.js", "test/doclight.step19.e2e.js"]
+    }
+  }
+}

@@ -1,0 +1,248 @@
+{
+  "run_id": "2026-07-01.doculight-broken-link-policy",
+  "target": "0.11.0-w2",
+  "classification": "new-feature-with-update-cleanup",
+  "mode": "live",
+  "request_summary": "Clarify policy for broken Markdown links in linked local import, legacy adoption, persistent link graph indexing, smart_search diagnostics, and MCP non-expansion.",
+  "added_ids": [
+    "CON-DOC-003",
+    "DR-DOC-012",
+    "CON-DOC-004",
+    "FR-DOC-031",
+    "CON-DOC-005",
+    "FR-DOC-032",
+    "DR-DOC-013",
+    "CON-DOC-006",
+    "FR-DOC-033",
+    "CON-DOC-007",
+    "FR-DOC-034",
+    "CON-ARCH-007"
+  ],
+  "active_ids": [
+    "CON-ARCH-007",
+    "DR-DOC-013",
+    "CON-DOC-006",
+    "FR-DOC-033",
+    "CON-DOC-007",
+    "FR-DOC-034"
+  ],
+  "discarded_ids": [
+    "DR-DOC-011",
+    "CON-DOC-003",
+    "FR-DOC-029",
+    "CON-DOC-002",
+    "FR-DOC-030",
+    "DR-DOC-012",
+    "CON-DOC-004",
+    "FR-DOC-031",
+    "CON-DOC-005",
+    "FR-DOC-032",
+    "CON-ARCH-006"
+  ],
+  "updated_docs": [
+    "docs/spec/10.product-architecture.srs.md",
+    "docs/spec/60.document-persistence.srs.md",
+    "docs/spec/00.index.md",
+    "docs/research/knowledge_store/knowledge.md",
+    "docs/analysis/kiwi-srs-2026-07-01.doculight-broken-link-policy/report.md"
+  ],
+  "mcp_calls": [
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-DOC-003",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "DR-DOC-012",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-DOC-004",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-031",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-DOC-005",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-032",
+      "ok": true,
+      "written": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "DR-DOC-013",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes DR-DOC-012 so active source identity dependencies no longer point at discarded intermediate requirements."
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-DOC-006",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes CON-DOC-004 so active broken-link lifecycle policy depends on DR-DOC-013 and stable MCP/search redaction requirements."
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-033",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes FR-DOC-031 to use active canonical diagnostics only."
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-DOC-007",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes CON-DOC-005 to remove active references to discarded linked-import intermediates."
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-034",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes FR-DOC-032 to align legacy adoption with active canonical diagnostics."
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-ARCH-007",
+      "ok": true,
+      "written": true,
+      "notes": "Supersedes CON-ARCH-006 so the Wave 2 gate references active trace-clean DOC requirements."
+    },
+    {
+      "tool": "update_status",
+      "ids": [
+        "DR-DOC-011",
+        "CON-DOC-003",
+        "FR-DOC-029",
+        "CON-DOC-002",
+        "FR-DOC-030",
+        "DR-DOC-012",
+        "CON-DOC-004",
+        "FR-DOC-031",
+        "CON-DOC-005",
+        "FR-DOC-032",
+        "CON-ARCH-006"
+      ],
+      "status": "discarded",
+      "ok": true
+    },
+    {
+      "tool": "validate_spec",
+      "strict": true,
+      "failOnWarning": true,
+      "ok": true,
+      "warnings": 0
+    },
+    {
+      "tool": "summarize_target",
+      "target": "0.11.0-w2",
+      "ok": true,
+      "summary": {
+        "planned": 27,
+        "discarded": 30,
+        "verified": 1,
+        "stable": 58,
+        "total": 58
+      }
+    }
+  ],
+  "scope_doc_edits": [
+    {
+      "file": "docs/spec/60.document-persistence.srs.md",
+      "section": "Requirements",
+      "op": "append_via_speckiwi_mcp",
+      "requirement_ids": [
+        "CON-DOC-003",
+        "DR-DOC-012",
+        "CON-DOC-004",
+        "FR-DOC-031",
+        "CON-DOC-005",
+        "FR-DOC-032",
+        "DR-DOC-013",
+        "CON-DOC-006",
+        "FR-DOC-033",
+        "CON-DOC-007",
+        "FR-DOC-034"
+      ]
+    },
+    {
+      "file": "docs/spec/10.product-architecture.srs.md",
+      "section": "Requirements",
+      "op": "append_via_speckiwi_mcp",
+      "requirement_ids": [
+        "CON-ARCH-007"
+      ]
+    },
+    {
+      "file": "docs/spec/00.index.md",
+      "section": "Status Summary / Type Summary / Dependencies / Change Notes",
+      "op": "manual_index_sync",
+      "notes": "Updated aggregate counts and dependency references after final trace-clean supersession."
+    },
+    {
+      "file": "docs/research/knowledge_store/knowledge.md",
+      "section": "Broken link policy",
+      "op": "manual_research_update",
+      "notes": "Aligned research active requirement list with DR-DOC-013, CON-DOC-006, FR-DOC-033, CON-DOC-007, FR-DOC-034, and CON-ARCH-007."
+    }
+  ],
+  "policy_decision": {
+    "canonical_statuses": [
+      "resolved",
+      "missing",
+      "external",
+      "path_policy_violation",
+      "skipped",
+      "ambiguous",
+      "stale"
+    ],
+    "diagnostic_code_examples": [
+      "missing_target",
+      "outside_root",
+      "encoded_traversal",
+      "symlink_escape",
+      "depth_limit",
+      "file_count_limit",
+      "byte_limit",
+      "cycle_detected",
+      "excluded_target",
+      "ambiguous_candidate",
+      "target_deleted"
+    ],
+    "ranking_rule": "Only resolved edges may affect linkScore or linkedTo/linkedFrom filters.",
+    "diagnostics_rule": "Broken edges are redacted diagnostic edges and do not fail indexing for readable source documents.",
+    "mcp_boundary": "MCP tools do not expose or synchronously trigger recursive import, bulk scan, rebuild, retry, cancel, or broken-link reconciliation controls. save_document may enqueue ordinary post-save indexing; resolution happens later in background reconciliation."
+  },
+  "validate_spec_result": {
+    "ok": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "evaluation_result": {
+    "final_iter": 4,
+    "grade": "A+",
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "subagent": "Arendt",
+    "stale_active_depends_on_or_extends_references": 0
+  }
+}

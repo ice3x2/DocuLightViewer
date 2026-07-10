@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "kiwi-srs-evaluation-resolution.v1",
+  "date": "2026-07-01",
+  "target": "0.11.0-w2",
+  "topic": "final trace cleanup for document-only save_document SRS",
+  "trigger": "Final implementation-readiness reviewer graded B+ because of stale repository-wide depends_on links and stale code-gap traces.",
+  "changes": [
+    {
+      "finding": "IR-APP-010 depended on discarded REL-DOC-003.",
+      "resolution": "Updated IR-APP-010 trace to depend on REL-DOC-004."
+    },
+    {
+      "finding": "OPS-ARCH-009/OPS-ARCH-010 traces treated existing Wave 1.5 package smoke and better-sqlite3 packaging as missing.",
+      "resolution": "Updated traces to mark package.json, electron-builder.yml, test/package-smoke.js, and test/test-sqlite-native-packaging-contract.js as extension or partial verification sites."
+    },
+    {
+      "finding": "REL-DOC-004 under-traced the current SQLite implementation surface.",
+      "resolution": "Added src/main/search-sqlite-store.js:L39-L83 as an addition_site showing current WAL/schema foundation without integrity_check/migration/recovery flow."
+    },
+    {
+      "finding": "TDD direction needed concrete first failing Wave 2 tests.",
+      "resolution": "Added trace links to test/test-mcp-tool-parity.js, test/test-mcp-http-save-parity.js, test/test-save-document-smart-search-e2e.js, test/test-mcp-redaction-fixtures.js, and test/test-sqlite-hnsw-recovery-contract.js."
+    }
+  ],
+  "verification": {
+    "speckiwiValidate": "speckiwi validate --json --fail-on-warning returned 0 errors and 0 warnings after cleanup.",
+    "repositoryWideDependencyScan": "nonDiscardedDependsOnDiscarded=0 and missingRequirementDependsOn=0 after cleanup."
+  }
+}

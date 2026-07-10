@@ -1,0 +1,95 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2.v01",
+  "target": "0.11.0-w2",
+  "summary": {
+    "overall_feasibility": "high-with-sequencing-risk",
+    "planner_entry": "ready",
+    "pm_entry_without_plan": "not_ready",
+    "reason": "All active requirements are stable and the SRS validates cleanly, but implementation has high sequencing risk across persistence, native dependencies, background jobs, security redaction, MCP contracts, and UI."
+  },
+  "judgements": [
+    {
+      "group": "foundation-redaction-and-contract",
+      "req_ids": ["SEC-DOC-003", "IR-MCP-018", "CON-MCP-007", "CON-MCP-010"],
+      "feasibility": "high",
+      "score": 86,
+      "conditions": [
+        "Implement one shared redaction utility before save_document or smart_search external responses.",
+        "Update stdio, HTTP, and bundled MCP tool contracts together from 6 tools to 8 tools.",
+        "Reject unknown import/indexing/reconciliation control fields in MCP payloads."
+      ]
+    },
+    {
+      "group": "sqlite-ledger-recovery",
+      "req_ids": ["DR-DOC-006", "DR-DOC-007", "DR-DOC-009", "REL-DOC-004", "DR-DOC-013"],
+      "feasibility": "high",
+      "score": 84,
+      "conditions": [
+        "Treat SQLite as source-of-truth ledger for Wave 2 documents, chunks, links, jobs, source identity, and embedding metadata.",
+        "Keep raw absolute paths internal and expose only documentId, source-relative path, redacted token, counts, and diagnostic codes.",
+        "Add migration/recovery tests before background indexing starts using the ledger."
+      ]
+    },
+    {
+      "group": "embedding-settings-and-model-governance",
+      "req_ids": ["DR-APP-002", "SEC-APP-003", "FR-APP-012", "DR-DOC-008", "FR-DOC-024"],
+      "feasibility": "high",
+      "score": 82,
+      "conditions": [
+        "Settings UI must show unset, connected, and unreachable model states.",
+        "Chunk defaults must be 900 tokens and 120 overlap across UI, config, fingerprint, and index enqueue.",
+        "Live endpoint examples must be read from gitignored model-api.txt for tests only."
+      ]
+    },
+    {
+      "group": "hnsw-native-packaging",
+      "req_ids": ["OPS-ARCH-009", "OPS-ARCH-010", "FR-DOC-024"],
+      "feasibility": "medium-high",
+      "score": 78,
+      "conditions": [
+        "Add hnswlib-node as a native dependency and gate release packaging with a load/add/search smoke test.",
+        "Use atomic derived-index swap and keyword-only degraded mode when native HNSW is unavailable.",
+        "Update electron-builder native unpack/rebuild behavior."
+      ]
+    },
+    {
+      "group": "background-indexing-link-graph-and-hybrid-search",
+      "req_ids": ["FR-DOC-019", "FR-DOC-020", "FR-DOC-021", "FR-DOC-022", "FR-DOC-025", "FR-DOC-028", "FR-TREE-009", "CON-DOC-006"],
+      "feasibility": "high-with-policy-lock",
+      "score": 83,
+      "conditions": [
+        "Broken links are non-blocking diagnostic edges, not indexing failures.",
+        "Only resolved edges may affect ranking or linkedTo/linkedFrom filters.",
+        "Do not inject synthetic broken/missing tokens into BM25/FTS.",
+        "Indexing controls remain Settings-only and are not MCP tools."
+      ]
+    },
+    {
+      "group": "document-only-save-linked-import-and-legacy-adoption",
+      "req_ids": ["FR-DOC-033", "CON-DOC-007", "FR-DOC-034", "FR-DOC-028"],
+      "feasibility": "high-with-concurrency-risk",
+      "score": 80,
+      "conditions": [
+        "save_document stays content-only/no-viewer and must not start recursive linked import.",
+        "Bounded linked local import belongs to Settings or source-path-backed local import workflow.",
+        "Duplicate prevention must use source identity and transaction/upsert boundaries, not absolute destination path alone.",
+        "Existing knowledge-store Markdown files are adopted without rewrite."
+      ]
+    },
+    {
+      "group": "architecture-and-release-gates",
+      "req_ids": ["CON-ARCH-007", "FR-DOC-023"],
+      "feasibility": "high",
+      "score": 88,
+      "conditions": [
+        "Keep verified Korean garu-ko tokenizer behavior compatible with the new hybrid search pipeline.",
+        "Do not weaken Wave 1 or Wave 1.5 compatibility contracts while adding smart_search."
+      ]
+    }
+  ],
+  "blockers": [],
+  "cleanup_notes": [
+    "FR-DOC-022 has stale prose mentioning discarded REL-DOC-003; planner should treat REL-DOC-004 as active recovery policy.",
+    "The implementation plan should start with redaction and ledger tests because many later requirements depend on them."
+  ]
+}

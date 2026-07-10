@@ -23,6 +23,9 @@ const SIZE_PRESETS = {
   l: { width: 1080, height: 1440 }
 };
 
+const MIN_VIEWER_WIDTH = 200;
+const MIN_VIEWER_HEIGHT = 300;
+
 const MAX_WINDOWS = 20;
 
 // ---------------------------------------------------------------------------
@@ -30,10 +33,12 @@ const MAX_WINDOWS = 20;
 // ---------------------------------------------------------------------------
 
 class NavigationHistory {
-  constructor() {
+  constructor(options = {}) {
     this.stack = [];
     this.index = -1;
-    this.MAX_SIZE = 50;
+    this.MAX_SIZE = Number.isInteger(options.maxSize) && options.maxSize > 0
+      ? options.maxSize
+      : 50;
   }
 
   /**
@@ -69,6 +74,29 @@ class NavigationHistory {
       return this.stack[this.index];
     }
     return null;
+  }
+
+  snapshot() {
+    const stack = [...this.stack];
+    return {
+      stack,
+      index: this.index,
+      current: this.index >= 0 ? this.stack[this.index] : null,
+      trail: this.index >= 0 ? this.stack.slice(0, this.index + 1) : [],
+      canGoBack: this.index > 0,
+      canGoForward: this.index >= 0 && this.index < this.stack.length - 1
+    };
+  }
+
+  jumpTo(index, options = {}) {
+    if (!Number.isInteger(index) || index < 0 || index >= this.stack.length) {
+      throw new Error(`Invalid history index: ${index}`);
+    }
+    this.index = index;
+    if (options.truncateForward === true) {
+      this.stack.splice(index + 1);
+    }
+    return this.stack[this.index];
   }
 }
 
@@ -185,15 +213,7 @@ class WindowManager {
             const currentEntry = this.windows.get(windowId);
             if (!currentEntry || currentEntry.win.isDestroyed()) return;
 
-            const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
-
-            currentEntry.win.webContents.send('render-markdown', {
-              markdown,
-              filePath: filePath.replace(/\\/g, '/'),
-              windowId,
-              imageBasePath,
-              platform: process.platform
-            });
+            this._sendMarkdownToRenderer(windowId, currentEntry, markdown, filePath);
           } catch (err) {
             console.error(`[doculight] file-watch read error: ${err.message}`);
           }
@@ -241,6 +261,120 @@ class WindowManager {
     for (const windowId of this.fileWatchers.keys()) {
       this.stopFileWatcher(windowId);
     }
+  }
+
+  _normalizeRendererPath(filePath) {
+    return filePath ? filePath.replace(/\\/g, '/') : null;
+  }
+
+  _historyLabel(filePath) {
+    const baseName = path.basename(filePath || '');
+    const ext = path.extname(baseName);
+    return ext ? baseName.slice(0, -ext.length) : baseName;
+  }
+
+  _hasUnsafeScheme(rawPath) {
+    if (typeof rawPath !== 'string') return true;
+    return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(rawPath) && !/^[A-Za-z]:[/\\]/.test(rawPath);
+  }
+
+  _stripLinkSuffix(rawPath) {
+    const hashIndex = rawPath.indexOf('#');
+    const queryIndex = rawPath.indexOf('?');
+    let endIndex = rawPath.length;
+    if (hashIndex >= 0) endIndex = Math.min(endIndex, hashIndex);
+    if (queryIndex >= 0) endIndex = Math.min(endIndex, queryIndex);
+    return rawPath.slice(0, endIndex);
+  }
+
+  _resolveNavigationPath(entry, rawPath) {
+    if (typeof rawPath !== 'string' || !rawPath.trim() || this._hasUnsafeScheme(rawPath) ||
+        rawPath.startsWith('//') || rawPath.startsWith('\\\\')) {
+      throw new Error(t('error.mdOnly', { filePath: rawPath }));
+    }
+
+    let targetPath = this._stripLinkSuffix(rawPath.trim());
+    if (!targetPath) {
+      throw new Error(t('error.mdOnly', { filePath: rawPath }));
+    }
+
+    const ext = path.extname(targetPath).toLowerCase();
+    if (ext && ext !== '.md' && ext !== '.markdown') {
+      throw new Error(t('error.mdOnly', { filePath: rawPath }));
+    }
+
+    if (!path.isAbsolute(targetPath) && entry.meta.filePath) {
+      targetPath = path.resolve(path.dirname(entry.meta.filePath), targetPath);
+    }
+
+    if (!ext) {
+      targetPath += '.md';
+    }
+
+    return targetPath;
+  }
+
+  _buildNavigationTrail(entry) {
+    const history = entry && entry.meta && entry.meta.history;
+    if (!history || typeof history.snapshot !== 'function') return [];
+
+    const snapshot = history.snapshot();
+    return snapshot.trail.map((filePath, index) => ({
+      index,
+      filePath: this._normalizeRendererPath(filePath),
+      label: this._historyLabel(filePath),
+      current: index === snapshot.index
+    }));
+  }
+
+  getNavigationTrailPayload(windowId) {
+    const entry = this.windows.get(windowId);
+    return this._buildNavigationTrail(entry);
+  }
+
+  _sendMarkdownToRenderer(windowId, entry, markdown, filePath, extra = {}) {
+    const hasFilePath = !!filePath;
+    const imageBasePath = hasFilePath
+      ? path.dirname(filePath).replace(/\\/g, '/')
+      : null;
+
+    entry.win.webContents.send('render-markdown', {
+      markdown,
+      filePath: this._normalizeRendererPath(filePath),
+      windowId,
+      imageBasePath,
+      platform: process.platform,
+      navigationTrail: hasFilePath && !extra.pdfMode ? this._buildNavigationTrail(entry) : [],
+      ...extra
+    });
+  }
+
+  async _renderHistoryFile(windowId, entry, filePath, options = {}) {
+    const content = options.content !== undefined
+      ? options.content
+      : await fs.promises.readFile(filePath, 'utf-8');
+
+    entry.meta.filePath = filePath;
+
+    this._sendMarkdownToRenderer(windowId, entry, content, filePath);
+
+    entry.win.webContents.send('sidebar-highlight', {
+      currentPath: filePath
+    });
+
+    const navTitle = this.extractTitle(content) || path.basename(filePath, path.extname(filePath));
+    entry.meta.title = navTitle;
+    entry.win.setTitle(this.formatWindowTitle(navTitle, filePath, entry.meta.savedFilePath));
+
+    if (options.trackRecent && typeof this.onRecentFile === 'function') {
+      this.onRecentFile(filePath);
+    }
+    if (options.registerOpenedMarkdown && typeof this.onRegisterOpenedMarkdown === 'function') {
+      this.onRegisterOpenedMarkdown(filePath);
+    }
+
+    this.startFileWatcher(windowId);
+    return { content, title: navTitle };
   }
 
   // -----------------------------------------------------------------------
@@ -393,6 +527,8 @@ class WindowManager {
     const win = new BrowserWindow({
       width,
       height,
+      minWidth: MIN_VIEWER_WIDTH,
+      minHeight: MIN_VIEWER_HEIGHT,
       x,
       y,
       title: displayTitle,
@@ -687,16 +823,7 @@ class WindowManager {
 
     if (content != null) {
       // Normal window: send initial content to the renderer
-      const imageBasePath = filePath
-        ? path.dirname(filePath).replace(/\\/g, '/')
-        : null;
-      entry.win.webContents.send('render-markdown', {
-        markdown: content,
-        filePath: filePath ? filePath.replace(/\\/g, '/') : null,
-        windowId: windowId,
-        imageBasePath,
-        platform: process.platform
-      });
+      this._sendMarkdownToRenderer(windowId, entry, content, filePath || null);
 
       // Build sidebar tree for filePath-based windows (step28 Phase 2: 배치 스트리밍)
       if (filePath) {
@@ -771,11 +898,7 @@ class WindowManager {
     if (!filePath) {
       // Content-only 윈도우 (MCP 등)
       if (entry.meta.lastRenderedContent != null) {
-        entry.win.webContents.send('render-markdown', {
-          markdown: entry.meta.lastRenderedContent,
-          filePath: null, windowId,
-          imageBasePath: null, platform: process.platform
-        });
+        this._sendMarkdownToRenderer(windowId, entry, entry.meta.lastRenderedContent, null);
       } else {
         entry.win.webContents.send('empty-window', { windowId });
       }
@@ -785,13 +908,7 @@ class WindowManager {
     // 파일 기반 윈도우: 디스크에서 재읽기
     try {
       const content = await fs.promises.readFile(filePath, 'utf-8');
-      const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
-
-      entry.win.webContents.send('render-markdown', {
-        markdown: content,
-        filePath: filePath.replace(/\\/g, '/'),
-        windowId, imageBasePath, platform: process.platform
-      });
+      this._sendMarkdownToRenderer(windowId, entry, content, filePath);
 
       // ★ 핵심: rootFilePath 기준으로 트리 재빌드 (step28 Phase 2: 배치 스트리밍)
       const rootPath = entry.meta.rootFilePath || filePath;
@@ -948,7 +1065,8 @@ class WindowManager {
       entry.win.webContents.send('update-markdown', {
         markdown: content,
         filePath: filePath || entry.meta.filePath,
-        windowId
+        windowId,
+        navigationTrail: (filePath || entry.meta.filePath) ? this._buildNavigationTrail(entry) : []
       });
 
       entry.meta.title = resolvedTitle;
@@ -1116,55 +1234,18 @@ class WindowManager {
       throw new Error(t('error.windowNotFound', { windowId }));
     }
 
-    // Resolve relative paths against current file's directory
-    let filePath = rawPath;
-    if (!path.isAbsolute(rawPath) && entry.meta.filePath) {
-      filePath = path.resolve(path.dirname(entry.meta.filePath), rawPath);
-    }
-
-    // Ensure Markdown extension
-    if (!filePath.toLowerCase().endsWith('.md') && !filePath.toLowerCase().endsWith('.markdown')) {
-      filePath += '.md';
-    }
+    const filePath = this._resolveNavigationPath(entry, rawPath);
 
     const content = await fs.promises.readFile(filePath, 'utf-8');
 
     // Push to history
     entry.meta.history.push(filePath);
 
-    // Send content to renderer
-    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
-    entry.win.webContents.send('render-markdown', {
-      markdown: content,
-      filePath: filePath.replace(/\\/g, '/'),
-      windowId,
-      imageBasePath,
-      platform: process.platform
+    await this._renderHistoryFile(windowId, entry, filePath, {
+      content,
+      trackRecent: true,
+      registerOpenedMarkdown: true
     });
-
-    // Highlight current file in sidebar (Root-Preserving: tree structure doesn't change)
-    entry.win.webContents.send('sidebar-highlight', {
-      currentPath: filePath
-    });
-
-    // Update metadata
-    entry.meta.filePath = filePath;
-
-    // Track in recent files
-    if (typeof this.onRecentFile === 'function') {
-      this.onRecentFile(filePath);
-    }
-    if (typeof this.onRegisterOpenedMarkdown === 'function') {
-      this.onRegisterOpenedMarkdown(filePath);
-    }
-
-    // Restart file watcher for new file
-    this.startFileWatcher(windowId);
-
-    // Update window title
-    const navTitle = this.extractTitle(content) || path.basename(filePath, '.md');
-    entry.meta.title = navTitle;
-    entry.win.setTitle(this.formatWindowTitle(navTitle, filePath, entry.meta.savedFilePath));
   }
 
   /**
@@ -1181,22 +1262,7 @@ class WindowManager {
     const filePath = entry.meta.history.back();
     if (!filePath) return; // no more history
 
-    const content = await fs.promises.readFile(filePath, 'utf-8');
-
-    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
-    entry.win.webContents.send('render-markdown', {
-      markdown: content,
-      filePath: filePath.replace(/\\/g, '/'),
-      windowId,
-      imageBasePath,
-      platform: process.platform
-    });
-
-    entry.win.webContents.send('sidebar-highlight', {
-      currentPath: filePath
-    });
-
-    entry.meta.filePath = filePath;
+    await this._renderHistoryFile(windowId, entry, filePath);
   }
 
   /**
@@ -1213,22 +1279,30 @@ class WindowManager {
     const filePath = entry.meta.history.forward();
     if (!filePath) return; // no more forward history
 
+    await this._renderHistoryFile(windowId, entry, filePath);
+  }
+
+  /**
+   * Navigate to a specific breadcrumb/history entry and discard later entries.
+   *
+   * @param {string} windowId
+   * @param {number} index
+   */
+  async navigateToHistoryIndex(windowId, index) {
+    const entry = this.windows.get(windowId);
+    if (!entry) {
+      throw new Error(t('error.windowNotFound', { windowId }));
+    }
+
+    const snapshot = entry.meta.history.snapshot();
+    if (!Number.isInteger(index) || index < 0 || index >= snapshot.trail.length) {
+      throw new Error(`Invalid history index: ${index}`);
+    }
+
+    const filePath = snapshot.trail[index];
     const content = await fs.promises.readFile(filePath, 'utf-8');
-
-    const imageBasePath = path.dirname(filePath).replace(/\\/g, '/');
-    entry.win.webContents.send('render-markdown', {
-      markdown: content,
-      filePath: filePath.replace(/\\/g, '/'),
-      windowId,
-      imageBasePath,
-      platform: process.platform
-    });
-
-    entry.win.webContents.send('sidebar-highlight', {
-      currentPath: filePath
-    });
-
-    entry.meta.filePath = filePath;
+    entry.meta.history.jumpTo(index, { truncateForward: true });
+    await this._renderHistoryFile(windowId, entry, filePath, { content });
   }
 
   // -----------------------------------------------------------------------
@@ -1271,6 +1345,8 @@ class WindowManager {
     const win = new BrowserWindow({
       width,
       height,
+      minWidth: MIN_VIEWER_WIDTH,
+      minHeight: MIN_VIEWER_HEIGHT,
       x,
       y,
       title: resolvedTitle,
@@ -1385,8 +1461,8 @@ class WindowManager {
       const saved = this.store.get('lastWindowBounds', {});
       if (saved.width && saved.height) {
         return {
-          width: Math.min(saved.width, workArea.width),
-          height: Math.min(saved.height, workArea.height)
+          width: Math.max(Math.min(saved.width, workArea.width), MIN_VIEWER_WIDTH),
+          height: Math.max(Math.min(saved.height, workArea.height), MIN_VIEWER_HEIGHT)
         };
       }
       size = 'm';
@@ -1395,8 +1471,8 @@ class WindowManager {
     const preset = SIZE_PRESETS[size] || SIZE_PRESETS.m;
 
     return {
-      width: Math.min(preset.width, workArea.width),
-      height: Math.min(preset.height, workArea.height)
+      width: Math.max(Math.min(preset.width, workArea.width), MIN_VIEWER_WIDTH),
+      height: Math.max(Math.min(preset.height, workArea.height), MIN_VIEWER_HEIGHT)
     };
   }
 
@@ -1468,4 +1544,4 @@ class WindowManager {
 // Exports
 // ---------------------------------------------------------------------------
 
-module.exports = { WindowManager };
+module.exports = { WindowManager, NavigationHistory };

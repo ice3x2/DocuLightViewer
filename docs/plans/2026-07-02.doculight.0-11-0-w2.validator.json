@@ -1,0 +1,11 @@
+{
+  "exit_code": 0,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "phases": 10,
+    "tasks": 10,
+    "coverage": "29/29 requirements, 255/255 acceptance criteria"
+  },
+  "notes": "Manual planner validation completed against kiwi-planner v0.6 schema subset used by this repository session. Sidecar mcp_call_log entries are dry-run add_verification_evidence plan references only; no SpecKiwi mutation was performed. SpecKiwi strict validation separately passed with errors 0 and warnings 0."
+}

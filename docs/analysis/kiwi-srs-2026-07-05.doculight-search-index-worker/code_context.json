@@ -1,0 +1,59 @@
+{
+  "run_id": "2026-07-05.doculight-search-index-worker",
+  "relevant_files": [
+    {
+      "path": "src/main/search-engine.js",
+      "line_range": "103-198",
+      "signature": "SearchEngine.rebuild/_performRebuild",
+      "relevance": "Explicit rebuild scan/read/index work currently runs in the Electron main process."
+    },
+    {
+      "path": "src/main/search-engine.js",
+      "line_range": "421-462",
+      "signature": "_searchSemanticCandidatesWithHnsw",
+      "relevance": "Search request path can build an in-memory HNSW index when no committed artifact is available."
+    },
+    {
+      "path": "src/main/search-engine.js",
+      "line_range": "1382-1394",
+      "signature": "_saveIndex",
+      "relevance": "SQLite keyword rebuild is called synchronously from the main process."
+    },
+    {
+      "path": "src/main/search-engine.js",
+      "line_range": "1545-1593",
+      "signature": "startRebuild/compact",
+      "relevance": "Public Settings actions return quickly but still schedule heavy native work in the main process."
+    },
+    {
+      "path": "src/main/search-sqlite-store.js",
+      "line_range": "101-188",
+      "signature": "SQLiteKeywordIndex.rebuild",
+      "relevance": "Full delete, tokenizer processing, and FTS inserts execute inside a synchronous better-sqlite3 transaction."
+    },
+    {
+      "path": "src/main/search-sqlite-store.js",
+      "line_range": "307-321",
+      "signature": "vacuum/deleteFiles",
+      "relevance": "VACUUM and delete operations are synchronous and backup handling can miss WAL/SHM state."
+    },
+    {
+      "path": "src/renderer/settings.js",
+      "line_range": "448-598",
+      "signature": "refreshIndexingStatus/runIndexingAction",
+      "relevance": "Settings needs polling/action in-flight guards and clearer cancel-safe status UX."
+    }
+  ],
+  "related_modules": [
+    "src/main/indexing-service.js",
+    "src/main/hnsw-index.js",
+    "src/main/search-tokenizer.js",
+    "src/main/source-ledger-store.js"
+  ],
+  "missing_evidence": [
+    "No automated event-loop responsiveness regression exists for active rebuild/compact.",
+    "No generation-swap test proves old SQLite keyword index remains searchable during failed rebuild.",
+    "No large-corpus temp-index benchmark artifact currently proves 200 MiB corpus behavior."
+  ],
+  "external_paths_detected": []
+}

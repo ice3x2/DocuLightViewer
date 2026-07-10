@@ -1,0 +1,484 @@
+{
+  "schema_version": "1.1.0",
+  "plan_contract": "1.2.0",
+  "run_id": "2026-07-05.doculight.index-worker",
+  "target": "0.11.0-w2",
+  "plan_version": "0.1.0",
+  "generated_at": "2026-07-05T00:00:00+09:00",
+  "tool_versions": {
+    "speckiwi": "mcp",
+    "kiwi_planner": "0.6",
+    "validator": "0.6"
+  },
+  "tdd_policy": "relaxed",
+  "md_path": "docs/plans/2026-07-05.doculight.index-worker.plan.md",
+  "md_sha256": "sha256-excluding-md_sha256:f2daf39a458467170444c31cef106ac9186268e3282b968ea29a44e44d5fc151",
+  "phases": [
+    {
+      "id": "PH-001",
+      "title": "Red Worker Contracts",
+      "goal": "Add failing tests that prove current main-process indexing, tokenizer, backup, and package-smoke gaps",
+      "depends_on": [],
+      "task_ids": ["T-PH001-01", "T-PH001-02"]
+    },
+    {
+      "id": "PH-002",
+      "title": "Worker Runtime And SQLite Safety",
+      "goal": "Introduce worker/controller isolation, durable status/cancel state, SQLite generation rebuild, and safe backup policy",
+      "depends_on": ["PH-001"],
+      "task_ids": ["T-PH002-01", "T-PH002-02"]
+    },
+    {
+      "id": "PH-003",
+      "title": "Tokenizer And Semantic Isolation",
+      "goal": "Bound tokenizer work and remove query-time HNSW rebuild while moving semantic maintenance to the isolated runtime",
+      "depends_on": ["PH-002"],
+      "task_ids": ["T-PH003-01"]
+    },
+    {
+      "id": "PH-004",
+      "title": "Settings Package And Benchmark",
+      "goal": "Harden Settings UX and add worker native smoke plus opt-in temp-index large-corpus benchmark",
+      "depends_on": ["PH-002", "PH-003"],
+      "task_ids": ["T-PH004-01", "T-PH004-02"]
+    },
+    {
+      "id": "PH-005",
+      "title": "Verification And Evidence",
+      "goal": "Run responsiveness, benchmark, package, SRS, and review gates before marking the requirement implemented",
+      "depends_on": ["PH-004"],
+      "task_ids": ["T-PH005-01"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T-PH001-01",
+      "task_id": "T-PH001-01",
+      "phase_id": "PH-001",
+      "title": "Add worker responsiveness red contract tests",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "package.json" },
+        { "path": "test/test-search-index-worker-contract.js" }
+      ],
+      "action": "Add failing contract tests that require an indexing worker/controller boundary, status/cancel IPC p95 <= 1000ms, p99 <= 3000ms, max <= 5000ms, main-process heartbeat max gap <= 2000ms, tray menu/window focus-close/MCP read/search probes during rebuild, compact/VACUUM, semantic reindex, and HNSW build/compact load, committed-generation preservation, durable cancel checkpoints, and no query-time HNSW rebuild.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-index-worker-contract.js", "expected_exit": 1 }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-contract.js", "windows": "node test/test-search-index-worker-contract.js" },
+      "dod": ["The test fails because worker isolation, exact latency thresholds, tray/window/MCP responsiveness probes, durable worker job state, generation protection, and no-query-time-HNSW assertions are not yet implemented."],
+      "rollback": "Remove the worker contract test and package script entry if added.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH001-01-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH001-01" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "M",
+      "depends_on_task": [],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-6"],
+      "test_files": [{ "path": "test/test-search-index-worker-contract.js" }],
+      "tdd": {
+        "applicable": true,
+        "phase": "red",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC1-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-1"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract", "expected_failure_signature": "worker runtime isolation" },
+          { "id": "TC-REQ-REL-DOC-007-AC2-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-2"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract", "expected_failure_signature": "status/cancel latency" },
+          { "id": "TC-REQ-REL-DOC-007-AC3-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-3"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract", "expected_failure_signature": "committed generation" },
+          { "id": "TC-REQ-REL-DOC-007-AC4-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-4"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract", "expected_failure_signature": "durable cancel checkpoints" },
+          { "id": "TC-REQ-REL-DOC-007-AC6-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-6"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract", "expected_failure_signature": "query-time HNSW build" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH001-02",
+      "task_id": "T-PH001-02",
+      "phase_id": "PH-001",
+      "title": "Add tokenizer backup benchmark red contracts",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "package.json" },
+        { "path": "scripts/bench-search-index-worker.js" },
+        { "path": "test/test-search-index-worker-benchmark-contract.js" }
+      ],
+      "action": "Add failing tests and a benchmark contract for bounded tokenizer analysis with default maxAnalysisChars <= 1200 and 160 MiB single-file behavior, WAL/SHM-aware backup or explicit backup-skip manifest, packaged worker native-load smoke, and temp-index large-corpus metrics. Final verification must use a configured corpus path or generated temp corpus; benchmark evidence cannot be skipped for completion.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-index-worker-benchmark-contract.js", "expected_exit": 1 }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-benchmark-contract.js", "windows": "node test/test-search-index-worker-benchmark-contract.js" },
+      "dod": ["The red contract fails on missing tokenizer bound, 160 MiB single-file guard, backup manifest, worker native smoke, or benchmark metrics."],
+      "rollback": "Remove the benchmark contract test, benchmark script stub, and package script entry if added.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH001-02-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH001-02" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "M",
+      "depends_on_task": [],
+      "covers_ac": ["AC-5", "AC-7", "AC-8", "AC-9"],
+      "test_files": [{ "path": "test/test-search-index-worker-benchmark-contract.js" }],
+      "tdd": {
+        "applicable": true,
+        "phase": "red",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC5-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-5"], "test_file": "test/test-search-index-worker-benchmark-contract.js", "kind": "contract", "expected_failure_signature": "bounded tokenizer analysis" },
+          { "id": "TC-REQ-REL-DOC-007-AC7-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-7"], "test_file": "test/test-search-index-worker-benchmark-contract.js", "kind": "contract", "expected_failure_signature": "backup manifest" },
+          { "id": "TC-REQ-REL-DOC-007-AC8-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-8"], "test_file": "test/test-search-index-worker-benchmark-contract.js", "kind": "contract", "expected_failure_signature": "worker native load" },
+          { "id": "TC-REQ-REL-DOC-007-AC9-01", "req_id": "REL-DOC-007", "ac_refs": ["AC-9"], "test_file": "test/test-search-index-worker-benchmark-contract.js", "kind": "contract", "expected_failure_signature": "large corpus benchmark metrics" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH002-01",
+      "task_id": "T-PH002-01",
+      "phase_id": "PH-002",
+      "title": "Implement indexing worker controller and durable job status",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "src/main/index.js" },
+        { "path": "src/main/preload.js" },
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/search-index-worker-controller.js" },
+        { "path": "src/main/search-index-worker.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "test/test-search-index-worker-contract.js" }
+      ],
+      "action": "Add an IndexingWorkerController and worker runtime, preserve existing Settings IPC/preload names, move explicit rebuild/compact job execution out of Electron main process, and persist phase/progress/currentPath/heartbeatAt/cancelRequested/diagnostic state for Settings reads and safe cancel checkpoints. Responsiveness regression must measure status/cancel IPC, tray menu event, window focus/close, MCP read request, and MCP search request under rebuild, compact/VACUUM, semantic reindex, and HNSW build/compact load.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-index-worker-contract.js --focus=worker-runtime", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-contract.js --focus=worker-runtime", "windows": "node test/test-search-index-worker-contract.js --focus=worker-runtime" },
+      "dod": ["Full rebuild and compact work execute in the worker boundary.", "Settings status/cancel IPC p95 <= 1000ms, p99 <= 3000ms, max <= 5000ms, and main-process heartbeat max gap <= 2000ms are recorded and pass.", "Tray/window/MCP probes remain responsive and MCP search remains read-only and control-free."],
+      "rollback": "Disable the worker controller feature flag and route Settings IPC back to previous SearchEngine methods while keeping tests red.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH002-01-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH002-01" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH001-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-4"],
+      "test_files": [{ "path": "test/test-search-index-worker-contract.js" }],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC1-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-1"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC2-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-2"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC4-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-4"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH002-02",
+      "task_id": "T-PH002-02",
+      "phase_id": "PH-002",
+      "title": "Implement worker-owned SQLite generation rebuild and backup safety",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/search-index-worker.js" },
+        { "path": "src/main/search-sqlite-store.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "test/test-search-index-worker-contract.js" },
+        { "path": "test/test-wave2-redaction-recovery-contract.js" }
+      ],
+      "action": "Replace destructive committed-index rebuild with worker-owned write connection plus generation/revision staging swap or equivalent protection, and implement SQLite backup API or WAL checkpoint plus DB/WAL/SHM capture with redacted backup or backup-skip manifest.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-index-worker-contract.js --focus=sqlite-generation && node test/test-wave2-redaction-recovery-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-contract.js --focus=sqlite-generation && node test/test-wave2-redaction-recovery-contract.js", "windows": "node test/test-search-index-worker-contract.js --focus=sqlite-generation && node test/test-wave2-redaction-recovery-contract.js" },
+      "dod": ["Cancel, worker crash, or write failure preserves the last committed searchable generation.", "Raw main DB-only backup is rejected.", "Backup manifests are redacted."],
+      "rollback": "Revert generation staging and backup manifest changes, then restore prior SQLite rebuild behavior only behind a disabled compatibility path.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH002-02-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH002-02" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH001-01", "T-PH001-02", "T-PH002-01"],
+      "covers_ac": ["AC-3", "AC-7"],
+      "test_files": [
+        { "path": "test/test-search-index-worker-contract.js" },
+        { "path": "test/test-wave2-redaction-recovery-contract.js" }
+      ],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC3-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-3"], "test_file": "test/test-search-index-worker-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC7-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-7"], "test_file": "test/test-wave2-redaction-recovery-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH003-01",
+      "task_id": "T-PH003-01",
+      "phase_id": "PH-003",
+      "title": "Bound tokenizer and semantic maintenance off main process",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "src/main/hnsw-index.js" },
+        { "path": "src/main/indexing-service.js" },
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/search-index-worker.js" },
+        { "path": "src/main/search-tokenizer.js" },
+        { "path": "test/test-garu-tokenizer-contract.js" },
+        { "path": "test/test-wave2-ledger-contract.js" },
+        { "path": "test/test-wave2-smart-search-contract.js" }
+      ],
+      "action": "Enforce default maxAnalysisChars 1200 or lower, chunk/segment bounded enrichment, content-hash tokenizer cache, tokenizerVersion metadata, 160 MiB single-file no-main-full-body-tokenization behavior, worker-executed semantic/HNSW maintenance, and smart_search degradation instead of query-time in-memory HNSW build.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-search-index-worker-contract.js && node test/test-garu-tokenizer-contract.js && node test/test-wave2-ledger-contract.js && node test/test-wave2-smart-search-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-contract.js && node test/test-garu-tokenizer-contract.js && node test/test-wave2-ledger-contract.js && node test/test-wave2-smart-search-contract.js", "windows": "node test/test-search-index-worker-contract.js && node test/test-garu-tokenizer-contract.js && node test/test-wave2-ledger-contract.js && node test/test-wave2-smart-search-contract.js" },
+      "dod": ["Large Markdown input does not trigger unbounded main-process full-body tokenization.", "Embedding/HNSW maintenance runs outside the main process.", "Stale or missing HNSW never builds synchronously during search."],
+      "rollback": "Restore previous tokenizer and semantic/HNSW paths only behind failing tests that document the regression.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH003-01-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH003-01" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH001-01", "T-PH001-02", "T-PH002-01", "T-PH002-02"],
+      "covers_ac": ["AC-1", "AC-5", "AC-6"],
+      "test_files": [
+        { "path": "test/test-garu-tokenizer-contract.js" },
+        { "path": "test/test-wave2-ledger-contract.js" },
+        { "path": "test/test-wave2-smart-search-contract.js" }
+      ],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC1-03", "req_id": "REL-DOC-007", "ac_refs": ["AC-1"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC5-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-5"], "test_file": "test/test-garu-tokenizer-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC6-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-6"], "test_file": "test/test-wave2-smart-search-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH004-01",
+      "task_id": "T-PH004-01",
+      "phase_id": "PH-004",
+      "title": "Harden Settings indexing UX around worker jobs",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "src/locales/en.json" },
+        { "path": "src/locales/es.json" },
+        { "path": "src/locales/ja.json" },
+        { "path": "src/locales/ko.json" },
+        { "path": "src/renderer/settings.css" },
+        { "path": "src/renderer/settings.html" },
+        { "path": "src/renderer/settings.js" },
+        { "path": "test/test-settings-indexing-contract.js" }
+      ],
+      "action": "Add status polling in-flight guard, action in-flight guard, large-corpus/cancel-safe messaging, clearer backup/checkpoint/backup-skip messages, and UI state that prevents destructive actions during active worker jobs.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-settings-indexing-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-settings-indexing-contract.js", "windows": "node test/test-settings-indexing-contract.js" },
+      "dod": ["Settings remains understandable, localized, and control-only.", "Polling cannot pile up while worker jobs run.", "Destructive operations require explicit confirmation and safe backup messaging."],
+      "rollback": "Revert Settings UI and locale changes while preserving worker backend tests.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH004-01-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH004-01" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH001-01", "T-PH001-02", "T-PH002-01", "T-PH002-02"],
+      "covers_ac": ["AC-2", "AC-7"],
+      "test_files": [{ "path": "test/test-settings-indexing-contract.js" }],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC2-03", "req_id": "REL-DOC-007", "ac_refs": ["AC-2"], "test_file": "test/test-settings-indexing-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC7-03", "req_id": "REL-DOC-007", "ac_refs": ["AC-7"], "test_file": "test/test-settings-indexing-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH004-02",
+      "task_id": "T-PH004-02",
+      "phase_id": "PH-004",
+      "title": "Add worker native package smoke and large corpus benchmark",
+      "type": "code",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": ".github/workflows/release.yml" },
+        { "path": "package.json" },
+        { "path": "scripts/bench-search-index-worker.js" },
+        { "path": "test/package-smoke.js" },
+        { "path": "test/test-sqlite-native-packaging-contract.js" },
+        { "path": "test/test-wave2-package-contract.js" }
+      ],
+      "action": "Add packaged Electron smoke that verifies worker-internal better-sqlite3 load and optional HNSW load or native_unavailable degradation, plus a temp-index benchmark that records corpus size, max file size, phase time, memory, DB/WAL/SHM size, latency, native state, and source-root cleanliness. The benchmark may use a configured corpus path or generated temp corpus, but final evidence cannot be replaced by a skip.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-package-contract.js && node test/test-sqlite-native-packaging-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-package-contract.js && node test/test-sqlite-native-packaging-contract.js", "windows": "node test/test-wave2-package-contract.js && node test/test-sqlite-native-packaging-contract.js" },
+      "dod": ["Package smoke distinguishes Node ABI and Electron ABI rebuild paths and proves worker native load/degrade.", "Benchmark never writes the real userData index and emits required AC-9 metrics."],
+      "rollback": "Remove worker package smoke and benchmark scripts from package metadata and CI.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH004-02-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH004-02" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH001-02", "T-PH002-01", "T-PH003-01"],
+      "covers_ac": ["AC-8", "AC-9"],
+      "test_files": [
+        { "path": "test/test-sqlite-native-packaging-contract.js" },
+        { "path": "test/test-wave2-package-contract.js" }
+      ],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-REL-DOC-007-AC8-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-8"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-REL-DOC-007-AC9-02", "req_id": "REL-DOC-007", "ac_refs": ["AC-9"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH005-01",
+      "task_id": "T-PH005-01",
+      "phase_id": "PH-005",
+      "title": "Run worker responsiveness and package verification",
+      "type": "review",
+      "req_ids": ["REL-DOC-007"],
+      "files": [
+        { "path": "docs/analysis/kiwi-review-fix-loop-2026-07-05.doculight.index-worker/report.md" },
+        { "path": "docs/spec/60.document-persistence.srs.md" }
+      ],
+      "action": "Run the worker responsiveness regression, temp-index benchmark using a configured corpus path or generated temp corpus, Wave 1/Wave 1.5/Wave 2 regression subset, package smoke where practical, SpecKiwi validation, and sub-agent review before recording implementation evidence.",
+      "acceptance_tests": [{ "kind": "checklist", "items": ["node test/test-search-index-worker-contract.js records p95<=1000ms, p99<=3000ms, max<=5000ms, heartbeat<=2000ms plus tray/window/MCP read/search probes under rebuild, compact/VACUUM, semantic reindex, and HNSW build/compact", "node test/test-search-index-worker-benchmark-contract.js records corpus size, max file size, phase wall time, peak memory, DB/WAL/SHM size, event-loop/status/cancel latency, worker native state, and source-root cleanliness", "node test/test-settings-indexing-contract.js", "node test/test-wave2-smart-search-contract.js", "node test/test-wave2-package-contract.js", "SpecKiwi strict validation", "sub-agent review-fix-loop has no critical/high findings"] }],
+      "verification_cmd": { "posix": "node test/test-search-index-worker-contract.js && node test/test-search-index-worker-benchmark-contract.js && node test/test-settings-indexing-contract.js && node test/test-wave2-smart-search-contract.js && node test/test-wave2-package-contract.js", "windows": "node test/test-search-index-worker-contract.js && node test/test-search-index-worker-benchmark-contract.js && node test/test-settings-indexing-contract.js && node test/test-wave2-smart-search-contract.js && node test/test-wave2-package-contract.js" },
+      "dod": ["REL-DOC-007 evidence records AC-1..AC-9.", "Exact latency thresholds, benchmark artifact path and metrics, worker native state, and review result are documented.", "Benchmark skip is not valid final completion evidence."],
+      "rollback": "Remove invalid verification evidence through SpecKiwi MCP if any regression or review blocker remains.",
+      "trace_links": [
+        {
+          "link_id": "TL-T-PH005-01-REL-DOC-007",
+          "source": { "type": "Task", "id": "T-PH005-01" },
+          "target": { "type": "Requirement", "reference": "REL-DOC-007" },
+          "relation": "depends_on",
+          "trace_intent": "verifies"
+        }
+      ],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH002-01", "T-PH002-02", "T-PH003-01", "T-PH004-01", "T-PH004-02"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9"],
+      "tdd": {
+        "applicable": false,
+        "phase": "n/a",
+        "exempt_reason": "Review task records verification evidence and sub-agent findings rather than changing executable behavior.",
+        "test_cases": [],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    }
+  ],
+  "coverage": [
+    {
+      "req_id": "REL-DOC-007",
+      "stability": "evolving",
+      "ac_total": 9,
+      "ac_covered": 9,
+      "missing_ac_ids": [],
+      "covered_tasks": ["T-PH001-01", "T-PH001-02", "T-PH002-01", "T-PH002-02", "T-PH003-01", "T-PH004-01", "T-PH004-02", "T-PH005-01"],
+      "ac_test_map": [
+        { "ac_id": "AC-1", "test_case_ids": ["TC-REQ-REL-DOC-007-AC1-01", "TC-REQ-REL-DOC-007-AC1-02", "TC-REQ-REL-DOC-007-AC1-03"] },
+        { "ac_id": "AC-2", "test_case_ids": ["TC-REQ-REL-DOC-007-AC2-01", "TC-REQ-REL-DOC-007-AC2-02", "TC-REQ-REL-DOC-007-AC2-03"] },
+        { "ac_id": "AC-3", "test_case_ids": ["TC-REQ-REL-DOC-007-AC3-01", "TC-REQ-REL-DOC-007-AC3-02"] },
+        { "ac_id": "AC-4", "test_case_ids": ["TC-REQ-REL-DOC-007-AC4-01", "TC-REQ-REL-DOC-007-AC4-02"] },
+        { "ac_id": "AC-5", "test_case_ids": ["TC-REQ-REL-DOC-007-AC5-01", "TC-REQ-REL-DOC-007-AC5-02"] },
+        { "ac_id": "AC-6", "test_case_ids": ["TC-REQ-REL-DOC-007-AC6-01", "TC-REQ-REL-DOC-007-AC6-02"] },
+        { "ac_id": "AC-7", "test_case_ids": ["TC-REQ-REL-DOC-007-AC7-01", "TC-REQ-REL-DOC-007-AC7-02", "TC-REQ-REL-DOC-007-AC7-03"] },
+        { "ac_id": "AC-8", "test_case_ids": ["TC-REQ-REL-DOC-007-AC8-01", "TC-REQ-REL-DOC-007-AC8-02"] },
+        { "ac_id": "AC-9", "test_case_ids": ["TC-REQ-REL-DOC-007-AC9-01", "TC-REQ-REL-DOC-007-AC9-02"] }
+      ]
+    }
+  ],
+  "orphans": [],
+  "unreferenced_reqs": [],
+  "excluded_reqs": [],
+  "deferred_ac": [],
+  "risks": [
+    {
+      "id": "R-IDX-001",
+      "severity": "critical",
+      "description": "A failed worker rebuild could erase or partially replace the committed searchable generation.",
+      "mitigation": "Use worker-owned writes and commit pointer swap only after successful generation build.",
+      "affected_task_ids": ["T-PH002-02"]
+    },
+    {
+      "id": "R-IDX-002",
+      "severity": "high",
+      "description": "A quick enqueue response can hide main-process blocking later in the job lifecycle.",
+      "mitigation": "Measure status/cancel latency and heartbeat while worker jobs are actively busy.",
+      "affected_task_ids": ["T-PH001-01", "T-PH002-01", "T-PH005-01"]
+    },
+    {
+      "id": "R-IDX-003",
+      "severity": "high",
+      "description": "Native modules can load in the main process but fail in packaged worker runtime.",
+      "mitigation": "Add package smoke for worker-internal better-sqlite3 and optional HNSW load/degraded paths.",
+      "affected_task_ids": ["T-PH004-02"]
+    }
+  ],
+  "open_questions": [],
+  "external_module_impact": [],
+  "tdd_decisions": [],
+  "coder_handoff_readiness": [
+    { "phase_id": "PH-001", "ready": true, "blockers": [] },
+    { "phase_id": "PH-002", "ready": true, "blockers": [] },
+    { "phase_id": "PH-003", "ready": true, "blockers": [] },
+    { "phase_id": "PH-004", "ready": true, "blockers": [] },
+    { "phase_id": "PH-005", "ready": true, "blockers": [] }
+  ],
+  "mcp_call_log": [
+    { "seq": 1, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH001-01" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "63b1d502f407ecb3dc2e9046b899485b405bf54d", "response_hash": "395afa1debebde998d93c4a03cbef4b73414257a", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 2, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH001-02" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "46c327545f32fc71b0e857de8e9fb3d89d2f7d19", "response_hash": "c85ffb754e2160d3161e2acd00281993137c96c3", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 3, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH002-01" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "65b45a445179160a02d330c8d2e7c8fad174ba9b", "response_hash": "829a435e6ae1f60bb65fb52907f446f77d8fd1fb", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 4, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH002-02" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "e9488037d195d1d972094dc45ec856cc62145023", "response_hash": "d01184825b666803ec217f4ce53c9572bdc187f7", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 5, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH003-01" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "15f5d019e7d876df0fbe1bad048a6e360294b36f", "response_hash": "fb9938e3e179931c5409eafcbd26c37839fd7c65", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 6, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH004-01" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "e6e75fc141eb67b35717aee74b94288eb8c84a79", "response_hash": "f8752a65a3d5f4be578c274764f0c87cbcdee4ed", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 7, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH004-02" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "911ac8ac609cb0b241ff301a99a26c9c663c8a23", "response_hash": "f068ef6592cccd2a1747c1d85476cd8707bc38ac", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 8, "call": "add_trace_link", "args": { "source": { "type": "Task", "id": "T-PH005-01" }, "target": { "type": "Requirement", "reference": "REL-DOC-007" }, "relation": "depends_on" }, "args_hash": "a948d221ff92514db558b9245f2b9e083ea1653d", "response_hash": "8d12909b00ccd63f92b8cc9a110e9aa795549626", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true },
+    { "seq": 9, "call": "add_verification_evidence", "args": { "id": "REL-DOC-007", "type": "plan", "reference": "docs/plans/2026-07-05.doculight.index-worker.plan.md" }, "args_hash": "7933be616b97a6a5061f95fcf8ee1828c1f7230c", "response_hash": "c3c337bed9c9d708dcddc68e8ea08fa2dad4db05", "timestamp": "2026-07-05T00:00:00+09:00", "ok": true }
+  ]
+}

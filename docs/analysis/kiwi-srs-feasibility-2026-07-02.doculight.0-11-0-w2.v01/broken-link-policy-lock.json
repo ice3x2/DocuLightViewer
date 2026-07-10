@@ -1,0 +1,46 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2.v01",
+  "relatedRequirements": ["FR-TREE-009", "DR-DOC-013", "CON-DOC-006", "SEC-DOC-003", "FR-DOC-025"],
+  "decision": "No new SRS requirement is needed. The current active requirements sufficiently define broken-link behavior, but the implementation plan must preserve these invariants early.",
+  "canonicalStatusEnum": ["resolved", "missing", "external", "path_policy_violation", "skipped", "ambiguous", "stale"],
+  "rankingPolicy": {
+    "resolved": "allowed_for_link_boost_and_linked_filters",
+    "nonResolved": "diagnostics_only_ranking_neutral",
+    "syntheticTokensInBm25OrFts": false
+  },
+  "mcpBoundary": {
+    "recursiveImportControls": false,
+    "bulkReindexControls": false,
+    "brokenLinkReconciliationControls": false,
+    "saveDocumentMayEnqueueOrdinaryIndexing": true,
+    "reconciliationRunsInBackground": true
+  },
+  "redactionPolicy": {
+    "rawHrefExternal": false,
+    "normalizedHrefExternal": false,
+    "canonicalPathExternal": false,
+    "allowedExternalFields": ["documentId", "sourceRelativePath", "redactedHrefOrPathToken", "edgeStatus", "diagnosticCode", "aggregateCounts"]
+  },
+  "fixtureMinimums": [
+    "broken relative link",
+    "broken wikilink",
+    "external URL",
+    "anchor-only link",
+    "anchor miss",
+    "excluded target",
+    "non-Markdown target",
+    "outside-root relative link",
+    "Windows absolute path",
+    "UNC path",
+    "POSIX absolute path",
+    "encoded traversal",
+    "symlink or junction escape",
+    "ambiguous basename",
+    "case collision",
+    "Unicode collision",
+    "target added later",
+    "target removed later",
+    "Korean and space filename",
+    "includeDiagnostics redaction"
+  ]
+}

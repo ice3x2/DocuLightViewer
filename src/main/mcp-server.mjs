@@ -26,6 +26,7 @@ const {
   normalizeProfileName,
   resolveMcpIpcPath
 } = require('./runtime-profile.js');
+const { redactString } = require('./redaction.js');
 
 // =============================================================================
 // Constants
@@ -42,6 +43,7 @@ const PIPE_PATH = resolveMcpIpcPath({
   env: process.env,
   platform: platform()
 });
+const MCP_PACKAGED_STDIO_ENTRYPOINT = process.env.DOCULIGHT_PACKAGED_MCP_STDIO === '1';
 
 const IPC_TIMEOUT = 10_000;        // 10 seconds per request
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024;  // 10 MB
@@ -203,13 +205,13 @@ async function _doConnect() {
   } catch {
     if (MCP_EXPLICIT_IPC_PATH) {
       throw new Error(
-        `DocuLight explicit MCP IPC server not found at ${PIPE_PATH}. ` +
+        `DocuLight explicit MCP IPC server not found at ${describeIpcEndpoint('explicit')}. ` +
         'Start the intended DocuLight instance, or update DOCULIGHT_MCP_IPC_PATH.'
       );
     }
     if (MCP_PROFILE_NAME === 'dev') {
       throw new Error(
-        `DocuLight dev profile IPC server not found at ${PIPE_PATH}. ` +
+        `DocuLight dev profile IPC server not found at ${describeIpcEndpoint('dev')}. ` +
         'Start the dev app with npm run dev, or set DOCULIGHT_MCP_IPC_PATH to the intended dev IPC endpoint.'
       );
     }
@@ -260,10 +262,10 @@ function attachSocket(socket) {
  *   3. Dev fallback: npx electron <project-root>
  */
 function autoLaunchElectron() {
-  const envPath = process.env.DOCLIGHT_APP_PATH;
+  const envPath = process.env.DOCLIGHT_APP_PATH || (MCP_PACKAGED_STDIO_ENTRYPOINT ? process.execPath : '');
 
   if (envPath) {
-    log(`Launching from DOCLIGHT_APP_PATH: ${envPath}`);
+    log(`Launching configured DocuLight app: ${redactProcessPath(envPath)}`);
     spawnDetached(envPath, []);
     return;
   }
@@ -288,7 +290,7 @@ function autoLaunchElectron() {
 
   // Check if the platform default exists
   if (electronPath && fs.existsSync(electronPath)) {
-    log(`Launching from platform default: ${electronPath}`);
+    log(`Launching from platform default: ${redactProcessPath(electronPath)}`);
     spawnDetached(electronPath, []);
     return;
   }
@@ -296,7 +298,7 @@ function autoLaunchElectron() {
   // Dev fallback: run "npx electron ." from the project root
   // __dirname is src/main, project root is two levels up
   const projectRoot = path.resolve(__dirname, '..', '..');
-  log(`Dev fallback: launching "npx electron" in ${projectRoot}`);
+  log(`Dev fallback: launching "npx electron" in ${redactProcessPath(projectRoot)}`);
 
   const npxCmd = os === 'win32' ? 'npx.cmd' : 'npx';
   spawnDetached(npxCmd, ['electron', projectRoot]);
@@ -310,11 +312,41 @@ function spawnDetached(command, args) {
     const child = spawn(command, args, {
       detached: true,
       stdio: 'ignore',
+      env: buildAutoLaunchEnv(),
     });
     child.unref();
   } catch (err) {
-    log(`Failed to spawn "${command}":`, err.message);
+    log(`Failed to spawn ${redactProcessPath(command)}:`, sanitizeMcpErrorMessage(err));
   }
+}
+
+function buildAutoLaunchEnv() {
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.DOCULIGHT_PACKAGED_MCP_STDIO;
+  delete env.DOCULIGHT_MCP_STDIO;
+  delete env.DOCULIGHT_MCP_ENTRYPOINT;
+  return env;
+}
+
+function describeIpcEndpoint(kind) {
+  const normalizedKind = kind === 'dev' ? 'dev' : kind === 'explicit' ? 'explicit' : 'default';
+  return `[REDACTED_MCP_IPC:${normalizedKind}]`;
+}
+
+function redactProcessPath(value) {
+  const text = String(value || '');
+  if (!text) return '[REDACTED_PATH:empty]';
+  return `[REDACTED_PATH:${platform()}]`;
+}
+
+function sanitizeMcpDiagnosticText(value) {
+  return redactString(String(value == null ? 'Unknown MCP error' : value));
+}
+
+function sanitizeMcpErrorMessage(err, fallback = 'Unknown MCP error') {
+  if (!err) return sanitizeMcpDiagnosticText(fallback);
+  return sanitizeMcpDiagnosticText(err && err.message ? err.message : String(err));
 }
 
 // =============================================================================
@@ -351,21 +383,22 @@ async function sendIpcRequest(action, params, _retried = false) {
 
     try {
       const ok = ipcSocket.write(payload);
-      if (!ok && !_retried) {
-        // Buffer full: retry once after reconnect
-        pendingRequests.delete(id);
-        clearTimeout(timer);
-        ipcSocket = null;
-        return sendIpcRequest(action, params, true).then(resolve, reject);
+      if (!ok) {
+        ipcSocket.once('drain', () => {
+          log(`IPC write buffer drained for action: ${action}`);
+        });
       }
     } catch (err) {
       clearTimeout(timer);
       pendingRequests.delete(id);
       if (!_retried) {
+        if (ipcSocket && !ipcSocket.destroyed) {
+          ipcSocket.destroy();
+        }
         ipcSocket = null;
         return sendIpcRequest(action, params, true).then(resolve, reject);
       }
-      reject(new Error(`Failed to write to IPC socket: ${err.message}`));
+      reject(new Error(`Failed to write to IPC socket: ${sanitizeMcpErrorMessage(err)}`));
     }
   });
 }
@@ -388,13 +421,13 @@ function onIpcData(chunk) {
     try {
       msg = JSON.parse(line);
     } catch (err) {
-      log('Failed to parse IPC response:', err.message);
+      log('Failed to parse IPC response:', sanitizeMcpErrorMessage(err));
       continue;
     }
 
     const pending = pendingRequests.get(msg.id);
     if (!pending) {
-      log('Received response for unknown request id:', msg.id);
+      log('Received response for unknown request id:', sanitizeMcpDiagnosticText(msg.id));
       continue;
     }
 
@@ -402,7 +435,7 @@ function onIpcData(chunk) {
     pendingRequests.delete(msg.id);
 
     if (msg.error) {
-      pending.reject(new Error(msg.error.message || 'Unknown IPC error'));
+      pending.reject(new Error(sanitizeMcpDiagnosticText(msg.error.message || 'Unknown IPC error')));
     } else {
       pending.resolve(msg.result ?? {});
     }
@@ -413,7 +446,7 @@ function onIpcData(chunk) {
  * Handle socket errors.
  */
 function onIpcError(err) {
-  log('IPC socket error:', err.message);
+  log('IPC socket error:', sanitizeMcpErrorMessage(err));
   cleanupSocket();
 }
 
@@ -525,7 +558,7 @@ server.tool(
       };
     } catch (err) {
       return {
-        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }],
         isError: true
       };
     }
@@ -599,7 +632,7 @@ server.tool(
       };
     } catch (err) {
       return {
-        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }],
         isError: true
       };
     }
@@ -636,7 +669,7 @@ server.tool(
       };
     } catch (err) {
       return {
-        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }],
         isError: true
       };
     }
@@ -682,7 +715,7 @@ server.tool(
       };
     } catch (err) {
       return {
-        content: [{ type: 'text', text: `Error: ${err.message}` }],
+        content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }],
         isError: true
       };
     }
@@ -708,7 +741,7 @@ server.registerTool(
         content: [{ type: 'text', text: JSON.stringify({
           schemaVersion: 'save_document.v1',
           saved: false,
-          error: { code: 'validation_failed', message: err.message, retryable: false },
+          error: { code: 'validation_failed', message: sanitizeMcpErrorMessage(err), retryable: false },
           warnings: []
         }) }],
         isError: true
@@ -751,7 +784,7 @@ server.tool(
         }]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      return { content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }], isError: true };
     }
   }
 );
@@ -787,7 +820,7 @@ server.tool(
         }]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      return { content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }], isError: true };
     }
   }
 );
@@ -895,6 +928,6 @@ process.stdin.on('end', shutdown);
 // ---------------------------------------------------------------------------
 
 start().catch((err) => {
-  log('Fatal:', err.message);
+  log('Fatal:', sanitizeMcpErrorMessage(err));
   process.exit(1);
 });

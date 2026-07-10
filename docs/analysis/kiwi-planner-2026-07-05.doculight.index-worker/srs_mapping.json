@@ -1,0 +1,44 @@
+{
+  "target": "0.11.0-w2",
+  "draft_deprecated_blocker": {
+    "exists": false,
+    "draftRequirements": [],
+    "deprecatedRequirements": [],
+    "stabilityBlockers": []
+  },
+  "req_inventory": [
+    {
+      "req_id": "REL-DOC-007",
+      "stability": "evolving",
+      "status": "planned",
+      "ac_total": 9,
+      "ac_ids": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9"],
+      "files_from_trace": [
+        "docs/analysis/2026-07-04-search-index-rebuild-freeze-report.md",
+        "docs/research/knowledge_store/knowledge.md",
+        "src/main/search-engine.js:L103-L198",
+        "src/main/search-engine.js:L421-L462",
+        "src/main/search-engine.js:L1382-L1394",
+        "src/main/search-engine.js:L1545-L1593",
+        "src/main/search-sqlite-store.js:L101-L188",
+        "src/main/search-sqlite-store.js:L307-L321",
+        "src/renderer/settings.js:L448-L649"
+      ],
+      "depends_on": ["IR-APP-010", "REL-DOC-004", "OPS-ARCH-010"],
+      "extends": ["FR-DOC-019", "DR-DOC-010", "FR-DOC-022", "FR-DOC-023", "FR-DOC-024", "FR-DOC-025"],
+      "feasibility_hint": "high"
+    }
+  ],
+  "dependency_graph": [
+    { "from": "REL-DOC-007", "to": "REL-DOC-006", "relation": "supersedes" },
+    { "from": "REL-DOC-007", "to": "FR-DOC-019", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "DR-DOC-010", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "FR-DOC-022", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "FR-DOC-023", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "FR-DOC-024", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "FR-DOC-025", "relation": "extends" },
+    { "from": "REL-DOC-007", "to": "IR-APP-010", "relation": "depends_on" },
+    { "from": "REL-DOC-007", "to": "REL-DOC-004", "relation": "depends_on" },
+    { "from": "REL-DOC-007", "to": "OPS-ARCH-010", "relation": "depends_on" }
+  ]
+}

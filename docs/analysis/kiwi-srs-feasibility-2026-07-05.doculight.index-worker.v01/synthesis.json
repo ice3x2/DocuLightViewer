@@ -1,0 +1,27 @@
+{
+  "run_id": "2026-07-05.doculight.index-worker.v01",
+  "target": "0.11.0-w2",
+  "total_reqs_evaluated": 1,
+  "feasibility_distribution": {
+    "high": 1,
+    "medium": 0,
+    "low": 0,
+    "blocked": 0
+  },
+  "target_verdict": "conditionally-ready",
+  "critical_blockers": [],
+  "dependency_chains": [
+    {
+      "chain": [
+        "REL-DOC-007",
+        "FR-DOC-019",
+        "DR-DOC-010",
+        "FR-DOC-022",
+        "REL-DOC-004",
+        "OPS-ARCH-010"
+      ],
+      "weakest_link_score": 80
+    }
+  ],
+  "stability_drift_candidates": []
+}

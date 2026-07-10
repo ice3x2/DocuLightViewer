@@ -1,0 +1,536 @@
+{
+  "schema_version": "1.1.0",
+  "plan_contract": "1.2.0",
+  "run_id": "2026-07-02.doculight.0-11-0-w2",
+  "target": "0.11.0-w2",
+  "plan_version": "0.1.0",
+  "generated_at": "2026-07-02T00:00:00+09:00",
+  "tool_versions": {
+    "speckiwi": "mcp",
+    "kiwi_planner": "0.6",
+    "validator": "manual"
+  },
+  "tdd_policy": "relaxed",
+  "md_path": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md",
+  "md_sha256": "sha256-excluding-md_sha256:1ca3d9f60423c222466488eb826067f0c38697136fbf3c43d42a8e3cf0fd1490",
+  "phases": [
+    { "id": "PH-001", "title": "Red Contract Suite", "goal": "Add failing Wave 2 tests for contracts, persistence, security, search, import, and packaging", "depends_on": [], "task_ids": ["T-PH001-01"] },
+    { "id": "PH-002", "title": "Redaction And Ledger", "goal": "Implement shared redaction, SQLite source ledger, recovery, source identity, and broken-link policy foundations", "depends_on": ["PH-001"], "task_ids": ["T-PH002-01"] },
+    { "id": "PH-003", "title": "Embedding Settings", "goal": "Implement Settings model registration, safe secret storage, governance, and canonical chunk defaults", "depends_on": ["PH-002"], "task_ids": ["T-PH003-01"] },
+    { "id": "PH-004", "title": "Native HNSW", "goal": "Add lazy HNSW runtime, package support, semantic lifecycle, and degraded fallback", "depends_on": ["PH-002", "PH-003"], "task_ids": ["T-PH004-01"] },
+    { "id": "PH-005", "title": "Background Indexing", "goal": "Implement background jobs, category/documentTags, chunking, Korean tokenizer compatibility, and persistent link graph", "depends_on": ["PH-002", "PH-003"], "task_ids": ["T-PH005-01"] },
+    { "id": "PH-006", "title": "MCP Save Document", "goal": "Add strict no-viewer save_document and eight-tool parity across HTTP, stdio, and bundle", "depends_on": ["PH-002", "PH-005"], "task_ids": ["T-PH006-01"] },
+    { "id": "PH-007", "title": "Import And Adoption", "goal": "Add Settings/local linked Markdown import and legacy knowledge-store adoption without duplicate saves", "depends_on": ["PH-005"], "task_ids": ["T-PH007-01"] },
+    { "id": "PH-008", "title": "Smart Search", "goal": "Add read-only hybrid smart_search, bounded outputs, ranking, filters, diagnostics, and degraded envelopes", "depends_on": ["PH-004", "PH-005", "PH-006", "PH-007"], "task_ids": ["T-PH008-01"] },
+    { "id": "PH-009", "title": "Package Conformance", "goal": "Extend native package smoke, generated bundle checks, and client-profile fixture oracles", "depends_on": ["PH-006", "PH-007", "PH-008"], "task_ids": ["T-PH009-01"] },
+    { "id": "PH-010", "title": "Final Verification", "goal": "Run automated checks, strict SRS validation, sub-agent review, and record evidence", "depends_on": ["PH-009"], "task_ids": ["T-PH010-01"] }
+  ],
+  "tasks": [
+    {
+      "id": "T-PH001-01",
+      "task_id": "T-PH001-01",
+      "phase_id": "PH-001",
+      "title": "Add Wave 2 red contract suite",
+      "type": "code",
+      "req_ids": ["CON-ARCH-007", "CON-DOC-006", "CON-DOC-007", "CON-MCP-007", "CON-MCP-010", "DR-APP-002", "DR-DOC-006", "DR-DOC-007", "DR-DOC-008", "DR-DOC-009", "DR-DOC-013", "FR-APP-012", "FR-DOC-019", "FR-DOC-020", "FR-DOC-021", "FR-DOC-022", "FR-DOC-023", "FR-DOC-024", "FR-DOC-025", "FR-DOC-028", "FR-DOC-033", "FR-DOC-034", "FR-TREE-009", "IR-MCP-018", "OPS-ARCH-009", "OPS-ARCH-010", "REL-DOC-004", "SEC-APP-003", "SEC-DOC-003"],
+      "traces": [{ "req_id": "CON-ARCH-007" }, { "req_id": "CON-DOC-006" }, { "req_id": "CON-DOC-007" }, { "req_id": "CON-MCP-007" }, { "req_id": "CON-MCP-010" }, { "req_id": "DR-APP-002" }, { "req_id": "DR-DOC-006" }, { "req_id": "DR-DOC-007" }, { "req_id": "DR-DOC-008" }, { "req_id": "DR-DOC-009" }, { "req_id": "DR-DOC-013" }, { "req_id": "FR-APP-012" }, { "req_id": "FR-DOC-019" }, { "req_id": "FR-DOC-020" }, { "req_id": "FR-DOC-021" }, { "req_id": "FR-DOC-022" }, { "req_id": "FR-DOC-023" }, { "req_id": "FR-DOC-024" }, { "req_id": "FR-DOC-025" }, { "req_id": "FR-DOC-028" }, { "req_id": "FR-DOC-033" }, { "req_id": "FR-DOC-034" }, { "req_id": "FR-TREE-009" }, { "req_id": "IR-MCP-018" }, { "req_id": "OPS-ARCH-009" }, { "req_id": "OPS-ARCH-010" }, { "req_id": "REL-DOC-004" }, { "req_id": "SEC-APP-003" }, { "req_id": "SEC-DOC-003" }],
+      "files": [
+        { "path": "package.json" },
+        { "path": "test/test-wave2-embedding-settings-contract.js" },
+        { "path": "test/test-wave2-import-adoption-contract.js" },
+        { "path": "test/test-wave2-ledger-contract.js" },
+        { "path": "test/test-wave2-mcp-contract.js" },
+        { "path": "test/test-wave2-package-contract.js" },
+        { "path": "test/test-wave2-smart-search-contract.js" }
+      ],
+      "action": "Add failing Node contract tests and fixtures that describe Wave 2 behavior before implementation.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "npm run test:wave2", "expected_exit": 1 }],
+      "verification_cmd": { "posix": "npm run test:wave2", "windows": "npm run test:wave2" },
+      "dod": ["test:wave2 script exists and each contract file fails on its expected Wave 2 assertion signature, not because the npm script is missing."],
+      "rollback": "Remove Wave 2 test files and package script.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": [],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+      "tdd": {
+        "applicable": true,
+        "phase": "red",
+        "test_cases": [
+          { "id": "TC-REQ-DR-DOC-006-AC3-01", "req_id": "DR-DOC-006", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract", "expected_failure_signature": "Wave 2 ledger" },
+          { "id": "TC-REQ-FR-APP-012-AC1-01", "req_id": "FR-APP-012", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-embedding-settings-contract.js", "kind": "contract", "expected_failure_signature": "embedding model settings" },
+          { "id": "TC-REQ-IR-MCP-018-AC1-01", "req_id": "IR-MCP-018", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"], "test_file": "test/test-wave2-mcp-contract.js", "kind": "contract", "expected_failure_signature": "save_document|smart_search" },
+          { "id": "TC-REQ-FR-DOC-025-AC1-01", "req_id": "FR-DOC-025", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-smart-search-contract.js", "kind": "contract", "expected_failure_signature": "smart_search" },
+          { "id": "TC-REQ-FR-DOC-033-AC1-01", "req_id": "FR-DOC-033", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-import-adoption-contract.js", "kind": "contract", "expected_failure_signature": "linked import" },
+          { "id": "TC-REQ-OPS-ARCH-009-AC1-01", "req_id": "OPS-ARCH-009", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract", "expected_failure_signature": "package smoke" },
+          { "id": "TC-REQ-CON-DOC-006-AC1-01", "req_id": "CON-DOC-006", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract", "expected_failure_signature": "canonical link status" }
+        ],
+        "red_evidence": {
+          "command": "npm run test:wave2",
+          "exit_code": 1,
+          "captured_failure": "Wave 2 ledger contract: source-ledger-store must export createSourceLedgerStore/createWave2LedgerStore or SourceLedgerStore; Wave 2 embedding model settings contract: Settings UI exposes embedding model settings status; Wave 2 MCP contract: save_document/smart_search HTTP tools/list exposes exact eight-tool set; Wave 2 smart_search contract: SearchEngine exposes smartSearch(); Wave 2 linked import contract: linked-import module exports a linked import service factory; Wave 2 package smoke contract: package smoke declares hnswlib-node as the selected Wave 2 HNSW native dependency",
+          "timestamp": "2026-07-02T03:02:29.1060320+09:00"
+        },
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH002-01",
+      "task_id": "T-PH002-01",
+      "phase_id": "PH-002",
+      "title": "Implement shared redaction and SQLite ledger foundations",
+      "type": "code",
+      "req_ids": ["CON-DOC-006", "DR-DOC-006", "DR-DOC-009", "DR-DOC-013", "FR-TREE-009", "REL-DOC-004", "SEC-DOC-003"],
+      "traces": [{ "req_id": "CON-DOC-006" }, { "req_id": "DR-DOC-006" }, { "req_id": "DR-DOC-009" }, { "req_id": "DR-DOC-013" }, { "req_id": "FR-TREE-009" }, { "req_id": "REL-DOC-004" }, { "req_id": "SEC-DOC-003" }],
+      "files": [
+        { "path": "src/main/link-parser.js" },
+        { "path": "src/main/redaction.js" },
+        { "path": "src/main/search-sqlite-store.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "test/test-wave2-ledger-contract.js" }
+      ],
+      "action": "Add deterministic redaction utility and a Wave 2 source-ledger module for tables, source identity, migration/recovery checks, canonical link edge statuses, and diagnostics-only broken-link storage while preserving search-sqlite-store.js as the Wave 1.5 adapter boundary.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-ledger-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-ledger-contract.js", "windows": "node test/test-wave2-ledger-contract.js" },
+      "dod": ["Ledger and redaction contracts pass.", "Broken links are diagnostics-only."],
+      "rollback": "Revert Wave 2 ledger migrations and redaction helper additions.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH001-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-DR-DOC-006-AC3-02", "req_id": "DR-DOC-006", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-SEC-DOC-003-AC1-01", "req_id": "SEC-DOC-003", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-CON-DOC-006-AC1-02", "req_id": "CON-DOC-006", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": {
+          "command": "node test/test-wave2-ledger-contract.js",
+          "exit_code": 1,
+          "captured_failure": "Wave 2 ledger contract: source-ledger-store must export createSourceLedgerStore/createWave2LedgerStore or SourceLedgerStore",
+          "timestamp": "2026-07-02T03:07:00.0000000+09:00"
+        },
+        "green_evidence": {
+          "command": "node test/test-wave2-ledger-contract.js && npm run test:wave1.5",
+          "exit_code": 0,
+          "timestamp": "2026-07-02T03:20:00.0000000+09:00"
+        }
+      }
+    },
+    {
+      "id": "T-PH003-01",
+      "task_id": "T-PH003-01",
+      "phase_id": "PH-003",
+      "title": "Implement embedding model settings and governance",
+      "type": "code",
+      "req_ids": ["DR-APP-002", "DR-DOC-008", "FR-APP-012", "FR-DOC-024", "SEC-APP-003"],
+      "traces": [{ "req_id": "DR-APP-002" }, { "req_id": "DR-DOC-008" }, { "req_id": "FR-APP-012" }, { "req_id": "FR-DOC-024" }, { "req_id": "SEC-APP-003" }],
+      "files": [
+        { "path": "src/main/index.js" },
+        { "path": "src/main/preload.js" },
+        { "path": "src/renderer/settings.css" },
+        { "path": "src/renderer/settings.html" },
+        { "path": "src/renderer/settings.js" },
+        { "path": "src/locales/en.json" },
+        { "path": "src/locales/ko.json" },
+        { "path": "src/locales/es.json" },
+        { "path": "src/locales/ja.json" },
+        { "path": "test/test-wave2-embedding-settings-contract.js" }
+      ],
+      "action": "Add embedding model status UI, registration dialog, OpenAI-compatible model discovery, safe secret storage, offline/project policy, validation IPC, and 900/120 chunk defaults.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-embedding-settings-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-embedding-settings-contract.js", "windows": "node test/test-wave2-embedding-settings-contract.js" },
+      "dod": ["Embedding settings contract passes.", "No secret appears in settings payloads."],
+      "rollback": "Remove embedding settings UI/IPC and restore previous settings schema.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH002-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-FR-APP-012-AC1-02", "req_id": "FR-APP-012", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-embedding-settings-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-DR-APP-002-AC1-01", "req_id": "DR-APP-002", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-wave2-embedding-settings-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-SEC-APP-003-AC1-01", "req_id": "SEC-APP-003", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-wave2-embedding-settings-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": {
+          "command": "node test/test-wave2-embedding-settings-contract.js",
+          "exit_code": 1,
+          "captured_failure": "Wave 2 embedding model settings contract: Settings UI exposes embedding model settings status",
+          "timestamp": "2026-07-02T03:28:02.7332422+09:00"
+        },
+        "green_evidence": {
+          "command": "node test/test-wave2-embedding-settings-contract.js && node test/test-settings-indexing-contract.js && node --check src/main/index.js && node --check src/main/preload.js && node --check src/renderer/settings.js",
+          "exit_code": 0,
+          "timestamp": "2026-07-02T03:46:35.4106084+09:00"
+        }
+      }
+    },
+    {
+      "id": "T-PH004-01",
+      "task_id": "T-PH004-01",
+      "phase_id": "PH-004",
+      "title": "Implement lazy HNSW runtime and native packaging support",
+      "type": "code",
+      "req_ids": ["FR-DOC-020", "FR-DOC-022", "OPS-ARCH-010"],
+      "traces": [{ "req_id": "FR-DOC-020" }, { "req_id": "FR-DOC-022" }, { "req_id": "OPS-ARCH-010" }],
+      "files": [
+        { "path": "electron-builder.yml" },
+        { "path": "package.json" },
+        { "path": "package-lock.json" },
+        { "path": "scripts/rebuild-hnsw-optional.js" },
+        { "path": "src/main/hnsw-index.js" },
+        { "path": "test/package-smoke.js" },
+        { "path": "test/test-wave2-package-contract.js" },
+        { "path": "test/test-sqlite-native-packaging-contract.js" },
+        { "path": "test/test-mcp-tool-parity.js" }
+      ],
+      "action": "Add lazy main-process HNSW wrapper, atomic derived-index swap, tombstone filtering, settings-driven compaction markers, optional hnswlib-node bundle exclusion/rebuild/asarUnpack handling, direct native degraded-load test, and native failure diagnostics.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-package-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-package-contract.js", "windows": "node test/test-wave2-package-contract.js" },
+      "dod": ["HNSW load/degrade contract passes.", "Generated bundle has no direct native import."],
+      "rollback": "Remove HNSW dependency/wrapper and restore package smoke to Wave 1.5 native coverage.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH002-01", "T-PH003-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-FR-DOC-020-AC1-01", "req_id": "FR-DOC-020", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-DOC-022-AC1-01", "req_id": "FR-DOC-022", "ac_refs": ["AC-1", "AC-3", "AC-4", "AC-6"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-OPS-ARCH-010-AC1-01", "req_id": "OPS-ARCH-010", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH005-01",
+      "task_id": "T-PH005-01",
+      "phase_id": "PH-005",
+      "title": "Implement background indexing, chunking, metadata, and link graph",
+      "type": "code",
+      "req_ids": ["CON-DOC-006", "DR-DOC-007", "DR-DOC-008", "FR-DOC-019", "FR-DOC-023", "FR-TREE-009"],
+      "traces": [{ "req_id": "CON-DOC-006" }, { "req_id": "DR-DOC-007" }, { "req_id": "DR-DOC-008" }, { "req_id": "FR-DOC-019" }, { "req_id": "FR-DOC-023" }, { "req_id": "FR-TREE-009" }],
+      "files": [
+        { "path": "src/main/chunker.js" },
+        { "path": "src/main/document-classifier.js" },
+        { "path": "src/main/frontmatter.js" },
+        { "path": "src/main/indexing-service.js" },
+        { "path": "src/main/link-graph-indexer.js" },
+        { "path": "src/main/link-parser.js" },
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/search-tokenizer.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "test/test-garu-tokenizer-contract.js" },
+        { "path": "test/test-link-extraction.js" },
+        { "path": "test/test-wave2-ledger-contract.js" }
+      ],
+      "action": "Add non-blocking IndexingService, latest-wins jobs, category/documentTags classification, heading-aware chunking, garu-compatible search_text, and persistent link graph extraction/reconciliation through dedicated modules with existing files used as adapters.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-ledger-contract.js && npm run test:garu", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-ledger-contract.js && npm run test:garu", "windows": "node test/test-wave2-ledger-contract.js && npm run test:garu" },
+      "dod": ["Indexing job contract passes.", "Garu tokenizer regression stays green.", "Persistent link graph stores canonical diagnostics."],
+      "rollback": "Disable Wave 2 indexing service and keep Wave 1.5 keyword SQLite cache.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH002-01", "T-PH003-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-FR-DOC-019-AC1-01", "req_id": "FR-DOC-019", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-ledger-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-TREE-009-AC1-01", "req_id": "FR-TREE-009", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9"], "test_file": "test/test-link-extraction.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-DOC-023-AC1-01", "req_id": "FR-DOC-023", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-garu-tokenizer-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH006-01",
+      "task_id": "T-PH006-01",
+      "phase_id": "PH-006",
+      "title": "Implement strict no-viewer save_document and eight-tool parity",
+      "type": "code",
+      "req_ids": ["CON-MCP-007", "CON-MCP-010", "FR-DOC-028", "IR-MCP-018", "SEC-DOC-003"],
+      "traces": [{ "req_id": "CON-MCP-007" }, { "req_id": "CON-MCP-010" }, { "req_id": "FR-DOC-028" }, { "req_id": "IR-MCP-018" }, { "req_id": "SEC-DOC-003" }],
+      "files": [
+        { "path": "package.json" },
+        { "path": "src/main/mcp-http.mjs" },
+        { "path": "src/main/mcp-save.js" },
+        { "path": "src/main/mcp-server.mjs" },
+        { "path": "test/test-mcp-http-save-parity.js" },
+        { "path": "test/test-mcp-tool-parity.js" },
+        { "path": "test/test-wave2-mcp-contract.js" }
+      ],
+      "action": "Add save_document schemas and handlers to HTTP/stdout source, reject forbidden fields, return canonical redacted JSON envelopes, enqueue ordinary indexing, preserve search_documents compatibility, and regenerate src/main/mcp-server.bundle.mjs only via npm run bundle:mcp.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-mcp-contract.js && npm run bundle:mcp && node test/test-mcp-tool-parity.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-mcp-contract.js && npm run bundle:mcp && node test/test-mcp-tool-parity.js", "windows": "node test/test-wave2-mcp-contract.js && npm run bundle:mcp && node test/test-mcp-tool-parity.js" },
+      "dod": ["Eight-tool parity passes.", "save_document is no-viewer and strict.", "Bundle is regenerated."],
+      "rollback": "Remove save_document schema/handlers and regenerate bundle from previous source.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH002-01", "T-PH005-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-IR-MCP-018-AC1-02", "req_id": "IR-MCP-018", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"], "test_file": "test/test-wave2-mcp-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-DOC-028-AC1-01", "req_id": "FR-DOC-028", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14"], "test_file": "test/test-wave2-mcp-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH007-01",
+      "task_id": "T-PH007-01",
+      "phase_id": "PH-007",
+      "title": "Implement bounded linked import and legacy adoption",
+      "type": "code",
+      "req_ids": ["CON-DOC-006", "CON-DOC-007", "DR-DOC-013", "FR-DOC-033", "FR-DOC-034"],
+      "traces": [{ "req_id": "CON-DOC-006" }, { "req_id": "CON-DOC-007" }, { "req_id": "DR-DOC-013" }, { "req_id": "FR-DOC-033" }, { "req_id": "FR-DOC-034" }],
+      "files": [
+        { "path": "src/main/legacy-adoption.js" },
+        { "path": "src/main/link-parser.js" },
+        { "path": "src/main/linked-import.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "src/renderer/settings.html" },
+        { "path": "src/renderer/settings.js" },
+        { "path": "test/test-wave2-import-adoption-contract.js" }
+      ],
+      "action": "Add Settings/local source-path import workflow, bounded traversal, canonical duplicate-safe source identity lookup, encoded traversal rejection, no-MCP-import boundary, and legacy knowledge-store scanner adoption without rewrite.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-import-adoption-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-import-adoption-contract.js", "windows": "node test/test-wave2-import-adoption-contract.js" },
+      "dod": ["A->B->C->A cycles terminate.", "Already saved documents are reused by source identity.", "Broken or ambiguous links stay diagnostics-only.", "No MCP import controls are added."],
+      "rollback": "Disable local linked import and legacy adoption scanner entrypoints.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH005-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-FR-DOC-033-AC1-02", "req_id": "FR-DOC-033", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-import-adoption-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-DOC-034-AC1-01", "req_id": "FR-DOC-034", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-import-adoption-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-DR-DOC-013-AC1-01", "req_id": "DR-DOC-013", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9"], "test_file": "test/test-wave2-import-adoption-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-CON-DOC-007-AC1-01", "req_id": "CON-DOC-007", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10"], "test_file": "test/test-wave2-import-adoption-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH008-01",
+      "task_id": "T-PH008-01",
+      "phase_id": "PH-008",
+      "title": "Implement bounded read-only hybrid smart_search",
+      "type": "code",
+      "req_ids": ["CON-DOC-006", "CON-MCP-010", "FR-DOC-020", "FR-DOC-021", "FR-DOC-023", "FR-DOC-025", "IR-MCP-018", "SEC-DOC-003"],
+      "traces": [{ "req_id": "CON-DOC-006" }, { "req_id": "CON-MCP-010" }, { "req_id": "FR-DOC-020" }, { "req_id": "FR-DOC-021" }, { "req_id": "FR-DOC-023" }, { "req_id": "FR-DOC-025" }, { "req_id": "IR-MCP-018" }, { "req_id": "SEC-DOC-003" }],
+      "files": [
+        { "path": "src/main/mcp-http.mjs" },
+        { "path": "src/main/mcp-server.mjs" },
+        { "path": "src/main/search-engine.js" },
+        { "path": "src/main/smart-search.js" },
+        { "path": "src/main/source-ledger-store.js" },
+        { "path": "test/test-wave2-smart-search-contract.js" }
+      ],
+      "action": "Add smart_search candidate collection, score normalization, deterministic tie-breakers, keyword-only degraded mode, filters, bounded snippets/diagnostics/trace, redacted output, and no side effects after import/adoption identity is available.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-smart-search-contract.js", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-smart-search-contract.js", "windows": "node test/test-wave2-smart-search-contract.js" },
+      "dod": ["Default limit is 20 and hard max is 50.", "Same-score candidates are stably ordered.", "Only resolved link relations satisfy linked filters.", "search_documents compatibility remains intact."],
+      "rollback": "Remove smart_search tool/handler and hybrid ranker additions.",
+      "trace_links": [],
+      "estimated_effort": "L",
+      "depends_on_task": ["T-PH004-01", "T-PH005-01", "T-PH006-01", "T-PH007-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-FR-DOC-025-AC1-02", "req_id": "FR-DOC-025", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7"], "test_file": "test/test-wave2-smart-search-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-FR-DOC-021-AC1-01", "req_id": "FR-DOC-021", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6"], "test_file": "test/test-wave2-smart-search-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH009-01",
+      "task_id": "T-PH009-01",
+      "phase_id": "PH-009",
+      "title": "Implement package and client-profile conformance gates",
+      "type": "code",
+      "req_ids": ["CON-ARCH-007", "CON-MCP-007", "CON-MCP-010", "OPS-ARCH-009", "OPS-ARCH-010"],
+      "traces": [{ "req_id": "CON-ARCH-007" }, { "req_id": "CON-MCP-007" }, { "req_id": "CON-MCP-010" }, { "req_id": "OPS-ARCH-009" }, { "req_id": "OPS-ARCH-010" }],
+      "files": [
+        { "path": ".github/workflows/release.yml" },
+        { "path": "electron-builder.yml" },
+        { "path": "package.json" },
+        { "path": "test/package-smoke.js" },
+        { "path": "test/test-wave2-package-contract.js" }
+      ],
+      "action": "Extend package smoke and release workflow for typed eight-tool save/search, native SQLite/HNSW load/degrade, bundle schema parity, redaction fixtures, save-to-search retrieval, and offline client-profile oracle fixtures.",
+      "acceptance_tests": [{ "kind": "shell", "cmd": "node test/test-wave2-package-contract.js && npm run smoke:package", "expected_exit": 0 }],
+      "verification_cmd": { "posix": "node test/test-wave2-package-contract.js && npm run smoke:package", "windows": "node test/test-wave2-package-contract.js && npm run smoke:package" },
+      "dod": ["Package conformance contract passes.", "Smoke catches bundle/native/redaction drift."],
+      "rollback": "Restore previous package smoke and release workflow.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH006-01", "T-PH007-01", "T-PH008-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18"],
+      "tdd": {
+        "applicable": true,
+        "phase": "green",
+        "test_cases": [
+          { "id": "TC-REQ-OPS-ARCH-009-AC1-02", "req_id": "OPS-ARCH-009", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" },
+          { "id": "TC-REQ-CON-MCP-010-AC1-01", "req_id": "CON-MCP-010", "ac_refs": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18"], "test_file": "test/test-wave2-package-contract.js", "kind": "contract" }
+        ],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    },
+    {
+      "id": "T-PH010-01",
+      "task_id": "T-PH010-01",
+      "phase_id": "PH-010",
+      "title": "Verify Wave 2 implementation and record evidence",
+      "type": "review",
+      "req_ids": ["CON-ARCH-007", "CON-DOC-006", "CON-DOC-007", "CON-MCP-007", "CON-MCP-010", "DR-APP-002", "DR-DOC-006", "DR-DOC-007", "DR-DOC-008", "DR-DOC-009", "DR-DOC-013", "FR-APP-012", "FR-DOC-019", "FR-DOC-020", "FR-DOC-021", "FR-DOC-022", "FR-DOC-023", "FR-DOC-024", "FR-DOC-025", "FR-DOC-028", "FR-DOC-033", "FR-DOC-034", "FR-TREE-009", "IR-MCP-018", "OPS-ARCH-009", "OPS-ARCH-010", "REL-DOC-004", "SEC-APP-003", "SEC-DOC-003"],
+      "traces": [{ "req_id": "CON-ARCH-007" }, { "req_id": "CON-DOC-006" }, { "req_id": "CON-DOC-007" }, { "req_id": "CON-MCP-007" }, { "req_id": "CON-MCP-010" }, { "req_id": "DR-APP-002" }, { "req_id": "DR-DOC-006" }, { "req_id": "DR-DOC-007" }, { "req_id": "DR-DOC-008" }, { "req_id": "DR-DOC-009" }, { "req_id": "DR-DOC-013" }, { "req_id": "FR-APP-012" }, { "req_id": "FR-DOC-019" }, { "req_id": "FR-DOC-020" }, { "req_id": "FR-DOC-021" }, { "req_id": "FR-DOC-022" }, { "req_id": "FR-DOC-023" }, { "req_id": "FR-DOC-024" }, { "req_id": "FR-DOC-025" }, { "req_id": "FR-DOC-028" }, { "req_id": "FR-DOC-033" }, { "req_id": "FR-DOC-034" }, { "req_id": "FR-TREE-009" }, { "req_id": "IR-MCP-018" }, { "req_id": "OPS-ARCH-009" }, { "req_id": "OPS-ARCH-010" }, { "req_id": "REL-DOC-004" }, { "req_id": "SEC-APP-003" }, { "req_id": "SEC-DOC-003" }],
+      "files": [
+        { "path": "docs/analysis/kiwi-review-fix-loop-2026-07-02.doculight.0-11-0-w2/report.md" },
+        { "path": "docs/spec/00.index.md" }
+      ],
+      "action": "Run full automated checks, SpecKiwi strict validation, package smoke where practical, and 3-subagent review/fix loop before recording verification evidence.",
+      "acceptance_tests": [{ "kind": "checklist", "items": ["npm run test:wave1", "npm run test:wave1.5", "npm run test:garu", "npm run test:wave2", "npm run build or justified package subset", "SpecKiwi strict validation", "3-subagent review loop"] }],
+      "verification_cmd": { "posix": "npm run test:wave1 && npm run test:wave1.5 && npm run test:garu && npm run test:wave2", "windows": "npm run test:wave1 && npm run test:wave1.5 && npm run test:garu && npm run test:wave2" },
+      "dod": ["All automated checks pass or have documented justified skips.", "Sub-agent review has no critical or high findings.", "SpecKiwi evidence is recorded."],
+      "rollback": "Revert invalid verification evidence through SpecKiwi MCP if implementation evidence is later invalidated.",
+      "trace_links": [],
+      "estimated_effort": "M",
+      "depends_on_task": ["T-PH009-01"],
+      "covers_ac": ["AC-1", "AC-2", "AC-3", "AC-4", "AC-5", "AC-6", "AC-7", "AC-8", "AC-9", "AC-10", "AC-11", "AC-12", "AC-13", "AC-14", "AC-15", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20"],
+      "tdd": {
+        "applicable": false,
+        "phase": "n/a",
+        "exempt_reason": "Review task records verification evidence and sub-agent findings rather than changing executable behavior.",
+        "test_cases": [],
+        "red_evidence": null,
+        "green_evidence": null
+      }
+    }
+  ],
+  "coverage": [
+    { "req_id": "OPS-ARCH-009", "stability": "stable", "ac_total": 8, "ac_covered": 8, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH009-01", "T-PH010-01"] },
+    { "req_id": "OPS-ARCH-010", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH004-01", "T-PH009-01", "T-PH010-01"] },
+    { "req_id": "CON-ARCH-007", "stability": "stable", "ac_total": 10, "ac_covered": 10, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH009-01", "T-PH010-01"] },
+    { "req_id": "DR-APP-002", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH003-01", "T-PH010-01"] },
+    { "req_id": "SEC-APP-003", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH003-01", "T-PH010-01"] },
+    { "req_id": "FR-APP-012", "stability": "stable", "ac_total": 10, "ac_covered": 10, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH003-01", "T-PH010-01"] },
+    { "req_id": "FR-TREE-009", "stability": "stable", "ac_total": 9, "ac_covered": 9, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH005-01", "T-PH010-01"] },
+    { "req_id": "IR-MCP-018", "stability": "stable", "ac_total": 20, "ac_covered": 20, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH006-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "CON-MCP-007", "stability": "stable", "ac_total": 16, "ac_covered": 16, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH006-01", "T-PH009-01", "T-PH010-01"] },
+    { "req_id": "CON-MCP-010", "stability": "stable", "ac_total": 18, "ac_covered": 18, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH006-01", "T-PH008-01", "T-PH009-01", "T-PH010-01"] },
+    { "req_id": "DR-DOC-006", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-019", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH005-01", "T-PH010-01"] },
+    { "req_id": "DR-DOC-007", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH005-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-020", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH004-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-021", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "DR-DOC-008", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH003-01", "T-PH005-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-022", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH004-01", "T-PH010-01"] },
+    { "req_id": "DR-DOC-009", "stability": "stable", "ac_total": 5, "ac_covered": 5, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-024", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH003-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-025", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "SEC-DOC-003", "stability": "stable", "ac_total": 7, "ac_covered": 7, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH006-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-028", "stability": "stable", "ac_total": 14, "ac_covered": 14, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH006-01", "T-PH010-01"] },
+    { "req_id": "REL-DOC-004", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH010-01"] },
+    { "req_id": "DR-DOC-013", "stability": "stable", "ac_total": 9, "ac_covered": 9, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH007-01", "T-PH010-01"] },
+    { "req_id": "CON-DOC-006", "stability": "stable", "ac_total": 12, "ac_covered": 12, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH002-01", "T-PH005-01", "T-PH007-01", "T-PH008-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-033", "stability": "stable", "ac_total": 10, "ac_covered": 10, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH007-01", "T-PH010-01"] },
+    { "req_id": "CON-DOC-007", "stability": "stable", "ac_total": 10, "ac_covered": 10, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH007-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-034", "stability": "stable", "ac_total": 10, "ac_covered": 10, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH007-01", "T-PH010-01"] },
+    { "req_id": "FR-DOC-023", "stability": "stable", "ac_total": 6, "ac_covered": 6, "missing_ac_ids": [], "covered_tasks": ["T-PH001-01", "T-PH005-01", "T-PH008-01", "T-PH010-01"] }
+  ],
+  "orphans": [],
+  "unreferenced_reqs": [],
+  "excluded_reqs": [],
+  "deferred_ac": [],
+  "risks": [
+    {
+      "id": "R-W2-001",
+      "severity": "critical",
+      "description": "External MCP responses can leak paths or credentials if redaction lands after save/search handlers.",
+      "mitigation": "Make PH-002 a hard prerequisite for save_document and smart_search.",
+      "affected_task_ids": ["T-PH002-01", "T-PH006-01", "T-PH008-01"]
+    },
+    {
+      "id": "R-W2-002",
+      "severity": "high",
+      "description": "HNSW native dependency may fail under Electron packaging.",
+      "mitigation": "Lazy load native dependency and verify package smoke/degraded mode before release.",
+      "affected_task_ids": ["T-PH004-01", "T-PH009-01"]
+    },
+    {
+      "id": "R-W2-003",
+      "severity": "high",
+      "description": "Linked import can duplicate files or escape roots without source identity and containment.",
+      "mitigation": "Implement linked import only after source identity ledger and canonical broken-link diagnostics.",
+      "affected_task_ids": ["T-PH007-01"]
+    }
+  ],
+  "open_questions": [],
+  "external_module_impact": [],
+  "tdd_decisions": [],
+  "coder_handoff_readiness": [
+    { "phase_id": "PH-001", "ready": true, "blockers": [] },
+    { "phase_id": "PH-002", "ready": true, "blockers": [] },
+    { "phase_id": "PH-003", "ready": true, "blockers": [] },
+    { "phase_id": "PH-004", "ready": true, "blockers": [] },
+    { "phase_id": "PH-005", "ready": true, "blockers": [] },
+    { "phase_id": "PH-006", "ready": true, "blockers": [] },
+    { "phase_id": "PH-007", "ready": true, "blockers": [] },
+    { "phase_id": "PH-008", "ready": true, "blockers": [] },
+    { "phase_id": "PH-009", "ready": true, "blockers": [] },
+    { "phase_id": "PH-010", "ready": true, "blockers": [] }
+  ],
+  "mcp_call_log": [
+    { "seq": 1, "call": "add_verification_evidence", "args": { "id": "OPS-ARCH-009", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-001", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 2, "call": "add_verification_evidence", "args": { "id": "OPS-ARCH-010", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-002", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 3, "call": "add_verification_evidence", "args": { "id": "CON-ARCH-007", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-003", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 4, "call": "add_verification_evidence", "args": { "id": "DR-APP-002", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-004", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 5, "call": "add_verification_evidence", "args": { "id": "SEC-APP-003", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-005", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 6, "call": "add_verification_evidence", "args": { "id": "FR-APP-012", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-006", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 7, "call": "add_verification_evidence", "args": { "id": "FR-TREE-009", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-007", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 8, "call": "add_verification_evidence", "args": { "id": "IR-MCP-018", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-008", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 9, "call": "add_verification_evidence", "args": { "id": "CON-MCP-007", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-009", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 10, "call": "add_verification_evidence", "args": { "id": "CON-MCP-010", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-010", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 11, "call": "add_verification_evidence", "args": { "id": "DR-DOC-006", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-011", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 12, "call": "add_verification_evidence", "args": { "id": "FR-DOC-019", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-012", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 13, "call": "add_verification_evidence", "args": { "id": "DR-DOC-007", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-013", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 14, "call": "add_verification_evidence", "args": { "id": "FR-DOC-020", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-014", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 15, "call": "add_verification_evidence", "args": { "id": "FR-DOC-021", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-015", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 16, "call": "add_verification_evidence", "args": { "id": "DR-DOC-008", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-016", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 17, "call": "add_verification_evidence", "args": { "id": "FR-DOC-022", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-017", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 18, "call": "add_verification_evidence", "args": { "id": "DR-DOC-009", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-018", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 19, "call": "add_verification_evidence", "args": { "id": "FR-DOC-024", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-019", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 20, "call": "add_verification_evidence", "args": { "id": "FR-DOC-025", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-020", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 21, "call": "add_verification_evidence", "args": { "id": "SEC-DOC-003", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-021", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 22, "call": "add_verification_evidence", "args": { "id": "FR-DOC-028", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-022", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 23, "call": "add_verification_evidence", "args": { "id": "REL-DOC-004", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-023", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 24, "call": "add_verification_evidence", "args": { "id": "DR-DOC-013", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-024", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 25, "call": "add_verification_evidence", "args": { "id": "CON-DOC-006", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-025", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 26, "call": "add_verification_evidence", "args": { "id": "FR-DOC-033", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-026", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 27, "call": "add_verification_evidence", "args": { "id": "CON-DOC-007", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-027", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 28, "call": "add_verification_evidence", "args": { "id": "FR-DOC-034", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-028", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true },
+    { "seq": 29, "call": "add_verification_evidence", "args": { "id": "FR-DOC-023", "type": "plan", "reference": "docs/plans/2026-07-02.doculight.0-11-0-w2.plan.md" }, "args_hash": "dry-run-029", "response_hash": null, "timestamp": "2026-07-02T00:00:00+09:00", "ok": null, "dry_run": true }
+  ]
+}

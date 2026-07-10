@@ -1,0 +1,55 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "subagent_reviewers_completed": [
+    "Goodall",
+    "Pasteur",
+    "Hubble",
+    "Popper",
+    "Arendt"
+  ],
+  "grades_before_resolution": {
+    "product_research_alignment": "A+",
+    "mcp_contract": "A-",
+    "data_indexing_search": "A",
+    "security_operations": "A+",
+    "code_alignment": "A+"
+  },
+  "findings_resolved": [
+    {
+      "finding": "smart-search-contract-v1 implementation notes were attached to an older MCP requirement instead of IR-MCP-014.",
+      "resolution": "Moved the fixture contract to IR-MCP-014 and referenced it from CON-MCP-003."
+    },
+    {
+      "finding": "knowledge.md still contained a stale smart_search draft with semantic mode, limit 20, tags, relatedTo, displayPath, and score/scores.",
+      "resolution": "Updated the research document to the finalized v1 input and response envelope: auto|hybrid|keyword, limit 10, documentTags, indexFreshness, staleFilteredCount, diagnostics, error, scoreDetails, and canonical content[0].text JSON."
+    },
+    {
+      "finding": "IR-MCP-014 diagnostics and degraded/error response shape were not deterministic enough for conformance fixtures.",
+      "resolution": "Specified diagnostics{indexStatus,provider,policyHash,warnings[]} and optional error{code,message,retryable} while preserving the same JSON envelope."
+    },
+    {
+      "finding": "IR-MCP-014 and CON-MCP-003 had broad research trace links.",
+      "resolution": "Added line-specific research links for tool boundary, finalized input schema, response envelope, diagnostics, and redaction fields."
+    },
+    {
+      "finding": "DOC and TREE scope overviews still described only the baseline BM25/runtime tree responsibilities.",
+      "resolution": "Updated scope overview, in-scope, out-of-scope, and constraints for SQLite source-of-truth, background indexing, HNSW lifecycle, recovery, and persistent link graph indexing."
+    },
+    {
+      "finding": "OPS-ARCH-005, CON-ARCH-004, FR-TREE-008, and FR-DOC-022 had placeholder Research / Analysis sections.",
+      "resolution": "Filled those sections with the implementation rationale, risk boundary, and research-derived design constraints."
+    }
+  ],
+  "validation_after_resolution": {
+    "mcp_validate_spec": {
+      "strict": true,
+      "failOnWarning": true,
+      "errors": 0,
+      "warnings": 0
+    },
+    "cli_speckiwi_validate_json": {
+      "errors": 0,
+      "warnings": 0
+    }
+  }
+}

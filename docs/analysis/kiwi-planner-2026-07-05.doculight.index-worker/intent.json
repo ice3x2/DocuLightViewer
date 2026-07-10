@@ -1,0 +1,22 @@
+{
+  "target_intent": "Plan REL-DOC-007 for active target 0.11.0-w2: move search index maintenance heavy work out of Electron main process into worker or child isolation while preserving responsive Settings, tray, window, and MCP read/search behavior.",
+  "user_priorities": [
+    "Isolate full keyword rebuild, SQLite FTS writes, tokenizer enrichment, VACUUM/compact, semantic embedding, and HNSW build/compact outside the main process.",
+    "Prove responsiveness with status/cancel IPC latency and main-process heartbeat thresholds, not just quick enqueue return.",
+    "Protect committed searchable state via worker-owned SQLite write connection and generation/revision staging swap.",
+    "Bound large-file tokenizer cost and prevent query-time synchronous HNSW rebuild.",
+    "Include packaged worker native-load smoke and opt-in large-corpus benchmark evidence."
+  ],
+  "ambiguities": [
+    "Exact isolation boundary may be worker_threads, child process, or an equivalent runtime.",
+    "Generation swap schema and migration shape must be finalized during implementation.",
+    "Large-corpus benchmark source should remain opt-in and temp-index based.",
+    "Backup-skip UX wording and redacted manifest format need implementation design."
+  ],
+  "non_coding_signals": [
+    "Requirement ID: REL-DOC-007.",
+    "Stability=evolving and Status=planned; feasible for planning and implementation, not ready for stable promotion.",
+    "MCP indexing controls must remain absent; controls stay Settings IPC/UI only.",
+    "Verification must include test, benchmark, package smoke, and review evidence."
+  ]
+}

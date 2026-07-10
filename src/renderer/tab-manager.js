@@ -10,6 +10,83 @@
   let toastTimer = null;
   let tabBarEverShown = false;
 
+  function normalizePath(filePath) {
+    return filePath ? filePath.replace(/\\/g, '/') : '';
+  }
+
+  function labelForPath(filePath) {
+    var normalized = normalizePath(filePath);
+    var baseName = normalized.substring(normalized.lastIndexOf('/') + 1);
+    var dot = baseName.lastIndexOf('.');
+    return dot > 0 ? baseName.substring(0, dot) : baseName;
+  }
+
+  function withMarkdownExtension(filePath) {
+    if (!filePath) return filePath;
+    var normalized = normalizePath(filePath);
+    var fileName = normalized.substring(normalized.lastIndexOf('/') + 1);
+    if (!fileName || fileName.indexOf('.') > 0) return filePath;
+    return filePath + '.md';
+  }
+
+  function cloneTrail(trail) {
+    if (!Array.isArray(trail)) return [];
+    return trail.map(function (item, fallbackIndex) {
+      return {
+        index: typeof item.index === 'number' ? item.index : fallbackIndex,
+        filePath: normalizePath(item.filePath),
+        label: item.label || labelForPath(item.filePath),
+        current: item.current === true
+      };
+    });
+  }
+
+  function makeTrailEntry(filePath, index, current) {
+    return {
+      index: index,
+      filePath: normalizePath(filePath),
+      label: labelForPath(filePath),
+      current: current === true
+    };
+  }
+
+  function singleFileTrail(filePath) {
+    return filePath ? [makeTrailEntry(filePath, 0, true)] : [];
+  }
+
+  function currentTrailBase() {
+    var tab = activeTabIndex >= 0 ? tabs[activeTabIndex] : null;
+    var trail = cloneTrail(tab && tab.navigationTrail);
+    if (!trail.length && window.DocuLight && window.DocuLight.state) {
+      trail = cloneTrail(window.DocuLight.state.navigationTrail);
+    }
+    if (!trail.length && window.DocuLight && window.DocuLight.state && window.DocuLight.state.currentFilePath) {
+      trail = singleFileTrail(window.DocuLight.state.currentFilePath);
+    }
+    trail.forEach(function (item, index) {
+      item.index = index;
+      item.current = index === trail.length - 1;
+    });
+    return trail;
+  }
+
+  function trailWithTarget(filePath) {
+    var targetPath = normalizePath(filePath);
+    var trail = currentTrailBase();
+    trail.forEach(function (item) { item.current = false; });
+    trail.push(makeTrailEntry(targetPath, trail.length, true));
+    return trail;
+  }
+
+  function applyBreadcrumbTrail(tab) {
+    var trail = cloneTrail(tab && tab.navigationTrail);
+    if (window.DocuLight && window.DocuLight.state) {
+      window.DocuLight.state.navigationTrail = trail;
+    }
+    var renderBreadcrumb = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.renderBreadcrumbTrail;
+    if (renderBreadcrumb) renderBreadcrumb(trail);
+  }
+
   function init() {
     if (window.doclight && window.doclight.getSettings) {
       window.doclight.getSettings().then(settings => {
@@ -57,16 +134,29 @@
           }
         }
 
+        resolvedHref = withMarkdownExtension(resolvedHref);
         var normalizedHref = resolvedHref.replace(/\\/g, '/');
+        var nextTrail = trailWithTarget(normalizedHref);
         var existing = tabs.findIndex(function (t) {
           return t.filePath === normalizedHref || t.filePath === resolvedHref;
         });
         if (existing >= 0) {
-          if (existing === activeTabIndex) {
-            // Same tab — consume pendingSearchScroll if set
-            consumePendingSearchScroll();
-          } else {
-            switchTab(existing);
+          if (window.doclight && window.doclight.readFileForTab) {
+            window.doclight.readFileForTab(resolvedHref).then(function (data) {
+              if (data.error) {
+                console.error('[doculight-tab] existing tab target unavailable:', data.error, 'href:', resolvedHref);
+                return;
+              }
+
+              tabs[existing].navigationTrail = nextTrail;
+              if (existing === activeTabIndex) {
+                applyBreadcrumbTrail(tabs[existing]);
+                // Same tab — consume pendingSearchScroll if set
+                consumePendingSearchScroll();
+              } else {
+                switchTab(existing);
+              }
+            });
           }
           return;
         }
@@ -78,8 +168,6 @@
           window.doclight.readFileForTab(resolvedHref).then(function (data) {
             if (data.error) {
               console.error('[doculight-tab] readFileForTab error:', data.error, 'href:', resolvedHref);
-              // Fallback to main process navigation
-              if (originalNavigateTo) originalNavigateTo(href);
               return;
             }
             console.log('[doculight-tab] creating new tab for:', data.filePath, 'tabs before:', tabs.length);
@@ -89,6 +177,7 @@
             if (currentTree) {
               data.sidebarTree = currentTree;
             }
+            data.navigationTrail = nextTrail;
             createTab(data);
           });
         }
@@ -126,6 +215,7 @@
       scrollTop: viewerContainer ? viewerContainer.scrollTop : 0,
       sidebarTree: state.sidebarTree || null,
       currentSidebarPath: state.currentFilePath || null,
+      navigationTrail: cloneTrail(state.navigationTrail || singleFileTrail(state.currentFilePath)),
       cachedAt: Date.now()
     };
 
@@ -168,6 +258,7 @@
       scrollTop: 0,
       sidebarTree: null,
       currentSidebarPath: null,
+      navigationTrail: [],
       cachedAt: Date.now()
     };
 
@@ -178,6 +269,7 @@
     updateTabBarVisibility();
 
     if (viewerContainer) viewerContainer.scrollTop = 0;
+    applyBreadcrumbTrail(tab);
   }
 
   function createTab(data) {
@@ -205,11 +297,13 @@
       scrollTop: 0,
       sidebarTree: data.sidebarTree || null,
       currentSidebarPath: data.filePath || null,
+      navigationTrail: cloneTrail(data.navigationTrail || singleFileTrail(data.filePath)),
       cachedAt: Date.now()
     };
 
     tabs.push(tab);
     activeTabIndex = tabs.length - 1;
+    applyBreadcrumbTrail(tab);
 
     if (data.sidebarTree && window.DocuLight && window.DocuLight.state) {
       window.DocuLight.state.sidebarTree = data.sidebarTree;
@@ -261,6 +355,7 @@
                 }
                 var updateHl = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.updateSidebarHighlight;
                 if (updateHl) updateHl(data.filePath);
+                applyBreadcrumbTrail(newTab);
                 renderTabBar();
               }
             });
@@ -286,7 +381,10 @@
     if (window.DocuLight && window.DocuLight.state) {
       window.DocuLight.state.currentFilePath = tab.filePath;
       window.DocuLight.state.sidebarTree = tab.sidebarTree;
+      window.DocuLight.state.navigationTrail = cloneTrail(tab.navigationTrail);
     }
+
+    applyBreadcrumbTrail(tab);
 
     if (tab.sidebarTree) {
       var renderSidebar = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.renderSidebarTree;
@@ -332,6 +430,61 @@
     // sidebarTree 동기화: 비동기로 설정된 트리를 탭에 반영
     if (window.DocuLight && window.DocuLight.state && window.DocuLight.state.sidebarTree) {
       tab.sidebarTree = window.DocuLight.state.sidebarTree;
+    }
+    if (window.DocuLight && window.DocuLight.state) {
+      tab.navigationTrail = cloneTrail(window.DocuLight.state.navigationTrail);
+    }
+  }
+
+  function navigateBreadcrumbToIndex(index) {
+    if (activeTabIndex < 0 || activeTabIndex >= tabs.length) return;
+    var activeTab = tabs[activeTabIndex];
+    var trail = cloneTrail(activeTab.navigationTrail);
+    if (!Number.isInteger(index) || index < 0 || index >= trail.length) return;
+
+    var target = trail[index];
+    var nextTrail = trail.slice(0, index + 1).map(function (item, idx, arr) {
+      item.index = idx;
+      item.current = idx === arr.length - 1;
+      return item;
+    });
+
+    if (target.filePath && window.doclight && window.doclight.readFileForTab) {
+      window.doclight.readFileForTab(target.filePath).then(function (data) {
+        if (data.error) {
+          console.error('[doculight-tab] breadcrumb readFileForTab error:', data.error, 'path:', target.filePath);
+          return;
+        }
+
+        activeTab.navigationTrail = nextTrail;
+        activeTab.filePath = data.filePath || target.filePath;
+        activeTab.title = data.title || activeTab.title;
+        activeTab.currentSidebarPath = data.filePath || target.filePath;
+        activeTab.cachedAt = Date.now();
+        if (data.sidebarTree) activeTab.sidebarTree = data.sidebarTree;
+
+        if (window.DocuLight && window.DocuLight.state) {
+          window.DocuLight.state.currentFilePath = data.filePath || target.filePath;
+          window.DocuLight.state.imageBasePath = data.imageBasePath || null;
+          if (data.platform) window.DocuLight.state.platform = data.platform;
+        }
+
+        var renderFn = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.renderMarkdown;
+        if (renderFn) renderFn(data.markdown);
+
+        var contentEl = document.getElementById('content');
+        activeTab.renderedHtml = contentEl ? contentEl.innerHTML : '';
+        activeTab.scrollTop = 0;
+
+        var viewerContainer = document.getElementById('viewer-container');
+        if (viewerContainer) viewerContainer.scrollTop = 0;
+
+        applyBreadcrumbTrail(activeTab);
+
+        var updateHl = window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.updateSidebarHighlight;
+        if (updateHl) updateHl(activeTab.currentSidebarPath);
+        renderTabBar();
+      });
     }
   }
 
@@ -461,6 +614,7 @@
     createTab: createTab,
     isEnabled: isEnabled,
     getActiveTabIndex: getActiveTabIndex,
+    navigateBreadcrumbToIndex: navigateBreadcrumbToIndex,
     renderTabBar: renderTabBar
   });
 })();

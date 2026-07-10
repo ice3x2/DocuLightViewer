@@ -1,0 +1,48 @@
+{
+  "run_id": "2026-07-01.doculight-broken-link-policy",
+  "iter": 1,
+  "evaluator": "subagent:Hypatia",
+  "grade": "B+",
+  "summary": {
+    "CRITICAL": 0,
+    "HIGH": 1,
+    "MEDIUM": 1,
+    "LOW": 2
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "axis": "internal_coherence",
+      "req_id": "DR-DOC-011 / CON-DOC-003",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:2906",
+      "description": "DR-DOC-011 still used split skipped_cycle/skipped_depth/skipped_limit statuses while CON-DOC-003 required canonical skipped plus diagnostic code.",
+      "resolution": "Added DR-DOC-012 superseding DR-DOC-011 with canonical edge status enum and diagnostic_code."
+    },
+    {
+      "severity": "MEDIUM",
+      "axis": "internal_coherence",
+      "req_id": "CON-DOC-003",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:3192",
+      "description": "CON-DOC-003 did not clearly distinguish save_document enabling later background reconciliation from MCP-triggered synchronous reconciliation controls.",
+      "resolution": "Added CON-DOC-004 superseding CON-DOC-003 and clarified ordinary post-save indexing enqueue versus MCP reconciliation controls."
+    },
+    {
+      "severity": "LOW",
+      "axis": "trace",
+      "req_id": "CON-DOC-003",
+      "evidence_path": "docs/spec/60.document-persistence.srs.md:3216",
+      "description": "Trace referenced test/test-link-extraction.js:L10-L87 although the file currently has 78 lines.",
+      "resolution": "CON-DOC-004 and DR-DOC-012 use test/test-link-extraction.js:L10-L78."
+    },
+    {
+      "severity": "LOW",
+      "axis": "delta",
+      "req_id": null,
+      "evidence_path": "docs/research/knowledge_store/knowledge.md:717",
+      "description": "Registered Wave 2 requirement list omitted new linked-import and broken-link requirements.",
+      "resolution": "Updated research list to include CON-DOC-002, FR-DOC-030, DR-DOC-012, and CON-DOC-004."
+    }
+  ],
+  "gate_result": "failed",
+  "next_action": "Run strict validation and second sub-agent evaluation after superseding DR-DOC-011 and CON-DOC-003."
+}

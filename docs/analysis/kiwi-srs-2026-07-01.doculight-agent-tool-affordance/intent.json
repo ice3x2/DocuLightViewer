@@ -1,0 +1,32 @@
+{
+  "summary": "Add Wave 2 MCP tool affordance and client-profile conformance requirements so Codex, Claude Code, OpenCode, OpenClo/OpenClaw, Hermes-style clients, and small-to-frontier models select and use save_document and smart_search reliably.",
+  "intent_type_hint": "new-feature",
+  "key_entities": [
+    "save_document",
+    "smart_search",
+    "MCP tools/list",
+    "tool descriptions",
+    "strict input schemas",
+    "client-profile conformance",
+    "small local models",
+    "frontier models",
+    "Codex",
+    "Claude Code",
+    "OpenCode",
+    "OpenClo/OpenClaw",
+    "Hermes"
+  ],
+  "ambiguities": [],
+  "implied_requirements": [
+    "No new MCP tools beyond the existing eight-tool Wave 2 contract.",
+    "Conformance fixtures should be deterministic and should not require live external LLM clients.",
+    "Validation errors must be corrective but redacted."
+  ],
+  "semantic_equivalences": [
+    {
+      "prompt_term": "OpenClo",
+      "interpreted_as": "OpenClo/OpenClaw-style MCP-capable agent gateway profile",
+      "confidence": "medium"
+    }
+  ]
+}

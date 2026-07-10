@@ -1,0 +1,60 @@
+{
+  "run_id": "2026-06-29.doculight-smart-search-srs",
+  "subagent_reviewers_completed": [
+    "Jason",
+    "Turing",
+    "Volta",
+    "Faraday",
+    "Leibniz"
+  ],
+  "grades_before_resolution": {
+    "product_research_alignment": "A-",
+    "mcp_contract": "A",
+    "data_indexing_search": "A-",
+    "security_operations": "A",
+    "code_alignment": "A"
+  },
+  "findings_resolved": [
+    {
+      "finding": "knowledge.md still mixed the baseline MCP parity requirement with the smart_search parity requirement.",
+      "resolution": "Updated Wave 2 entry conditions so CON-MCP-002 remains the six-tool baseline and CON-MCP-003 owns seven-tool smart_search parity."
+    },
+    {
+      "finding": "Research IPC candidate list omitted compactSearchIndex while IR-APP-010 required it.",
+      "resolution": "Added Compact index and compactSearchIndex to the Settings Indexing Panel research section."
+    },
+    {
+      "finding": "OPS-ARCH-005 implied all OS/arch smoke targets were release-gating while OPS-ARCH-006 and the index decision split release-gating from best-effort.",
+      "resolution": "Aligned OPS-ARCH-005 and knowledge.md to release-gating Windows x64, macOS arm64, Linux x64, with Windows arm64, macOS x64, and Linux arm64 best-effort or skipped artifact."
+    },
+    {
+      "finding": "Target 0.11.0-w1/0.11.0-w2 requirements still had placeholder Research / Analysis sections.",
+      "resolution": "Filled Research / Analysis for OPS-ARCH-004, IR-MCP-013, FR-DOC-018, IR-APP-010, DR-APP-002, SEC-APP-003, FR-DOC-019, DR-DOC-007, and FR-DOC-020."
+    },
+    {
+      "finding": "Research used generic tags/tags_json while SRS finalized documentTags/document_tags_json.",
+      "resolution": "Updated knowledge.md frontmatter, component descriptions, event flow, SQLite schema, FTS fields, and candidate names to documentTags/document_tags_json/document_tags."
+    },
+    {
+      "finding": "knowledge.md still used stale target wording from the 0.10.16 baseline.",
+      "resolution": "Changed the research metadata target to 0.11.0-w1 and 0.11.0-w2, and clarified that 0.10.16 is only the baseline while 0.11.0-w1/0.11.0-w2 are the active follow-up targets."
+    },
+    {
+      "finding": "IR-APP-010 pointed to the wrong preload.js line range for settings bridge additions.",
+      "resolution": "Changed the trace from preload.js:L149-L181 to preload.js:L132-L134, the current getSettings/saveSettings bridge location."
+    }
+  ],
+  "validation_after_resolution": {
+    "mcp_validate_spec": {
+      "strict": true,
+      "failOnWarning": true,
+      "errors": 0,
+      "warnings": 0
+    },
+    "cli_speckiwi_validate_json": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "target_research_analysis_placeholders": 0
+  }
+}

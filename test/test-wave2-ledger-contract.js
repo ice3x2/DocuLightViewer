@@ -1140,6 +1140,13 @@ class FakeAnnHierarchicalNSW {
     wave2Assert(engineJobs[0].requestedBy === 'test.latest', 'latest-wins job keeps the latest requested_by');
     const latestFtsMatch = engineLedger.open().prepare("SELECT COUNT(*) AS count FROM chunk_fts WHERE chunk_fts MATCH '최신색인'").get();
     wave2Assert(latestFtsMatch.count >= 1, 'SearchEngine post-save queue writes tokenizer-normalized smart index text');
+    const semanticActiveDocumentBefore = engineLedger.findDocumentByCanonicalPath({
+      canonicalPathInternal: queuedPath
+    });
+    wave2Assert(
+      semanticActiveDocumentBefore && semanticActiveDocumentBefore.contentHash,
+      'active source ledger document has a content fingerprint before semantic reindex enqueue'
+    );
     wave2Assert(
       typeof engine.queueSemanticReindexForActiveDocuments === 'function',
       'SearchEngine exposes settings-triggered semantic reindex enqueue for active documents'
@@ -1147,9 +1154,143 @@ class FakeAnnHierarchicalNSW {
     const semanticReindex = engine.queueSemanticReindexForActiveDocuments({ requestedBy: 'test.semantic.registration' });
     wave2Assert(semanticReindex.queued >= 1, 'embedding registration enqueues active documents for semantic indexing');
     wave2Assert(
+      semanticReindex.jobs.some((job) => job.documentId),
+      'semantic registration preserves active ledger document identity when scanned Markdown paths overlap'
+    );
+    wave2Assert(
       semanticReindex.jobs.every((job) => job.requestedBy === 'test.semantic.registration'),
       'semantic registration jobs preserve requested_by for settings diagnostics'
     );
+    const semanticActiveDocumentAfter = engineLedger.getDocument(semanticActiveDocumentBefore.documentId);
+    wave2Assert(
+      semanticActiveDocumentAfter &&
+        semanticActiveDocumentAfter.contentHash === semanticActiveDocumentBefore.contentHash &&
+        semanticActiveDocumentAfter.contentByteLength === semanticActiveDocumentBefore.contentByteLength &&
+        semanticActiveDocumentAfter.normalizedTextHash === semanticActiveDocumentBefore.normalizedTextHash,
+      'semantic registration does not clear active source ledger document fingerprints while enqueueing reindex jobs'
+    );
+    const failingQueueDocs = path.join(tmp, 'semantic-failing-docs');
+    fs.mkdirSync(failingQueueDocs, { recursive: true });
+    const failingQueuePath = path.join(failingQueueDocs, 'failing.md');
+    fs.writeFileSync(failingQueuePath, '# Failing\n\nsemantic enqueue failure', 'utf-8');
+    const failingQueueEngine = new SearchEngine({
+      get(key, defaultValue) {
+        if (key === 'mcpAutoSavePath') return failingQueueDocs;
+        if (key === 'mcpAutoSave') return true;
+        return defaultValue;
+      }
+    }, {
+      indexBackend: 'sqlite',
+      indexDataDir: path.join(tmp, 'semantic-failing-userData', 'index'),
+      smartIndexDelayMs: 60000
+    });
+    failingQueueEngine.recordSavedDocument({ filePath: failingQueuePath, content: '# Failing\n\nsemantic enqueue failure' });
+    failingQueueEngine.queueKnownDocumentIndex = () => ({ queued: false, reason: 'forced-enqueue-failure' });
+    const failedSemanticReindex = failingQueueEngine.queueSemanticReindexForActiveDocuments({
+      requestedBy: 'test.semantic.enqueue-failure'
+    });
+    wave2Assert(
+      failedSemanticReindex.reason === 'semantic-reindex-enqueue-failed' &&
+        failedSemanticReindex.failures &&
+        failedSemanticReindex.failures[0] &&
+        failedSemanticReindex.failures[0].reason === 'forced-enqueue-failure',
+      'embedding registration reports hard semantic reindex enqueue failures before provider settings are persisted'
+    );
+    failingQueueEngine.close();
+    const partialQueueDocs = path.join(tmp, 'semantic-partial-docs');
+    fs.mkdirSync(partialQueueDocs, { recursive: true });
+    const partialQueueFirstPath = path.join(partialQueueDocs, 'first.md');
+    const partialQueueSecondPath = path.join(partialQueueDocs, 'second.md');
+    fs.writeFileSync(partialQueueFirstPath, '# First\n\nsemantic partial success', 'utf-8');
+    fs.writeFileSync(partialQueueSecondPath, '# Second\n\nsemantic partial failure', 'utf-8');
+    const partialQueueEngine = new SearchEngine({
+      get(key, defaultValue) {
+        if (key === 'mcpAutoSavePath') return partialQueueDocs;
+        if (key === 'mcpAutoSave') return true;
+        return defaultValue;
+      }
+    }, {
+      indexBackend: 'sqlite',
+      indexDataDir: path.join(tmp, 'semantic-partial-userData', 'index'),
+      smartIndexDelayMs: 60000
+    });
+    partialQueueEngine.recordSavedDocument({ filePath: partialQueueFirstPath, content: '# First\n\nsemantic partial success' });
+    partialQueueEngine.recordSavedDocument({ filePath: partialQueueSecondPath, content: '# Second\n\nsemantic partial failure' });
+    const originalPartialQueueDocumentIndex = partialQueueEngine.queueKnownDocumentIndex.bind(partialQueueEngine);
+    let partialQueueCalls = 0;
+    partialQueueEngine.queueKnownDocumentIndex = (input) => {
+      partialQueueCalls += 1;
+      if (partialQueueCalls === 1) return originalPartialQueueDocumentIndex(input);
+      return { queued: false, reason: 'forced-second-enqueue-failure' };
+    };
+    const partialSemanticReindex = partialQueueEngine.queueSemanticReindexForActiveDocuments({
+      requestedBy: 'test.semantic.partial-failure'
+    });
+    const partialQueuedJobs = partialQueueEngine._getSourceLedger()
+      .getIndexJobs({ status: 'queued' })
+      .filter((job) => job.requestedBy === 'test.semantic.partial-failure');
+    wave2Assert(
+      partialSemanticReindex.reason === 'semantic-reindex-enqueue-failed' &&
+        partialSemanticReindex.rolledBack === 1 &&
+        partialQueuedJobs.length === 0 &&
+        partialQueueEngine._smartIndexQueue.size === 0,
+      'embedding registration rolls back semantic jobs that were queued before a later enqueue failure'
+    );
+    partialQueueEngine.close();
+    const unconfiguredSourceEngine = new SearchEngine({
+      get(key, defaultValue) {
+        if (key === 'mcpAutoSavePath') return '';
+        if (key === 'mcpAutoSave') return false;
+        return defaultValue;
+      }
+    }, {
+      indexBackend: 'sqlite',
+      indexDataDir: path.join(tmp, 'unconfigured-source-userData', 'index'),
+      smartIndexDelayMs: 60000
+    });
+    const skippedSemanticReindex = unconfiguredSourceEngine.queueSemanticReindexForActiveDocuments({
+      requestedBy: 'test.semantic.unconfigured-source'
+    });
+    wave2Assert(
+      skippedSemanticReindex.skipped === true &&
+        skippedSemanticReindex.reason === 'source-root-unconfigured' &&
+        skippedSemanticReindex.queued === 0,
+      'embedding registration skips semantic reindex without failing when the document store source root is not configured'
+    );
+    unconfiguredSourceEngine.close();
+
+    const staleRootA = path.join(tmp, 'semantic-stale-root-a');
+    const staleRootB = path.join(tmp, 'semantic-stale-root-b');
+    fs.mkdirSync(staleRootA, { recursive: true });
+    fs.mkdirSync(staleRootB, { recursive: true });
+    let currentSemanticRoot = staleRootA;
+    const staleOldPath = path.join(staleRootA, 'old.md');
+    const staleNewPath = path.join(staleRootB, 'new.md');
+    fs.writeFileSync(staleOldPath, '# Old\n\nold source root', 'utf-8');
+    fs.writeFileSync(staleNewPath, '# New\n\nnew source root', 'utf-8');
+    const staleRootEngine = new SearchEngine({
+      get(key, defaultValue) {
+        if (key === 'mcpAutoSavePath') return currentSemanticRoot;
+        if (key === 'mcpAutoSave') return true;
+        return defaultValue;
+      }
+    }, {
+      indexBackend: 'sqlite',
+      indexDataDir: path.join(tmp, 'semantic-stale-root-userData', 'index'),
+      smartIndexDelayMs: 60000
+    });
+    staleRootEngine.recordSavedDocument({ filePath: staleOldPath, content: '# Old\n\nold source root' });
+    currentSemanticRoot = staleRootB;
+    staleRootEngine.resetForSourceRootChange();
+    const staleRootSemanticReindex = staleRootEngine.queueSemanticReindexForActiveDocuments({
+      requestedBy: 'test.semantic.stale-root'
+    });
+    wave2Assert(
+      staleRootSemanticReindex.queued >= 1 &&
+        staleRootSemanticReindex.jobs.some((job) => job.sourceRelativePath === 'new.md'),
+      'embedding registration scans the current document store root when stale active ledger rows belong to a previous root'
+    );
+    staleRootEngine.close();
 
     const resumeContent = '# Resume\n\nstartup resume content';
     const resumePath = path.join(engineDocs, 'resume.md');

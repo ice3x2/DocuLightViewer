@@ -1,0 +1,19 @@
+{
+  "run_id": "2026-07-02.doculight.0-11-0-w2",
+  "type": "manual-planner-self-check-before-subagent-review",
+  "summary": {
+    "phase_count": 10,
+    "task_count": 10,
+    "covered_requirements": 29,
+    "unreferenced_requirements": 0,
+    "deferred_ac": 0,
+    "critical_policy_locks": [
+      "redaction-before-external-responses",
+      "sqlite-ledger-before-save-search",
+      "resolved-only-link-ranking",
+      "settings-only-indexing-controls",
+      "mcp-eight-tools-only"
+    ]
+  },
+  "findings": []
+}

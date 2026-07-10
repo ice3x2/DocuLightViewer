@@ -1,0 +1,144 @@
+{
+  "classification": "update",
+  "mode": "live",
+  "target": "0.11.0-w2",
+  "added_ids": [
+    "FR-APP-011",
+    "FR-DOC-024",
+    "FR-DOC-025",
+    "IR-MCP-015",
+    "CON-MCP-004"
+  ],
+  "discarded_ids": [
+    "IR-MCP-014",
+    "CON-MCP-003"
+  ],
+  "demoted_ids": [],
+  "mcp_calls": [
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-APP-011",
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-024",
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "FR-DOC-025",
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "IR-MCP-015",
+      "ok": true
+    },
+    {
+      "tool": "add_requirement",
+      "result_id": "CON-MCP-004",
+      "ok": true
+    },
+    {
+      "tool": "update_status",
+      "args": {
+        "id": "IR-MCP-014",
+        "status": "discarded"
+      },
+      "ok": true
+    },
+    {
+      "tool": "update_status",
+      "args": {
+        "id": "CON-MCP-003",
+        "status": "discarded"
+      },
+      "ok": true
+    },
+    {
+      "tool": "update_status",
+      "args": {
+        "ids": [
+          "FR-APP-011",
+          "FR-DOC-024",
+          "FR-DOC-025",
+          "IR-MCP-015",
+          "CON-MCP-004"
+        ],
+        "status": "planned"
+      },
+      "ok": true,
+      "notes": "SpecKiwi validator rejects proposed status in this repository; planned matches existing Wave 2 SRS lifecycle."
+    },
+    {
+      "tool": "add_trace_link",
+      "args": {
+        "summary": "Added requirement relations and code trace links for all new requirements."
+      },
+      "ok": true
+    }
+  ],
+  "scope_doc_edits": [
+    {
+      "file": "docs/spec/20.app-shell.srs.md",
+      "section": "§4 Requirements",
+      "op": "append",
+      "ids": [
+        "FR-APP-011"
+      ]
+    },
+    {
+      "file": "docs/spec/50.mcp-integration.srs.md",
+      "section": "§4 Requirements",
+      "op": "append/update-status",
+      "ids": [
+        "IR-MCP-015",
+        "CON-MCP-004",
+        "IR-MCP-014",
+        "CON-MCP-003"
+      ]
+    },
+    {
+      "file": "docs/spec/60.document-persistence.srs.md",
+      "section": "§4 Requirements",
+      "op": "append",
+      "ids": [
+        "FR-DOC-024",
+        "FR-DOC-025"
+      ]
+    },
+    {
+      "file": "docs/spec/00.index.md",
+      "section": "§5-§6 summaries",
+      "op": "manual count sync after validate warnings"
+    }
+  ],
+  "validate_spec_result": {
+    "ok": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "summary_after": {
+    "countsByStatus": {
+      "planned": 22,
+      "discarded": 2,
+      "verified": 1
+    },
+    "countsByType": {
+      "operational": 2,
+      "constraint": 3,
+      "data": 5,
+      "security": 3,
+      "functional": 9,
+      "interface": 2,
+      "reliability": 1
+    },
+    "total": 25
+  },
+  "oos_changes": {
+    "removed": [],
+    "added": []
+  },
+  "unresolved_user_required_oqs": []
+}

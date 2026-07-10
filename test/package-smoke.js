@@ -19,6 +19,7 @@ const WAVE2_TYPED_TOOLS = Object.freeze([
   'save_document',
   'smart_search'
 ]);
+const FORBIDDEN_INDEXING_CONTROL_TOOL_RE = /(?:^|_)(?:rebuild|clear|retry|cancel|status|import|reconcil\w*|model_change|reindex)(?:_|$)/i;
 const WAVE2_CLIENT_PROFILE_ORACLE = Object.freeze(JSON.parse(fs.readFileSync(WAVE2_CLIENT_PROFILE_ORACLE_PATH, 'utf-8')));
 const WAVE2_REDACTION_FIXTURE = Object.freeze({
   raw: 'raw gitContextPath C:\\Users\\Example\\repo api_key=secret',
@@ -108,14 +109,89 @@ function collectNodeFiles(dir) {
   return out;
 }
 
+function makePackageSmokeIpcPath(label) {
+  const safeLabel = String(label || 'app').replace(/[^a-z0-9_-]/gi, '-');
+  if (platform === 'win32') {
+    return `\\\\.\\pipe\\doculight-package-smoke-${process.pid}-${safeLabel}-${Date.now()}`;
+  }
+  return path.join(os.tmpdir(), `doculight-package-smoke-${process.pid}-${safeLabel}-${Date.now()}.sock`);
+}
+
+function sanitizeProcessOutputForFailure(value) {
+  return String(value || '')
+    .slice(0, 4000)
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)([^/?#\s"'<>@]+)@/gi, '$1[REDACTED]@')
+    .replace(/\b[A-Za-z]:[\\/](?:[^\s"'<>|]+[\\/]?)+/g, '[REDACTED_PATH]')
+    .replace(/\\\\[^\\/\s]+[\\/][^\\/\s]+(?:[\\/][^\s"'<>|]+)*/g, '[REDACTED_PATH]')
+    .replace(/(^|[\s"'=:])\/(?:Users|home|tmp|temp|var|private|mnt|Volumes|Work)\b[^\s"'<>]*/g, '$1[REDACTED_PATH]')
+    .replace(/(api[_-]?key|token|password|bearer)=([^\s"'&]+)/gi, '$1=[REDACTED]');
+}
+
+const sanitizedFailureFixture = sanitizeProcessOutputForFailure('https://user:password@example.test/v1?token=rawsecret C:\\Users\\secret\\doc.md');
+assert(!sanitizedFailureFixture.includes('user:password'), 'package smoke failure sanitizer redacts URL userinfo credentials');
+assert(!sanitizedFailureFixture.includes('token=rawsecret'), 'package smoke failure sanitizer redacts URL query credentials');
+assert(!sanitizedFailureFixture.includes('C:\\Users\\secret'), 'package smoke failure sanitizer redacts Windows absolute paths');
+
+function containsRawSensitiveText(text, values) {
+  const haystack = String(text || '');
+  return values.some((value) => {
+    if (value == null) return false;
+    const raw = String(value);
+    const escaped = JSON.stringify(raw).slice(1, -1);
+    return haystack.includes(raw) || haystack.includes(escaped);
+  });
+}
+
+function containsRawArtifactEcho(text) {
+  const haystack = String(text || '');
+  return /\b[A-Za-z]:(?:\\{1,2}|\/)[^\r\n"'<>|?*,;]+/.test(haystack) ||
+    /\\{2,}[^\\/\r\n"'<>|?*,;]+(?:\\{1,2}|\/)[^\r\n"'<>|?*,;]+/.test(haystack) ||
+    /(^|[":\s])\/(?:Users|home|tmp|temp|var|private|mnt|Volumes|Work)\b/.test(haystack) ||
+    /api[_-]?key=secret|token=rawsecret|password=rawsecret|bearer=rawsecret|user:password/i.test(haystack) ||
+    containsRawSensitiveText(haystack, [
+      'C:\\Users\\secret',
+      'C:\\Users\\Example',
+      'token=rawsecret',
+      'api_key=secret',
+      'password=rawsecret',
+      'bearer=rawsecret',
+      'user:password'
+    ]);
+}
+
+function normalizeMcpToolNameForPolicy(name) {
+  return String(name || '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[-\s]+/g, '_')
+    .toLowerCase();
+}
+
+function isForbiddenIndexingControlToolName(name) {
+  return FORBIDDEN_INDEXING_CONTROL_TOOL_RE.test(normalizeMcpToolNameForPolicy(name));
+}
+
 function runSmoke(exePath, artifactPath) {
   return new Promise((resolve, reject) => {
+    const smokeIpcPath = makePackageSmokeIpcPath('app');
+    const smokeUserDataDir = path.join(os.tmpdir(), `doculight-package-smoke-user-data-${process.pid}-${Date.now()}`);
+    if (platform !== 'win32') {
+      try { fs.unlinkSync(smokeIpcPath); } catch { /* ignore */ }
+    }
+    fs.mkdirSync(smokeUserDataDir, { recursive: true });
+    const cleanup = () => {
+      if (platform !== 'win32') {
+        try { fs.unlinkSync(smokeIpcPath); } catch { /* ignore */ }
+      }
+      try { fs.rmSync(smokeUserDataDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    };
     const child = spawn(exePath, ['--package-smoke'], {
       cwd: root,
       env: {
         ...process.env,
         DOCULIGHT_PACKAGE_SMOKE: '1',
-        DOCULIGHT_PACKAGE_SMOKE_OUT: artifactPath
+        DOCULIGHT_PACKAGE_SMOKE_OUT: artifactPath,
+        DOCULIGHT_IPC_PATH: smokeIpcPath,
+        DOCULIGHT_DEFAULT_USER_DATA_DIR: smokeUserDataDir
       },
       windowsHide: true
     });
@@ -123,22 +199,26 @@ function runSmoke(exePath, artifactPath) {
     let stdout = '';
     let stderr = '';
     const timer = setTimeout(() => {
+      cleanup();
       child.kill('SIGKILL');
-      reject(new Error(`Package smoke timed out. stdout=${stdout} stderr=${stderr}`));
+      reject(new Error(`Package smoke timed out. stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
     }, 30000);
 
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (err) => {
       clearTimeout(timer);
-      reject(err);
+      cleanup();
+      reject(new Error(`Package smoke failed to spawn packaged app: ${sanitizeProcessOutputForFailure(err && err.message ? err.message : String(err))}`));
     });
     child.on('exit', (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`Package smoke exited ${code}. stdout=${stdout} stderr=${stderr}`));
+        cleanup();
+        reject(new Error(`Package smoke exited ${code}. stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
         return;
       }
+      cleanup();
       resolve({ stdout, stderr });
     });
   });
@@ -196,6 +276,9 @@ function validateWave2PackageToolContracts(tools, stdioSource, bundleSource) {
     assert(!names.includes(forbidden), `package smoke HTTP tools/list omits forbidden tool ${forbidden}`);
     assert(!stdioSource.includes(`'${forbidden}'`) && !stdioSource.includes(`"${forbidden}"`), `package smoke stdio source omits forbidden tool ${forbidden}`);
     assert(!bundleSource.includes(`"${forbidden}"`) && !bundleSource.includes(`'${forbidden}'`), `package smoke bundle omits forbidden tool ${forbidden}`);
+  }
+  for (const name of names) {
+    assert(!isForbiddenIndexingControlToolName(name), `package smoke HTTP tool ${name} is not an indexing control or status tool`);
   }
   for (const [label, source, terms] of [
     ['stdio save_document', normalizedStdioSource, [
@@ -312,7 +395,7 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
 
 (async () => {
   const exePath = findPackagedApp();
-  assert(fs.existsSync(exePath), `packaged app exists: ${exePath}`);
+  assert(fs.existsSync(exePath), 'packaged app exists at the expected packaged output path');
 
   assert(WAVE2_TYPED_TOOLS.includes('save_document') && WAVE2_TYPED_TOOLS.includes('smart_search'), 'Wave 2 typed save/search tools are declared');
   assert(WAVE2_REDACTION_FIXTURE.raw.includes('gitContextPath'), 'raw gitContextPath redaction fixture is declared');
@@ -388,6 +471,34 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
       'package smoke runs the packaged search-index-worker.js through a real document indexing job'
     );
     assert(artifact.workerNative.electronAbi || artifact.workerNative.nodeAbi || process.versions.modules, 'package smoke workerNative records Electron ABI or Node ABI diagnostics');
+    assert(artifact.packagedCliStdio && artifact.packagedCliStdio.status === 'passed', 'package smoke packaged --mcp-stdio client passes');
+    assert(
+      ['direct-executable-mcp-stdio', 'windows-electron-run-as-node-asar-index'].includes(artifact.packagedCliStdio.launchMode),
+      'package smoke records the packaged CLI stdio launch mode'
+    );
+    assert.deepStrictEqual(artifact.packagedCliStdio.toolNames, WAVE2_TYPED_TOOLS.slice().sort(), 'package smoke packaged --mcp-stdio exposes exact eight-tool set');
+    assert.deepStrictEqual(artifact.packagedCliStdio.httpToolNames, WAVE2_TYPED_TOOLS.slice().sort(), 'package smoke HTTP tools/list matches packaged --mcp-stdio tool set');
+    assert.strictEqual(artifact.packagedCliStdio.stdoutPurity, 'mcp_jsonrpc_only', 'package smoke packaged --mcp-stdio stdout remains MCP JSON-RPC only');
+    assert.strictEqual(artifact.packagedCliStdio.stdoutNonJsonLineCount, 0, 'package smoke packaged --mcp-stdio raw stdout has no non-JSON lines');
+    assert(artifact.packagedCliStdio.stdoutJsonRpcMessageCount >= 2, 'package smoke packaged --mcp-stdio raw stdout records JSON-RPC messages');
+    assert.strictEqual(artifact.packagedCliStdio.initializeHandshake, true, 'package smoke packaged --mcp-stdio raw probe verifies initialize handshake');
+    assert.strictEqual(artifact.packagedCliStdio.initializedNotification, true, 'package smoke packaged --mcp-stdio raw probe sends initialized notification');
+    assert(Number.isInteger(artifact.packagedCliStdio.stderrByteCount) && artifact.packagedCliStdio.stderrByteCount >= 0, 'package smoke packaged --mcp-stdio records stderr byte count');
+    assert.deepStrictEqual(artifact.packagedCliStdio.rawProbeToolNames, WAVE2_TYPED_TOOLS.slice().sort(), 'package smoke raw stdio probe sees exact eight-tool set');
+    for (const name of artifact.packagedCliStdio.rawProbeToolNames) {
+      assert(!isForbiddenIndexingControlToolName(name), `package smoke raw stdio tool ${name} is not an indexing control or status tool`);
+    }
+    assert.strictEqual(artifact.packagedCliStdio.redactedEndpointClass, '[REDACTED_MCP_IPC:explicit]', 'package smoke packaged --mcp-stdio records redacted endpoint class');
+    assert.strictEqual(artifact.packagedCliStdio.noIndexingControls, true, 'package smoke packaged --mcp-stdio exposes no indexing controls');
+    assert.strictEqual(artifact.packagedCliStdio.saveDocument.saved, true, 'package smoke packaged --mcp-stdio save_document succeeds');
+    assert.strictEqual(artifact.packagedCliStdio.smartSearch.found, true, 'package smoke packaged --mcp-stdio smart_search finds the saved marker');
+    assert.strictEqual(artifact.packagedCliStdio.httpSearchDocuments.found, true, 'package smoke HTTP search_documents finds the marker saved by packaged --mcp-stdio');
+    assert.strictEqual(artifact.packagedCliStdio.invalidSaveDocument.rejected, true, 'package smoke packaged --mcp-stdio rejects invalid save_document');
+    assert.strictEqual(artifact.packagedCliStdio.invalidSaveDocument.rawEchoFree, true, 'package smoke packaged --mcp-stdio invalid save_document is redacted');
+    assert.strictEqual(artifact.packagedCliStdio.invalidSmartSearch.pathPrefixRejected, true, 'package smoke packaged --mcp-stdio rejects unsafe smart_search pathPrefix');
+    assert.strictEqual(artifact.packagedCliStdio.invalidSmartSearch.rawEchoFree, true, 'package smoke packaged --mcp-stdio invalid smart_search is redacted');
+    assert.strictEqual(artifact.packagedCliStdio.crossTransportMarkerIdentity.markerSearchedBy, 'http-search_documents', 'package smoke searches the CLI-saved marker through HTTP search_documents');
+    assert.strictEqual(artifact.packagedCliStdio.crossTransportMarkerIdentity.matched, true, 'package smoke packaged CLI stdio and HTTP evidence share marker identity');
     assert.strictEqual(artifact.redactionFixture && artifact.redactionFixture.allClassesCovered, true, 'package smoke redaction fixture covers required path and credential classes');
     assert.strictEqual(artifact.redactionFixture.rawEchoFree, true, 'package smoke redaction fixture does not echo raw values');
     assert.strictEqual(artifact.clientProfileOracle.version, 'wave2-client-profile-oracles.v1', 'package smoke artifact includes client-profile oracle version');
@@ -395,10 +506,7 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
     assert(artifact.clientProfileOracle.defaultSerializedBytes <= WAVE2_OUTPUT_CAP_CEILINGS.defaultSerializedBytes, 'package smoke artifact preserves default serialized cap');
     assert(String(artifact.indexPath || '').startsWith('[REDACTED_PATH:'), 'package smoke artifact stores redacted index path token');
     const serializedArtifact = JSON.stringify(artifact);
-    assert(!/\b[A-Za-z]:[\\/](?![\\/])/.test(serializedArtifact), 'package smoke artifact does not expose Windows absolute paths');
-    assert(!/\\\\[^\\/\s]+[\\/][^\\/\s]+/.test(serializedArtifact), 'package smoke artifact does not expose UNC paths');
-    assert(!/(^|[":\s])\/(?:Users|home|tmp|temp|var|private|mnt|Volumes|Work)\b/.test(serializedArtifact), 'package smoke artifact does not expose POSIX absolute paths');
-    assert(!/api[_-]?key=secret|token=rawsecret|password=rawsecret|bearer=rawsecret|user:password/i.test(serializedArtifact), 'package smoke artifact does not expose raw credential values');
+    assert(!containsRawArtifactEcho(serializedArtifact), 'package smoke artifact does not expose raw absolute paths or credentials, including JSON-escaped values');
     if (hnswNativeStatus === 'optional_missing') {
       assert.strictEqual(hnswNativeStatus, 'optional_missing', 'optional hnswlib-node absence is recorded as degraded package state');
     }

@@ -1,0 +1,64 @@
+{
+  "runId": "2026-07-01.doculight-agent-tool-affordance",
+  "iter": 1,
+  "inputRequirement": "CON-MCP-008",
+  "outputRequirement": "CON-MCP-009",
+  "mcpCalls": [
+    {
+      "tool": "add_requirement",
+      "ok": true,
+      "resultId": "CON-MCP-009",
+      "filePath": "docs/spec/50.mcp-integration.srs.md",
+      "notes": "Supersedes CON-MCP-008 with evaluator fixes."
+    },
+    {
+      "tool": "update_status",
+      "ok": true,
+      "id": "CON-MCP-008",
+      "status": "discarded"
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 2,
+        "warningCodes": [
+          "SRS-W019",
+          "SRS-W020"
+        ],
+        "resolution": "docs/spec/00.index.md discarded and constraint counts plus CON-MCP-009 cross-scope row were updated."
+      }
+    },
+    {
+      "tool": "validate_spec",
+      "ok": true,
+      "result": {
+        "errors": 0,
+        "warnings": 0
+      }
+    }
+  ],
+  "changes": [
+    {
+      "finding": "Canonical broken-link status drift",
+      "resolution": "AC-13 uses exact DR-DOC-013 non-resolved statuses: missing, external, path_policy_violation, skipped, ambiguous, stale. AC-14 states resolved is the only ranking/filter status and unresolved is aggregate prose only."
+    },
+    {
+      "finding": "Output bounds not fully measurable",
+      "resolution": "AC-10 requires explicit numeric fixture oracle caps for snippet text, heading path length, warning count, diagnostic count, trace count, per-result score-detail fields, and serialized response size."
+    },
+    {
+      "finding": "Golden intent fixture oracle implied",
+      "resolution": "AC-5 requires machine-readable oracle fields including expected tool, rejected tools, minimal args, envelope shape, error shape, diagnostics, and redactions."
+    }
+  ],
+  "indexSync": {
+    "file": "docs/spec/00.index.md",
+    "planned": 28,
+    "discarded": 33,
+    "constraint": 24,
+    "activeRequirement": "CON-MCP-009"
+  },
+  "goldenRule": "No manual apply_patch edits were made to docs/spec/50.mcp-integration.srs.md after SpecKiwi MCP mutations; only docs/spec/00.index.md and analysis logs were manually synchronized."
+}

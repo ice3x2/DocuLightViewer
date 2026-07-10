@@ -22,6 +22,10 @@ const bundleSource = fs.existsSync(path.join(root, 'src/main/mcp-server.bundle.m
 const packageSmoke = fs.existsSync(path.join(root, 'test/package-smoke.js'))
   ? fs.readFileSync(path.join(root, 'test/package-smoke.js'), 'utf-8')
   : '';
+const mainSource = fs.existsSync(path.join(root, 'src/main/index.js'))
+  ? fs.readFileSync(path.join(root, 'src/main/index.js'), 'utf-8')
+  : '';
+const packageSmokeSources = `${packageSmoke}\n${mainSource}`;
 const optionalHnswRebuild = fs.existsSync(path.join(root, 'scripts/rebuild-hnsw-optional.js'))
   ? fs.readFileSync(path.join(root, 'scripts/rebuild-hnsw-optional.js'), 'utf-8')
   : '';
@@ -38,6 +42,10 @@ wave2Assert(
   packageJson.scripts && packageJson.scripts['test:wave2'] && packageJson.scripts['test:wave2'].includes('test-wave2-package-contract.js'),
   'test:wave2 script includes the Wave 2 package contract'
 );
+wave2Assert(packageJson.scripts.start === 'electron .', 'normal npm start remains the Electron app startup path');
+wave2Assert(packageJson.scripts.dev === 'node scripts/run-dev.js', 'npm run dev remains the dev Electron startup path');
+wave2Assert(packageJson.scripts.mcp === 'node src/main/mcp-server.mjs', 'npm run mcp remains the source stdio MCP startup path');
+wave2Assert(packageJson.scripts.prestart === 'npm run check:runtime-free', 'prestart runtime-free guard remains active for normal startup');
 
 wave2Assert(
   packageJson.optionalDependencies && Object.prototype.hasOwnProperty.call(packageJson.optionalDependencies, 'hnswlib-node'),
@@ -137,6 +145,38 @@ for (const hnswTerm of [
 wave2Assert(
   packageSmoke.includes('optional_missing') && packageSmoke.includes('hnswlib-node'),
   'package smoke treats missing optional hnswlib-node as diagnosable degraded state'
+);
+wave2Assert(
+  packageSmokeSources.includes('--mcp-stdio') &&
+    packageSmokeSources.includes('StdioClientTransport') &&
+    packageSmokeSources.includes('packagedCliStdio'),
+  'package smoke runs the packaged executable --mcp-stdio through a real MCP stdio client and records evidence'
+);
+wave2Assert(
+  packageSmokeSources.includes('stdoutPurity') &&
+    packageSmokeSources.includes('stdoutNonJsonLineCount') &&
+    packageSmokeSources.includes('stdoutJsonRpcMessageCount') &&
+    packageSmokeSources.includes('recordStdoutProtocolViolation') &&
+    packageSmokeSources.includes("message.jsonrpc !== '2.0'") &&
+    packageSmokeSources.includes('flushStdoutRemainder') &&
+    packageSmokeSources.includes('stderrByteCount') &&
+    packageSmokeSources.includes('runPackageSmokeRawStdioProbe') &&
+    packageSmokeSources.includes('initializeHandshake') &&
+    packageSmokeSources.includes('initializedNotification') &&
+    packageSmokeSources.includes('noIndexingControls') &&
+    packageSmokeSources.includes('redactedEndpointClass'),
+  'package smoke artifact records measured stdio purity, handshake evidence, no-indexing-control evidence, and redacted endpoint class'
+);
+wave2Assert(
+  packageSmokeSources.includes('containsRawArtifactEcho') &&
+    packageSmokeSources.includes('containsRawSensitiveText') &&
+    packageSmokeSources.includes('normalizeMcpToolNameForPolicy'),
+  'package smoke evidence checks JSON-escaped raw echoes and normalized indexing-control tool names'
+);
+wave2Assert(
+  packageSmokeSources.includes('windows-electron-run-as-node-asar-index') &&
+    packageSmokeSources.includes('direct-executable-mcp-stdio'),
+  'package smoke records direct and Windows platform-equivalent packaged CLI stdio launch modes'
 );
 
 wave2Assert(!bundleSource.includes('hnswlib-node'), 'generated MCP bundle does not contain direct hnswlib-node import text');
