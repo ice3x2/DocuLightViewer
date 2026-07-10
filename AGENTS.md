@@ -1,5 +1,11 @@
 # SpecKiwi SRS 워크플로 v1.3
 
+## Process Termination Safety
+
+- Never use `taskkill` to terminate `node.exe` broadly, and never use `taskkill /T` for a Node process in this repository. Doing so can terminate unrelated user services, language servers, MCP servers, and other active development processes.
+- Before ending a process, inspect its PID and full command line. Terminate only the specific process that blocks the current operation, preferably the identified `electron.exe` process rather than its Node parent.
+- Do not terminate a process when its ownership or purpose is unclear. Report the blocking PID and ask the user to close it instead.
+
 This repository uses `docs/spec/` as the required source of truth for requirements.
 
 Before making any code, test, CLI, MCP, or documentation change, agents MUST:
