@@ -87,7 +87,16 @@ function listMdFiles(dir) {
 (async () => {
   const { createToolHandlers, TOOLS } = await import('../src/main/mcp-http.mjs');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-http-save-'));
+  const aliasedStoreTarget = path.join(tmpDir, 'aliased-store-target');
+  const aliasedStorePath = path.join(os.tmpdir(), `doculight-http-save-alias-${process.pid}-${Date.now()}`);
+  const escapedStoreRoot = path.join(tmpDir, 'escaped-store-root');
+  const escapedStoreLink = path.join(escapedStoreRoot, 'ProjectParity');
+  const escapedStoreTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-http-save-outside-'));
   try {
+    fs.mkdirSync(aliasedStoreTarget, { recursive: true });
+    fs.symlinkSync(aliasedStoreTarget, aliasedStorePath, process.platform === 'win32' ? 'junction' : 'dir');
+    fs.mkdirSync(escapedStoreRoot, { recursive: true });
+    fs.symlinkSync(escapedStoreTarget, escapedStoreLink, process.platform === 'win32' ? 'junction' : 'dir');
     const store = createStore(tmpDir);
     const windowManager = createWindowManager();
     const searchEngine = {
@@ -163,6 +172,34 @@ function listMdFiles(dir) {
     assert.strictEqual(enqueueFailurePayload.saved, true, 'save_document keeps saved=true when post-save indexing enqueue throws');
     assert.strictEqual(enqueueFailurePayload.indexing.state, 'enqueue_failed', 'save_document reports enqueue_failed when post-save indexing enqueue throws');
     assert(enqueueFailurePayload.warnings.some((warning) => warning.code === 'index_enqueue_failed'), 'save_document returns an index_enqueue_failed warning');
+
+    const aliasedStoreResult = await saveDocumentToStore(createStore(aliasedStorePath), {
+      content: '# Aliased Store\n\nSaved below an explicitly configured store alias.',
+      title: 'Aliased Store',
+      project: 'ProjectParity',
+      docType: 'guide'
+    });
+    const aliasedStorePayload = JSON.parse(aliasedStoreResult.content[0].text);
+    assert.strictEqual(aliasedStorePayload.saved, true, 'save_document accepts an explicitly configured store root reached through a filesystem alias');
+    assert(aliasedStorePayload.sourceRelativePath, 'aliased store save returns a source-relative path');
+    const aliasedSavedReal = fs.realpathSync(path.join(aliasedStorePath, ...aliasedStorePayload.sourceRelativePath.split('/')));
+    const aliasedTargetReal = fs.realpathSync(aliasedStoreTarget);
+    const aliasedSavedRelative = path.relative(aliasedTargetReal, aliasedSavedReal);
+    assert(
+      aliasedSavedRelative && !aliasedSavedRelative.startsWith('..') && !path.isAbsolute(aliasedSavedRelative),
+      'aliased store save remains canonically contained below the configured target'
+    );
+
+    const escapedStoreResult = await saveDocumentToStore(createStore(escapedStoreRoot), {
+      content: '# Escaped Store\n\nMust not write through a descendant filesystem alias.',
+      title: 'Escaped Store',
+      project: 'ProjectParity',
+      docType: 'guide'
+    });
+    const escapedStorePayload = JSON.parse(escapedStoreResult.content[0].text);
+    assert.strictEqual(escapedStoreResult.isError, true, 'save_document rejects a descendant filesystem alias that escapes the configured store');
+    assert.strictEqual(escapedStorePayload.error.code, 'path_policy_violation', 'descendant filesystem alias escape reports path_policy_violation');
+    assert.strictEqual(listMdFiles(escapedStoreTarget).length, 0, 'descendant filesystem alias escape writes no Markdown outside the configured store');
 
     const saveOnlyFiles = listMdFiles(tmpDir).filter((file) => fs.readFileSync(file, 'utf-8').includes('unique-save-document-marker'));
     assert.strictEqual(saveOnlyFiles.length, 1, 'save_document writes exactly one markdown file');
@@ -497,6 +534,9 @@ existing git frontmatter redaction fixture`;
     assert.strictEqual(disabledSave.isError, true, 'save_document errors when storage is not configured');
     assert.strictEqual(disabledSavePayload.error.code, 'storage_not_configured', 'save_document reports storage_not_configured');
   } finally {
+    try { fs.unlinkSync(aliasedStorePath); } catch {}
+    try { fs.unlinkSync(escapedStoreLink); } catch {}
+    fs.rmSync(escapedStoreTarget, { recursive: true, force: true });
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 

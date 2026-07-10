@@ -277,7 +277,7 @@ async function writeContainedMarkdown(basePath, destDir, destPath, content) {
       throw saveDocumentError('path_policy_violation', 'Resolved save path is outside the configured document store.', false);
     }
     const candidateDir = path.dirname(candidate);
-    assertNoSymlinkAncestors(rootReal, candidateDir);
+    assertNoSymlinkAncestors(root, rootReal, candidateDir);
     let handle = null;
     try {
       handle = await fs.promises.open(candidate, 'wx');
@@ -632,13 +632,18 @@ function assertSavedFileContained(root, savedPath) {
   }
 }
 
-function assertNoSymlinkAncestors(rootReal, targetDir) {
+function assertNoSymlinkAncestors(rootPath, rootReal, targetDir) {
+  const resolvedRoot = path.resolve(rootPath);
   const resolvedTargetDir = path.resolve(targetDir);
-  if (!isWithinOrEqual(resolvedTargetDir, rootReal)) {
+  if (!isWithinOrEqual(resolvedTargetDir, resolvedRoot)) {
     throw saveDocumentError('path_policy_violation', 'Save directory escapes the configured document store.', false);
   }
-  let current = rootReal;
-  const relative = path.relative(rootReal, resolvedTargetDir);
+  const targetReal = realpath(resolvedTargetDir);
+  if (!isWithinOrEqual(targetReal, rootReal)) {
+    throw saveDocumentError('path_policy_violation', 'Save directory escapes the configured document store.', false);
+  }
+  let current = resolvedRoot;
+  const relative = path.relative(resolvedRoot, resolvedTargetDir);
   if (!relative) return;
   for (const segment of relative.split(path.sep).filter(Boolean)) {
     current = path.join(current, segment);
