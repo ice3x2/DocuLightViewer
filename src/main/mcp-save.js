@@ -447,14 +447,18 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
     let queueResult = null;
     const warnings = [];
     if (searchEngine && typeof searchEngine.queueDocumentIndex === 'function') {
-      queueResult = searchEngine.queueDocumentIndex({
-        filePath: savedPath,
-        content,
-        requestedBy: 'mcp.save_document',
-        metadata: { docType, category, documentTags }
-      });
-      document = queueResult.document || null;
-      if (!queueResult.queued) {
+      try {
+        queueResult = searchEngine.queueDocumentIndex({
+          filePath: savedPath,
+          content,
+          requestedBy: 'mcp.save_document',
+          metadata: { docType, category, documentTags }
+        });
+        document = queueResult.document || null;
+      } catch (_) {
+        queueResult = { queued: false };
+      }
+      if (!queueResult || !queueResult.queued) {
         warnings.push({ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true });
       }
     } else if (searchEngine && typeof searchEngine.markDirty === 'function') {

@@ -158,7 +158,7 @@ jobs:
           npm_config_python: ${{ steps.python.outputs.python-path }}
 
       - name: Package smoke
-        run: npm run smoke:package
+        run: xvfb-run --auto-servernum npm run smoke:package
         env:
           DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
 

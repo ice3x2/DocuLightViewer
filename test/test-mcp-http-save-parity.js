@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { saveMcpUpdatedContent } = require('../src/main/mcp-save');
+const { saveMcpUpdatedContent, saveDocumentToStore } = require('../src/main/mcp-save');
 const { parseFrontmatter } = require('../src/main/frontmatter');
 
 function createStore(dir) {
@@ -148,6 +148,22 @@ function listMdFiles(dir) {
     assert(saveDocumentPayload.documentId, 'save_document returns documentId');
     assert.strictEqual(saveDocumentPayload.indexing.state, 'degraded', 'fake search engine reports degraded enqueue state without failing save');
     assert(!JSON.stringify(saveDocumentPayload).includes(tmpDir), 'save_document response does not leak raw absolute path');
+
+    const enqueueFailureResult = await saveDocumentToStore(store, {
+      content: '# Enqueue Failure\n\nSaved even when indexing enqueue throws.',
+      title: 'Enqueue Failure',
+      project: 'ProjectParity',
+      docType: 'guide'
+    }, {
+      queueDocumentIndex() {
+        throw new Error('forced indexing enqueue failure');
+      }
+    });
+    const enqueueFailurePayload = JSON.parse(enqueueFailureResult.content[0].text);
+    assert.strictEqual(enqueueFailurePayload.saved, true, 'save_document keeps saved=true when post-save indexing enqueue throws');
+    assert.strictEqual(enqueueFailurePayload.indexing.state, 'enqueue_failed', 'save_document reports enqueue_failed when post-save indexing enqueue throws');
+    assert(enqueueFailurePayload.warnings.some((warning) => warning.code === 'index_enqueue_failed'), 'save_document returns an index_enqueue_failed warning');
+
     const saveOnlyFiles = listMdFiles(tmpDir).filter((file) => fs.readFileSync(file, 'utf-8').includes('unique-save-document-marker'));
     assert.strictEqual(saveOnlyFiles.length, 1, 'save_document writes exactly one markdown file');
     let dirtyAfterSaveDocument = searchEngine.dirtyCount;
