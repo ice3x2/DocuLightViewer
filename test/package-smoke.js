@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const { getPackageSmokeLaunchArgs } = require('./package-smoke-launch-options');
+const { getPackageSmokeLaunchArgs } = require('../src/main/package-smoke-launch-options');
 
 const root = path.resolve(__dirname, '..');
 const platform = process.platform;

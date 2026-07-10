@@ -28,6 +28,7 @@ const { spawn } = require('child_process');
 const net = require('net');
 const http = require('http');
 const path = require('path');
+const { getPackageSmokeCliStdioArgs } = require('./package-smoke-launch-options');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Worker } = require('worker_threads');
@@ -548,7 +549,15 @@ async function runPackageSmoke() {
     }
     const savePayload = JSON.parse(saveText);
     if (!savePayload.saved || !savePayload.documentId || !savePayload.sourceRelativePath) {
-      throw new Error('save_document package smoke did not return a canonical saved envelope');
+      const failureCode = savePayload.error && savePayload.error.code ? String(savePayload.error.code) : 'missing_required_field';
+      const failureMessage = savePayload.error && savePayload.error.message
+        ? smokeRedactor.redactString(savePayload.error.message)
+        : 'saved, documentId, or sourceRelativePath was missing';
+      throw new Error(
+        `save_document package smoke did not return a canonical saved envelope: code=${failureCode} ` +
+        `saved=${savePayload.saved === true} documentId=${Boolean(savePayload.documentId)} ` +
+        `sourceRelativePath=${Boolean(savePayload.sourceRelativePath)} message=${failureMessage}`
+      );
     }
     await runtimeSearchEngine.rebuild();
     const savedSearchResults = runtimeSearchEngine.search(marker, { limit: 5 });
@@ -1516,7 +1525,7 @@ function resolvePackageSmokeCliStdioLaunch() {
   return {
     mode: 'direct-executable-mcp-stdio',
     command: process.execPath,
-    args: ['--mcp-stdio'],
+    args: getPackageSmokeCliStdioArgs(process.platform, process.env),
     env: {}
   };
 }
