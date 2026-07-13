@@ -201,7 +201,7 @@ function listMarkdownFiles(root) {
     const documentId = registered.document.documentId;
     const ledger = searchEngine.getSourceLedger();
     const alias = queryAliasRow(ledger, documentId);
-    const canonicalOriginal = fs.realpathSync(originalPath);
+    const canonicalOriginal = fs.realpathSync.native(originalPath);
 
     assert(alias, 'external registration persists an alias row');
     assert.strictEqual(path.resolve(alias.origin_path_internal), path.resolve(canonicalOriginal), 'alias stores the canonical origin path internally');
@@ -349,7 +349,7 @@ function listMarkdownFiles(root) {
     assert.strictEqual(linkedRegistered.status, 'queued', 'external symlink/junction origin registers through its initial canonical target');
     const linkedAlias = queryAliasRow(ledger, linkedRegistered.document.documentId);
     assert.strictEqual(path.resolve(linkedAlias.origin_lexical_path_internal), path.resolve(linkedLexicalPath), 'alias preserves the lexical origin path internally');
-    assert.strictEqual(path.resolve(linkedAlias.origin_path_internal), path.resolve(fs.realpathSync(linkedLexicalPath)), 'alias separately preserves the canonical target path');
+    assert.strictEqual(path.resolve(linkedAlias.origin_path_internal), path.resolve(fs.realpathSync.native(linkedLexicalPath)), 'alias separately preserves the canonical target path');
     fs.rmSync(linkDir, { force: true });
     fs.symlinkSync(linkTargetB, linkDir, process.platform === 'win32' ? 'junction' : 'dir');
     const retargeted = await resolveIndexedMarkdownOpen({
@@ -371,7 +371,11 @@ function listMarkdownFiles(root) {
     assert.strictEqual(missing.sourceUsed, 'indexed_copy', 'missing origin falls back to the indexed copy');
     assert.strictEqual(missing.originStatus, 'missing', 'missing origin reports stable status');
     assert.strictEqual(missing.content, originalContent, 'fallback content is the retained indexed copy');
-    assert.strictEqual(path.resolve(missing.filePathInternal), path.resolve(registered.indexedPath), 'fallback target stays inside the knowledge store');
+    assert.strictEqual(
+      path.resolve(fs.realpathSync.native(missing.filePathInternal)),
+      path.resolve(fs.realpathSync.native(registered.indexedPath)),
+      'fallback target stays inside the knowledge store'
+    );
 
     fs.writeFileSync(originalPath, changedContent, 'utf8');
     const deniedFs = {
@@ -415,7 +419,7 @@ function listMarkdownFiles(root) {
     assert.strictEqual(reopened.status, 'existing', 'reopening a legacy hash-only origin remains a no-op registration');
     assert.strictEqual(reopened.documentId, documentId, 'legacy origin reopen preserves document identity');
     const backfilled = queryAliasRow(ledger, documentId);
-    assert.strictEqual(path.resolve(backfilled.origin_path_internal), path.resolve(fs.realpathSync(originalPath)), 'same-origin reopen backfills the missing internal path');
+    assert.strictEqual(path.resolve(backfilled.origin_path_internal), path.resolve(fs.realpathSync.native(originalPath)), 'same-origin reopen backfills the missing internal path');
 
     fs.rmSync(originalPath);
     fs.rmSync(registered.indexedPath);
