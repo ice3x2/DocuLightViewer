@@ -20,6 +20,7 @@ const settingsHtml = read('src/renderer/settings.html');
 const settingsJs = read('src/renderer/settings.js');
 const settingsCss = read('src/renderer/settings.css');
 const searchEngineSource = read('src/main/search-engine.js');
+const sourceLedgerSource = read('src/main/source-ledger-store.js');
 const embeddingProviderPath = path.join(root, 'src/main/embedding-provider.js');
 wave2Assert(fs.existsSync(embeddingProviderPath), 'main process has an OpenAI-compatible embedding provider module');
 const embeddingProvider = read('src/main/embedding-provider.js');
@@ -236,7 +237,9 @@ const semanticProgressBlock = searchEngineSource.slice(
   searchEngineSource.indexOf('getStatus(options = {})')
 );
 wave2Assert(
-  semanticProgressBlock.includes("job.jobType === 'index_document'"),
+  semanticProgressBlock.includes('ledger.getSemanticIndexingProgress()') &&
+    sourceLedgerSource.includes("job_type = 'index_document'") &&
+    sourceLedgerSource.includes("status IN ('queued', 'indexing')"),
   'embedding model status excludes keyword rebuild, compact, and clear jobs from semantic indexing progress'
 );
 wave2Assert(

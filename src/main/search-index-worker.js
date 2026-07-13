@@ -4,9 +4,11 @@ const fs = require('fs');
 const { parentPort, workerData } = require('worker_threads');
 const { SearchEngine } = require('./search-engine');
 const { createOpenAICompatibleEmbeddingProvider } = require('./embedding-provider');
+const { createLatestStatusCoalescer } = require('./status-coalescer');
 
 let activeEngine = null;
 let cancelRequested = false;
+const ENGINE_STATUS_HEARTBEAT_MS = 500;
 
 // @req REL-DOC-007
 function createWorkerStore(sourceRoot) {
@@ -29,13 +31,33 @@ function post(message) {
 }
 
 // @req REL-DOC-007
-function postStatus(patch = {}) {
+function emitWorkerStatus(patch = {}) {
   post({
     type: 'status',
     heartbeatAt: new Date().toISOString(),
     cancelRequested,
     ...patch
   });
+}
+
+const workerStatusCoalescer = createLatestStatusCoalescer({
+  emit: emitWorkerStatus,
+  intervalMs: ENGINE_STATUS_HEARTBEAT_MS
+});
+
+// @req REL-DOC-007
+function flushPendingWorkerStatus() {
+  return workerStatusCoalescer.flush();
+}
+
+// @req REL-DOC-007
+function postStatus(patch = {}, { immediate = false } = {}) {
+  if (immediate) {
+    flushPendingWorkerStatus();
+    emitWorkerStatus(patch);
+    return;
+  }
+  workerStatusCoalescer.push(patch);
 }
 
 // @req REL-DOC-007
@@ -93,7 +115,7 @@ function startEngineStatusMonitor(engine, fallbackPhase) {
       status = null;
     }
     postEngineStatus(status, fallbackPhase);
-  }, 50);
+  }, ENGINE_STATUS_HEARTBEAT_MS);
 }
 
 // @req REL-DOC-007
@@ -305,7 +327,7 @@ function handleCancel() {
       code: 'cancel_requested',
       message: 'Cancellation requested'
     }
-  });
+  }, { immediate: true });
 }
 
 // @req REL-DOC-007
@@ -369,6 +391,8 @@ if (parentPort) {
     }
     process.exitCode = 1;
   } finally {
+    flushPendingWorkerStatus();
+    workerStatusCoalescer.cancel();
     if (activeEngine && typeof activeEngine.close === 'function') {
       activeEngine.close();
     }

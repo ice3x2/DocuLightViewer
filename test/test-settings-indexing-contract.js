@@ -10,6 +10,7 @@ const main = fs.readFileSync(path.join(root, 'src/main/index.js'), 'utf-8');
 const settingsHtml = fs.readFileSync(path.join(root, 'src/renderer/settings.html'), 'utf-8');
 const settingsJs = fs.readFileSync(path.join(root, 'src/renderer/settings.js'), 'utf-8');
 const settingsCss = fs.readFileSync(path.join(root, 'src/renderer/settings.css'), 'utf-8');
+const settingsPollerPath = path.join(root, 'src/renderer/settings-status-poller.js');
 const { SearchEngine } = require('../src/main/search-engine');
 
 const apiNames = [
@@ -121,6 +122,13 @@ assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings render
 assert(settingsJs.includes('if (indexingStatusRequest) return indexingStatusRequest'), 'settings renderer prevents overlapping indexing status polling');
 assert(settingsJs.includes('let indexingActionRequest = null'), 'settings renderer tracks an in-flight indexing action request');
 assert(settingsJs.includes('if (indexingActionRequest) return indexingActionRequest'), 'settings renderer prevents overlapping indexing actions');
+assert(settingsJs.includes('let embeddingStatusRequest = null'), 'settings renderer tracks an in-flight embedding status request');
+assert(settingsJs.includes('if (embeddingStatusRequest) return embeddingStatusRequest'), 'settings renderer prevents overlapping embedding status polling');
+assert(fs.existsSync(settingsPollerPath), 'settings renderer has a testable adaptive status poller module');
+assert(settingsHtml.includes('settings-status-poller.js'), 'settings page loads the status poller before settings.js');
+assert(settingsJs.includes('createSettingsStatusPoller'), 'settings renderer uses the testable adaptive status poller');
+assert(!settingsJs.includes('setInterval(refreshEmbeddingModelStatus'), 'settings renderer has no independent embedding status interval');
+assert(settingsJs.includes("addEventListener('beforeunload'"), 'settings renderer stops status polling before unload');
 assert(settingsJs.includes('isIndexingWorkerActive'), 'settings renderer centralizes active worker state detection');
 assert(settingsJs.includes("'compacting'") && settingsJs.includes("'clearing'"), 'settings renderer treats compacting/clearing worker states as active');
 assert(settingsJs.includes('setIndexingActionsBusy'), 'settings renderer disables indexing action controls while an action is in flight');
@@ -141,7 +149,7 @@ assert(
 );
 assert(settingsJs.includes('ACTIVE_INDEXING_POLL_MS'), 'settings renderer defines active indexing polling cadence');
 assert(settingsJs.includes('IDLE_INDEXING_POLL_MS'), 'settings renderer defines idle indexing polling cadence');
-assert(settingsJs.includes('scheduleIndexingStatusPoll'), 'settings renderer schedules adaptive indexing status polling');
+assert(settingsJs.includes('createSettingsStatusPoller'), 'settings renderer schedules adaptive indexing and embedding status polling');
 assert(/const ACTIVE_INDEXING_POLL_MS\s*=\s*500/.test(settingsJs), 'active indexing status polling runs every 500ms');
 assert(/const IDLE_INDEXING_POLL_MS\s*=\s*3000/.test(settingsJs), 'idle indexing status polling remains every 3000ms');
 assert(!/setInterval\s*\(\s*function\s*\(\)\s*\{\s*refreshIndexingStatus\(\)/.test(settingsJs), 'settings renderer no longer polls indexing status through the global 3000ms interval');

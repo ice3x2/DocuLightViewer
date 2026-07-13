@@ -5,7 +5,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-      - '*.*.*'
 
 permissions:
   contents: write
@@ -22,19 +21,21 @@ jobs:
 
       - name: Get version and tag from package.json
         id: info
+        shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_TAG="v$VERSION"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]; then
+              echo "Trigger tag $GITHUB_REF_NAME does not match package version $EXPECTED_TAG" >&2
+              exit 1
+            fi
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="$EXPECTED_TAG"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION"    >> $GITHUB_OUTPUT
-
-      - name: Create and push tag (workflow_dispatch only)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="v$(node -p "require('./package.json').version")"
-          git tag "$TAG" || echo "Tag $TAG already exists, skipping"
-          git push origin "$TAG" || echo "Tag $TAG already pushed, skipping"
+          echo "tag=$TAG"         >> $GITHUB_OUTPUT
 
   # ── Windows 빌드 (NSIS 설치 파일 + Portable) ────────────────────────────
   build-windows:
@@ -63,6 +64,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_python: ${{ steps.python.outputs.python-path }}
+
+      - name: Release regression tests
+        run: npm run test:release-regression
 
       - name: Package smoke
         run: npm run smoke:package
@@ -112,6 +116,9 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           npm_config_python: ${{ steps.python.outputs.python-path }}
 
+      - name: Release regression tests
+        run: npm run test:release-regression
+
       - name: Package smoke
         run: npm run smoke:package
         env:
@@ -157,6 +164,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_python: ${{ steps.python.outputs.python-path }}
 
+      - name: Release regression tests
+        run: npm run test:release-regression
+
       - name: Package smoke
         run: xvfb-run --auto-servernum npm run smoke:package
         env:
@@ -184,6 +194,28 @@ jobs:
       - uses: actions/checkout@v5
         with:
           sparse-checkout: docs/release-note
+          fetch-depth: 0
+
+      - name: Verify or create release tag
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          git fetch --force --tags origin
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA=$(git rev-list -n 1 "$TAG")
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "Release tag $TAG points to $TAG_SHA, expected $GITHUB_SHA" >&2
+              exit 1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+          else
+            echo "Release tag $TAG does not exist for push event" >&2
+            exit 1
+          fi
 
       - uses: actions/download-artifact@v4
         with:

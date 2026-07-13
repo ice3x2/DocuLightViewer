@@ -738,7 +738,7 @@ class SearchEngine {
   }
 
   // @req FR-DOC-019
-  queueDocumentIndex({ filePath, content, requestedBy = 'post-save', metadata = {}, jobId } = {}) {
+  queueDocumentIndex({ filePath, content, requestedBy = 'post-save', metadata = {}, jobId, retainContent = true } = {}) {
     const sourceRoot = this._getSourceRoot();
     if (!filePath || !sourceRoot || !this.indexDataDir) {
       return { queued: false, reason: 'smart-index-unavailable' };
@@ -794,7 +794,7 @@ class SearchEngine {
 
     this._smartIndexQueue.set(queueKey, {
       filePath: absolutePath,
-      content: typeof content === 'string' ? content : null,
+      content: retainContent !== false && typeof content === 'string' ? content : null,
       requestedBy,
       jobId: job && job.jobId ? job.jobId : null,
       queuedAt: new Date().toISOString()
@@ -856,7 +856,7 @@ class SearchEngine {
   }
 
   // @req FR-DOC-035
-  queueKnownDocumentIndex({ filePath, content, document, requestedBy = 'post-save', jobId } = {}) {
+  queueKnownDocumentIndex({ filePath, content, contentHash: verifiedContentHash, document, requestedBy = 'post-save', jobId } = {}) {
     const sourceRoot = this._getSourceRoot();
     if (!filePath || !sourceRoot || !this.indexDataDir || !document || !document.documentId || !document.sourceId) {
       return { queued: false, reason: 'smart-index-unavailable', document: document || null };
@@ -869,7 +869,9 @@ class SearchEngine {
     const queueKey = normalizeInternalPath(absolutePath);
     const existingQueuedItem = this._smartIndexQueue.get(queueKey);
     const fingerprint = buildDocumentFingerprint(content);
-    const contentHash = fingerprint ? fingerprint.contentHash : null;
+    const contentHash = fingerprint
+      ? fingerprint.contentHash
+      : (verifiedContentHash || null);
     const selectedJobId = jobId || this._selectSmartIndexJobId({
       document,
       absolutePath,
@@ -1038,11 +1040,12 @@ class SearchEngine {
         continue;
       }
 
-      const queued = this.queueDocumentIndex({
-        filePath: absolutePath,
+      const queued = this._queueVerifiedStartupIndexJob({
+        ledger,
+        job,
+        absolutePath,
         content,
-        requestedBy: job.requestedBy || 'startup-reconcile',
-        jobId: job.jobId
+        actualContentHash
       });
       if (queued && queued.queued) {
         result.resumed += 1;
@@ -1139,11 +1142,12 @@ class SearchEngine {
         continue;
       }
 
-      const queued = this.queueDocumentIndex({
-        filePath: absolutePath,
+      const queued = this._queueVerifiedStartupIndexJob({
+        ledger,
+        job,
+        absolutePath,
         content,
-        requestedBy: job.requestedBy || 'startup-reconcile',
-        jobId: job.jobId
+        actualContentHash
       });
       if (queued && queued.queued) {
         result.resumed += 1;
@@ -1156,6 +1160,34 @@ class SearchEngine {
       }
     }
     return result;
+  }
+
+  // @req FR-DOC-019
+  _queueVerifiedStartupIndexJob({ ledger, job, absolutePath, content, actualContentHash } = {}) {
+    let document = null;
+    if (job && job.documentId && ledger && typeof ledger.getDocument === 'function') {
+      try {
+        document = ledger.getDocument(job.documentId);
+      } catch {
+        document = null;
+      }
+    }
+    if (document && document.documentId && document.sourceId) {
+      return this.queueKnownDocumentIndex({
+        filePath: absolutePath,
+        contentHash: actualContentHash,
+        document,
+        requestedBy: job.requestedBy || 'startup-reconcile',
+        jobId: job.jobId
+      });
+    }
+    return this.queueDocumentIndex({
+      filePath: absolutePath,
+      content,
+      requestedBy: job.requestedBy || 'startup-reconcile',
+      jobId: job.jobId,
+      retainContent: false
+    });
   }
 
   _settleStartupIndexJob(ledger, job, status, diagnosticCode, diagnostic) {
@@ -1855,35 +1887,20 @@ class SearchEngine {
   // @req FR-DOC-024
   getSemanticIndexingProgress() {
     const ledger = this._getAvailableSourceLedger();
-    if (!ledger || typeof ledger.getIndexJobs !== 'function') return null;
-    let jobs = [];
+    if (!ledger || typeof ledger.getSemanticIndexingProgress !== 'function') return null;
+    let aggregate = null;
     try {
-      jobs = ledger.getIndexJobs({});
+      aggregate = ledger.getSemanticIndexingProgress();
     } catch {
       return null;
     }
-    const activeJobs = jobs.filter((job) =>
-      job &&
-      job.jobType === 'index_document' &&
-      ['queued', 'indexing'].includes(job.status)
-    );
-    if (activeJobs.length === 0) return null;
-    let progressCurrent = 0;
-    let progressTotal = 0;
-    let phase = null;
-    for (const job of activeJobs) {
-      const current = Number(job.progressCurrent) || 0;
-      const total = Number(job.progressTotal) || 0;
-      progressCurrent += current;
-      progressTotal += total > 0 ? total : 1;
-      if (!phase && job.phase) phase = job.phase;
-    }
+    if (!aggregate) return null;
     return {
-      state: activeJobs.some((job) => job.status === 'indexing') ? 'indexing' : 'queued',
-      phase,
-      progress_current: progressCurrent,
-      progress_total: progressTotal,
-      pendingCount: activeJobs.length
+      state: aggregate.state === 'indexing' ? 'indexing' : 'queued',
+      phase: aggregate.phase || null,
+      progress_current: Number(aggregate.progressCurrent) || 0,
+      progress_total: Number(aggregate.progressTotal) || 0,
+      pendingCount: Number(aggregate.pendingCount) || 0
     };
   }
 

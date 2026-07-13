@@ -130,12 +130,13 @@
     embeddingPolicyConfirmCheckbox
   ].filter(Boolean);
   let indexingStatusRequest = null;
+  let embeddingStatusRequest = null;
   let indexingActionRequest = null;
   let lastIndexingStatus = null;
   let savedDocumentStorePath = '';
   const ACTIVE_INDEXING_POLL_MS = 500;
   const IDLE_INDEXING_POLL_MS = 3000;
-  let indexingStatusTimer = null;
+  let settingsStatusPoller = null;
 
   const fields = {
     theme: document.getElementById('theme-select'),
@@ -483,14 +484,9 @@
     }
   }
 
-  function scheduleIndexingStatusPoll(status) {
-    if (indexingStatusTimer) clearTimeout(indexingStatusTimer);
+  function isSettingsStatusActive(status) {
     const pollState = status && status.state ? status.state : 'unknown';
-    const active = isIndexingWorkerActive(pollState) || isNativeRepairActive(status && status.nativeRepair);
-    indexingStatusTimer = setTimeout(() => {
-      refreshIndexingStatus();
-      refreshEmbeddingModelStatus();
-    }, active ? ACTIVE_INDEXING_POLL_MS : IDLE_INDEXING_POLL_MS);
+    return isIndexingWorkerActive(pollState) || isNativeRepairActive(status && status.nativeRepair);
   }
 
   function renderIndexingStatus(status) {
@@ -548,7 +544,6 @@
     if (indexingRetryBtn) indexingRetryBtn.disabled = busy || active || !sourceRootConfigured || (status.failedCount || 0) === 0;
     if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || !sourceRootConfigured;
     if (indexingOpenDirBtn) indexingOpenDirBtn.disabled = busy || !sourceRootConfigured;
-    scheduleIndexingStatusPoll(status);
   }
 
   async function refreshIndexingStatus() {
@@ -556,9 +551,12 @@
     if (indexingStatusRequest) return indexingStatusRequest;
     indexingStatusRequest = (async () => {
       try {
-        renderIndexingStatus(await window.doclight.getIndexingStatus());
+        const status = await window.doclight.getIndexingStatus();
+        renderIndexingStatus(status);
+        return status;
       } catch (err) {
         setIndexingDiagnostic(err.message);
+        return null;
       } finally {
         indexingStatusRequest = null;
       }
@@ -611,18 +609,27 @@
 
   async function refreshEmbeddingModelStatus() {
     if (!window.doclight.getEmbeddingModelStatus) return;
-    try {
-      renderEmbeddingModelStatus(await window.doclight.getEmbeddingModelStatus());
-    } catch (err) {
-      if (embeddingStatusEl) {
-        embeddingStatusEl.className = 'status-indicator embedding-status unreachable';
-        embeddingStatusEl.textContent = t('settings.embeddingModelUnreachable', {
-          host: '',
-          model: '',
-          reason: err.message
-        });
+    if (embeddingStatusRequest) return embeddingStatusRequest;
+    embeddingStatusRequest = (async () => {
+      try {
+        const status = await window.doclight.getEmbeddingModelStatus();
+        renderEmbeddingModelStatus(status);
+        return status;
+      } catch (err) {
+        if (embeddingStatusEl) {
+          embeddingStatusEl.className = 'status-indicator embedding-status unreachable';
+          embeddingStatusEl.textContent = t('settings.embeddingModelUnreachable', {
+            host: '',
+            model: '',
+            reason: err.message
+          });
+        }
+        return null;
+      } finally {
+        embeddingStatusRequest = null;
       }
-    }
+    })();
+    return embeddingStatusRequest;
   }
 
   function showEmbeddingDialogStatus(type, message) {
@@ -1125,14 +1132,23 @@
     setSettingsTitle('settings.heading');
     document.title = t('settings.pageTitle');
     await loadSettings();
-    await refreshEmbeddingModelStatus();
-    await refreshIndexingStatus();
-    setInterval(refreshEmbeddingModelStatus, IDLE_INDEXING_POLL_MS);
+    settingsStatusPoller = window.createSettingsStatusPoller({
+      refreshIndexingStatus,
+      refreshEmbeddingStatus: refreshEmbeddingModelStatus,
+      isActive: isSettingsStatusActive,
+      activeDelayMs: ACTIVE_INDEXING_POLL_MS,
+      idleDelayMs: IDLE_INDEXING_POLL_MS
+    });
+    await settingsStatusPoller.start();
     initFileAssociation();
     // Check port availability immediately on load
     const initialPort = parseInt(fields.mcpPort.value, 10);
     if (!isNaN(initialPort) && initialPort >= 1024 && initialPort <= 65535) {
       checkPortStatus(initialPort);
     }
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (settingsStatusPoller) settingsStatusPoller.stop();
   });
 })();

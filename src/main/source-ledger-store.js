@@ -344,6 +344,9 @@ class SourceLedgerStore {
         heartbeat_at TEXT,
         updated_at TEXT NOT NULL
       );
+
+      CREATE INDEX IF NOT EXISTS idx_index_jobs_type_status_updated
+        ON index_jobs(job_type, status, updated_at DESC, job_id);
     `);
 
     this.ensureColumn('sources', 'source_kind', "TEXT NOT NULL DEFAULT 'document_source'");
@@ -835,6 +838,45 @@ class SourceLedgerStore {
       ${whereSql}
       ORDER BY created_at DESC, job_id
     `).all(params).map((row) => this.redactor.redactValue(indexJobRowToPublic(row)));
+  }
+
+  // @req FR-DOC-019
+  // @req REL-DOC-007
+  getSemanticIndexingProgress() {
+    const db = this.open();
+    const aggregate = db.prepare(`
+      SELECT
+        COUNT(*) AS pending_count,
+        COALESCE(SUM(progress_current), 0) AS progress_current,
+        COALESCE(SUM(CASE WHEN progress_total > 0 THEN progress_total ELSE 1 END), 0) AS progress_total,
+        COALESCE(MAX(CASE WHEN status = 'indexing' THEN 1 ELSE 0 END), 0) AS has_indexing
+      FROM index_jobs
+      WHERE job_type = 'index_document'
+        AND status IN ('queued', 'indexing')
+    `).get();
+    const pendingCount = Number(aggregate && aggregate.pending_count) || 0;
+    if (pendingCount <= 0) return null;
+
+    const phaseRow = db.prepare(`
+      SELECT phase
+      FROM index_jobs
+      WHERE job_type = 'index_document'
+        AND status IN ('queued', 'indexing')
+        AND phase IS NOT NULL
+        AND TRIM(phase) != ''
+      ORDER BY
+        CASE WHEN status = 'indexing' THEN 0 ELSE 1 END,
+        updated_at DESC,
+        job_id DESC
+      LIMIT 1
+    `).get();
+    return {
+      state: aggregate.has_indexing ? 'indexing' : 'queued',
+      phase: phaseRow && phaseRow.phase ? phaseRow.phase : null,
+      progressCurrent: Number(aggregate.progress_current) || 0,
+      progressTotal: Number(aggregate.progress_total) || 0,
+      pendingCount
+    };
   }
 
   // @req FR-DOC-019
