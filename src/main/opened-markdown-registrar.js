@@ -65,8 +65,22 @@ class OpenedMarkdownRegistrar {
     const fingerprint = buildDocumentFingerprint(content);
     const ledger = this.searchEngine.getSourceLedger();
 
-    if (isWithinRoot(canonicalPath, sourceRoot)) {
-      return this.registerContainedPath({ filePath: canonicalPath, content, fingerprint, ledger, sourceRoot });
+    const canonicalSourceRoot = realpathOrPath(sourceRoot);
+    const lexicalPathIsContained = isWithinRoot(absolutePath, sourceRoot);
+    const canonicalPathIsContained = isWithinRoot(canonicalPath, canonicalSourceRoot);
+    if (lexicalPathIsContained && !canonicalPathIsContained) {
+      return pathContainmentFailure(absolutePath, 'realpath_outside_source_root');
+    }
+    if (canonicalPathIsContained) {
+      const sourceRelativePath = path.relative(canonicalSourceRoot, canonicalPath);
+      const containedPath = path.resolve(sourceRoot, sourceRelativePath);
+      if (
+        !isWithinRoot(containedPath, sourceRoot) ||
+        normalizeInternalPath(realpathOrPath(containedPath)) !== normalizeInternalPath(canonicalPath)
+      ) {
+        return pathContainmentFailure(absolutePath, 'realpath_changed');
+      }
+      return this.registerContainedPath({ filePath: containedPath, content, fingerprint, ledger, sourceRoot });
     }
     return this.registerExternalPath({ filePath: canonicalPath, content, fingerprint, ledger, sourceRoot });
   }
@@ -394,6 +408,15 @@ function destinationDiagnostic(diagnosticCode, targetPath) {
     status: 'ambiguous',
     diagnosticCode,
     pathToken: redactToken('PATH', targetPath)
+  };
+}
+
+function pathContainmentFailure(filePath, diagnosticCode) {
+  return {
+    status: 'skipped',
+    reason: 'path-containment-failed',
+    diagnosticCode,
+    pathToken: redactToken('PATH', filePath)
   };
 }
 

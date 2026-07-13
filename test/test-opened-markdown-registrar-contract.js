@@ -53,14 +53,18 @@ function stableHash(value) {
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-opened-registrar-'));
   const storeRoot = path.join(root, 'store');
+  const aliasedStoreRoot = path.join(root, 'store-alias');
   const externalRoot = path.join(root, 'external');
   const externalRoot2 = path.join(root, 'external2');
   const indexRoot = path.join(root, 'userData', 'index');
+  const aliasedIndexRoot = path.join(root, 'alias-userData', 'index');
   fs.mkdirSync(storeRoot, { recursive: true });
   fs.mkdirSync(externalRoot, { recursive: true });
   fs.mkdirSync(externalRoot2, { recursive: true });
+  fs.symlinkSync(storeRoot, aliasedStoreRoot, process.platform === 'win32' ? 'junction' : 'dir');
 
   let searchEngine = null;
+  let aliasedSearchEngine = null;
   let success = false;
   try {
     searchEngine = new SearchEngine(createStore({
@@ -89,6 +93,59 @@ function stableHash(value) {
       }),
       searchEngine
     });
+
+    aliasedSearchEngine = new SearchEngine(createStore({
+      mcpAutoSave: true,
+      mcpAutoSavePath: aliasedStoreRoot,
+      registerOpenedMarkdown: true
+    }), {
+      indexBackend: 'sqlite',
+      indexDataDir: aliasedIndexRoot,
+      disableIndexingWorkerController: true,
+      smartIndexDelayMs: 60 * 60 * 1000
+    });
+    const aliasedRegistrar = createOpenedMarkdownRegistrar({
+      store: createStore({
+        mcpAutoSavePath: aliasedStoreRoot,
+        registerOpenedMarkdown: true
+      }),
+      searchEngine: aliasedSearchEngine
+    });
+    const aliasedInsidePath = path.join(aliasedStoreRoot, 'AliasedInside.md');
+    fs.writeFileSync(aliasedInsidePath, '# Aliased Inside\n', 'utf-8');
+    const aliasedInside = await aliasedRegistrar.register(aliasedInsidePath);
+    assert.strictEqual(aliasedInside.status, 'queued', 'aliased knowledge-store path queues indexing');
+    assert.strictEqual(path.resolve(aliasedInside.indexedPath), path.resolve(aliasedInsidePath), 'aliased knowledge-store path remains an inside-store path');
+    assert.strictEqual(fs.existsSync(path.join(aliasedStoreRoot, '.opened')), false, 'aliased knowledge-store path is not copied into the opened namespace');
+    assert(aliasedInside.document && aliasedInside.document.documentId, 'aliased knowledge-store registration returns document identity');
+    assert.strictEqual(aliasedInside.document.sourceRelativePath, 'AliasedInside.md', 'aliased knowledge-store registration keeps the configured-root-relative path');
+    assert.strictEqual(aliasedInside.document.pathKey, 'aliasedinside.md', 'aliased knowledge-store registration keeps the normalized configured-root path key');
+    const aliasedJobsAfterFirst = queuedJobs(aliasedSearchEngine);
+    const aliasedJob = aliasedJobsAfterFirst.find((job) => job.documentId === aliasedInside.document.documentId);
+    assert(aliasedJob, 'aliased knowledge-store registration queues its document job');
+    assert.strictEqual(path.resolve(aliasedJob.currentPathInternal), path.resolve(aliasedInsidePath), 'aliased queue job keeps the configured-root path');
+    const canonicalAgain = await aliasedRegistrar.register(path.join(storeRoot, 'AliasedInside.md'));
+    assert.strictEqual(canonicalAgain.status, 'existing', 'canonical reopen of an aliased knowledge-store document is a no-op');
+    assert.strictEqual(canonicalAgain.document.documentId, aliasedInside.document.documentId, 'alias and canonical reopen converge on one document identity');
+    assert.strictEqual(queuedJobs(aliasedSearchEngine).length, aliasedJobsAfterFirst.length, 'canonical reopen does not queue a duplicate indexing job');
+    aliasedSearchEngine.close();
+    aliasedSearchEngine = null;
+
+    const nestedEscapeRoot = path.join(storeRoot, 'outside-link');
+    fs.symlinkSync(externalRoot, nestedEscapeRoot, process.platform === 'win32' ? 'junction' : 'dir');
+    const escapedPhysicalPath = path.join(externalRoot, 'Escaped.md');
+    const escapedStorePath = path.join(nestedEscapeRoot, 'Escaped.md');
+    fs.writeFileSync(escapedPhysicalPath, '# Escaped\n', 'utf-8');
+    const escapeJobsBefore = queuedJobs(searchEngine).length;
+    const escaped = await registrar.register(escapedStorePath);
+    assert.strictEqual(escaped.status, 'skipped', 'inside-looking path that resolves outside the knowledge store is skipped');
+    assert.strictEqual(escaped.reason, 'path-containment-failed', 'junction escape reports a stable containment reason');
+    assert.strictEqual(escaped.diagnosticCode, 'realpath_outside_source_root', 'junction escape reports a stable realpath diagnostic');
+    assert(escaped.pathToken && !escaped.pathToken.includes(escapedStorePath), 'junction escape exposes only a redacted path token');
+    assert.strictEqual(queuedJobs(searchEngine).length, escapeJobsBefore, 'junction escape does not queue an indexing job');
+    assert.strictEqual(searchEngine.getSourceLedger().findDocumentByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a document row');
+    assert.strictEqual(searchEngine.getSourceLedger().findDocumentSourceAliasByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a source alias');
+    assert.strictEqual(fs.existsSync(path.join(storeRoot, '.opened')), false, 'junction escape does not create an opened-document copy');
 
     const disabledPath = path.join(externalRoot, 'Disabled.md');
     fs.writeFileSync(disabledPath, '# Disabled\n', 'utf-8');
@@ -153,6 +210,7 @@ function stableHash(value) {
     console.log('test-opened-markdown-registrar-contract: all assertions passed');
     success = true;
   } finally {
+    if (aliasedSearchEngine) aliasedSearchEngine.close();
     if (searchEngine) searchEngine.close();
     await removeTreeWithRetry(root);
   }
