@@ -381,7 +381,7 @@ function listMarkdownFiles(root) {
     const deniedFs = {
       ...fs.promises,
       async open(candidate, ...args) {
-        if (path.resolve(candidate) === path.resolve(originalPath)) {
+        if (path.resolve(candidate) === path.resolve(canonicalOriginal)) {
           const err = new Error('permission denied for secret path');
           err.code = 'EACCES';
           throw err;
