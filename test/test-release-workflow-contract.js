@@ -33,7 +33,7 @@ assertWorkflow(packageJson.scripts['test:release-regression'].includes('npm run 
 assertWorkflow(packageJson.scripts['test:release-regression'].includes('npm run test:wave2'), 'release regression gate includes Wave 2 storage and hotfix contracts');
 assertWorkflow(packageJson.scripts['test:release-regression'].includes('test-search-index-worker-contract.js'), 'release regression gate includes real worker/controller wiring coverage');
 assertWorkflow(packageJson.scripts['test:release-regression'].includes('test-search-index-worker-benchmark-contract.js'), 'release regression gate includes REL-DOC-007 responsiveness benchmark coverage');
-assertWorkflow(packageJson.version === '1.0.4', 'path-alias hotfix uses the approved v1.0.4 release identity instead of moving the failed v1.0.3 tag');
+assertWorkflow(packageJson.version === '1.0.5', 'indexed-origin safety release uses the approved v1.0.5 identity instead of moving an existing release tag');
 assertWorkflow(packageLock.version === packageJson.version && packageLock.packages[''].version === packageJson.version, 'package manifest and lockfile release versions match');
 const releaseNotePath = path.join(root, 'docs', 'release-note', `v${packageJson.version}.md`);
 assertWorkflow(fs.existsSync(releaseNotePath), 'hotfix release has a version-matched release note');

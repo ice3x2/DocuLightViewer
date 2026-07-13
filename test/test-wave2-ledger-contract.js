@@ -248,8 +248,11 @@ class FakeAnnHierarchicalNSW {
     try {
       await migratedLedger.initialize();
       const migratedIndexJobColumns = getColumnNames(migratedLedger.open(), 'index_jobs');
+      const migratedAliasColumns = getColumnNames(migratedLedger.open(), 'document_source_aliases');
       wave2Assert(migratedIndexJobColumns.includes('content_byte_length'), 'legacy index_jobs gains content_byte_length migration');
       wave2Assert(migratedIndexJobColumns.includes('content_text_length'), 'legacy index_jobs gains content_text_length migration');
+      wave2Assert(migratedAliasColumns.includes('origin_lexical_path_internal'), 'legacy aliases gain nullable lexical origin path migration');
+      wave2Assert(migratedAliasColumns.includes('origin_path_internal'), 'legacy aliases gain nullable canonical origin path migration');
       const migratedSource = await migratedLedger.recordSource({
         rootPathInternal: path.join(tmp, 'legacy-source'),
         displayName: 'Legacy Source',

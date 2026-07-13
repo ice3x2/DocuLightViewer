@@ -486,10 +486,11 @@ const server = new McpServer({
 // ---------------------------------------------------------------------------
 server.tool(
   'open_markdown',
-  'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide either content or filePath. Returns windowId for future viewer updates.',
+  'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide content, filePath, or an indexed search result documentId. Returns windowId for future viewer updates.',
   {
     content:          z.string().optional().describe('Raw Markdown content to display'),
     filePath:         z.string().optional().describe('Absolute path to a .md file to open'),
+    documentId:       z.string().optional().describe('Indexed search result identity. Opens a verified readable origin when available, otherwise its verified indexed copy.'),
     title:            z.string().optional().describe('Custom window title'),
     foreground:       z.boolean().optional().describe('Bring window to foreground (default: true)'),
     size:             z.enum(['s', 'm', 'l', 'f']).optional().describe('Window size preset: s(mall), m(edium), l(arge), f(ullscreen)'),
@@ -504,14 +505,21 @@ server.tool(
     docType:          z.enum(DOC_TYPE_VALUES).optional().describe('[Recommended] Document type. Match to content: plan (plans/designs), report (analysis/status), completion (finished work), issue (bugs/problems), review (code/doc review), log (progress/changelog), reference (API/config docs), guide (tutorials/howto), spec (specifications/SRS), note (default/general)'),
     projectPath:      z.string().optional().describe('Absolute path to project directory. Auto-collects git metadata when mcpGitInfo setting is enabled.')
   },
-  async ({ content, filePath, title, foreground, size,
+  async ({ content, filePath, documentId, title, foreground, size,
            windowName, severity, tags, progress,
            project, docName, description, noSave, docType, projectPath }) => {
     try {
-      // Validation: at least one of content or filePath is required
-      if (!content && !filePath) {
+      // @req IR-MCP-019
+      const hasDocumentId = documentId !== undefined && documentId !== null;
+      if (hasDocumentId && (content !== undefined || filePath !== undefined)) {
         return {
-          content: [{ type: 'text', text: 'content or filePath is required.' }],
+          content: [{ type: 'text', text: 'errorCode: indexed_document_ambiguous_input' }],
+          isError: true
+        };
+      }
+      if (!content && !filePath && !hasDocumentId) {
+        return {
+          content: [{ type: 'text', text: 'content, filePath, or documentId is required.' }],
           isError: true
         };
       }
@@ -534,7 +542,7 @@ server.tool(
       }
 
       const result = await sendIpcRequest('open_markdown', {
-        content, filePath, title,
+        content, filePath, documentId, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
         windowName, severity, tags, progress, noSave,
@@ -543,27 +551,36 @@ server.tool(
       });
 
       if (result.upserted) {
+        const selectionLines = formatIndexedOpenSelection(result);
         return {
           content: [{
             type: 'text',
-            text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}`
+            text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}${selectionLines}`
           }]
         };
       }
+      const selectionLines = formatIndexedOpenSelection(result);
       return {
         content: [{
           type: 'text',
-          text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}`
+          text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}${selectionLines}`
         }]
       };
     } catch (err) {
+      const message = sanitizeMcpErrorMessage(err);
       return {
-        content: [{ type: 'text', text: `Error: ${sanitizeMcpErrorMessage(err)}` }],
+        content: [{ type: 'text', text: message.startsWith('errorCode: ') ? message : `Error: ${message}` }],
         isError: true
       };
     }
   }
 );
+
+// @req IR-MCP-019
+function formatIndexedOpenSelection(result) {
+  if (!result || !result.sourceUsed || !result.originStatus) return '';
+  return `\n  sourceUsed: ${result.sourceUsed}\n  originStatus: ${result.originStatus}`;
+}
 
 // ---------------------------------------------------------------------------
 // Tool: update_markdown

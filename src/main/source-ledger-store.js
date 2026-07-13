@@ -242,6 +242,8 @@ class SourceLedgerStore {
         document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
         alias_kind TEXT NOT NULL,
         canonical_path_hash TEXT NOT NULL UNIQUE,
+        origin_lexical_path_internal TEXT,
+        origin_path_internal TEXT,
         content_hash TEXT,
         content_byte_length INTEGER,
         content_text_length INTEGER,
@@ -362,6 +364,9 @@ class SourceLedgerStore {
     this.ensureColumn('document_source_aliases', 'content_hash', 'TEXT');
     this.ensureColumn('document_source_aliases', 'content_byte_length', 'INTEGER');
     this.ensureColumn('document_source_aliases', 'content_text_length', 'INTEGER');
+    // @req DR-DOC-014
+    this.ensureColumn('document_source_aliases', 'origin_lexical_path_internal', 'TEXT');
+    this.ensureColumn('document_source_aliases', 'origin_path_internal', 'TEXT');
     this.ensureColumn('ann_indexes', 'params_json', "TEXT NOT NULL DEFAULT '{}'");
     this.ensureColumn('ann_memberships', 'deleted_at', 'TEXT');
     this.ensureColumn('chunks', 'kind', "TEXT NOT NULL DEFAULT 'markdown'");
@@ -967,10 +972,17 @@ class SourceLedgerStore {
   }
 
   // @req FR-DOC-035
+  // @req DR-DOC-014
   upsertDocumentSourceAlias(input = {}) {
     this.assertWritable();
     const documentId = requiredString(input.documentId, 'documentId');
-    const canonicalPathHash = input.canonicalPathHash || stableHash(normalizeInternalPath(realpathOrPath(requiredString(input.canonicalPathInternal, 'canonicalPathInternal'))));
+    const originLexicalPathInternal = input.originLexicalPathInternal
+      ? path.resolve(requiredString(input.originLexicalPathInternal, 'originLexicalPathInternal'))
+      : null;
+    const originPathInternal = (input.originPathInternal || input.canonicalPathInternal)
+      ? realpathOrPath(requiredString(input.originPathInternal || input.canonicalPathInternal, 'originPathInternal'))
+      : null;
+    const canonicalPathHash = input.canonicalPathHash || stableHash(normalizeInternalPath(requiredString(originPathInternal, 'originPathInternal')));
     const aliasKind = normalizeSourceKind(input.aliasKind || 'opened_path');
     const now = this._now();
     const existing = this.open().prepare(`
@@ -983,6 +995,8 @@ class SourceLedgerStore {
       documentId,
       aliasKind,
       canonicalPathHash,
+      originLexicalPathInternal,
+      originPathInternal,
       contentHash: input.contentHash || null,
       contentByteLength: Number.isInteger(input.contentByteLength) ? input.contentByteLength : null,
       contentTextLength: Number.isInteger(input.contentTextLength) ? input.contentTextLength : null,
@@ -993,17 +1007,21 @@ class SourceLedgerStore {
     this.open().prepare(`
       INSERT INTO document_source_aliases(
         alias_id, document_id, alias_kind, canonical_path_hash,
+        origin_lexical_path_internal, origin_path_internal,
         content_hash, content_byte_length, content_text_length,
         first_seen_at, last_seen_at, created_at, updated_at
       )
       VALUES (
         @aliasId, @documentId, @aliasKind, @canonicalPathHash,
+        @originLexicalPathInternal, @originPathInternal,
         @contentHash, @contentByteLength, @contentTextLength,
         @firstSeenAt, @lastSeenAt, @now, @now
       )
       ON CONFLICT(canonical_path_hash) DO UPDATE SET
         document_id = excluded.document_id,
         alias_kind = excluded.alias_kind,
+        origin_lexical_path_internal = COALESCE(document_source_aliases.origin_lexical_path_internal, excluded.origin_lexical_path_internal),
+        origin_path_internal = COALESCE(document_source_aliases.origin_path_internal, excluded.origin_path_internal),
         content_hash = excluded.content_hash,
         content_byte_length = excluded.content_byte_length,
         content_text_length = excluded.content_text_length,
@@ -1011,6 +1029,76 @@ class SourceLedgerStore {
         updated_at = excluded.updated_at
     `).run(record);
     return this.findDocumentSourceAliasByCanonicalPath({ canonicalPathHash });
+  }
+
+  // @req DR-DOC-014
+  // @req FR-DOC-036
+  getIndexedDocumentOpenTargetInternal({ documentId, filePath } = {}) {
+    let resolvedDocumentId = documentId ? String(documentId).trim() : '';
+    if (!resolvedDocumentId && filePath) {
+      const canonicalPathHash = stableHash(normalizeInternalPath(realpathOrPath(path.resolve(String(filePath)))));
+      const identity = this.open().prepare(`
+        SELECT document_id
+        FROM (
+          SELECT d.document_id, d.updated_at AS seen_at, 0 AS alias_match
+          FROM documents d
+          WHERE d.canonical_path_hash = @canonicalPathHash
+          UNION ALL
+          SELECT a.document_id, a.updated_at AS seen_at, 1 AS alias_match
+          FROM document_source_aliases a
+          WHERE a.canonical_path_hash = @canonicalPathHash
+        )
+        ORDER BY alias_match DESC, seen_at DESC, document_id
+        LIMIT 1
+      `).get({ canonicalPathHash });
+      resolvedDocumentId = identity && identity.document_id ? identity.document_id : '';
+    }
+    if (!resolvedDocumentId) return null;
+
+    const row = this.open().prepare(`
+      SELECT
+        d.document_id,
+        d.source_id,
+        d.relative_path,
+        d.path_key,
+        d.path_status,
+        d.canonical_path_hash AS indexed_canonical_path_hash,
+        s.root_path_internal,
+        a.alias_id,
+        a.canonical_path_hash AS origin_canonical_path_hash,
+        a.origin_lexical_path_internal,
+        a.origin_path_internal,
+        a.content_hash AS origin_content_hash,
+        a.content_byte_length AS origin_content_byte_length,
+        a.content_text_length AS origin_content_text_length
+      FROM documents d
+      JOIN sources s ON s.source_id = d.source_id
+      LEFT JOIN document_source_aliases a ON a.document_id = d.document_id
+      WHERE d.document_id = ?
+      ORDER BY
+        (a.origin_lexical_path_internal IS NOT NULL AND a.origin_path_internal IS NOT NULL) DESC,
+        a.updated_at DESC,
+        a.alias_id
+      LIMIT 1
+    `).get(resolvedDocumentId);
+    if (!row) return null;
+    return {
+      documentId: row.document_id,
+      sourceId: row.source_id,
+      sourceRelativePath: row.relative_path,
+      pathKey: row.path_key,
+      pathStatus: row.path_status,
+      sourceRootInternal: row.root_path_internal,
+      indexedPathInternal: path.join(row.root_path_internal, row.relative_path),
+      indexedCanonicalPathHash: row.indexed_canonical_path_hash || null,
+      aliasId: row.alias_id || null,
+      originCanonicalPathHash: row.origin_canonical_path_hash || null,
+      originLexicalPathInternal: row.origin_lexical_path_internal || null,
+      originPathInternal: row.origin_path_internal || null,
+      originContentHash: row.origin_content_hash || null,
+      originContentByteLength: Number.isInteger(row.origin_content_byte_length) ? row.origin_content_byte_length : null,
+      originContentTextLength: Number.isInteger(row.origin_content_text_length) ? row.origin_content_text_length : null
+    };
   }
 
   // @req DR-DOC-013
@@ -2036,6 +2124,7 @@ function documentSourceAliasRowToPublic(row) {
     documentId: row.linked_document_id || row.document_id,
     aliasKind: row.alias_kind,
     canonicalPathHash: row.canonical_path_hash,
+    hasOriginPath: Boolean(row.origin_lexical_path_internal && row.origin_path_internal),
     contentHash: row.content_hash || null,
     contentByteLength: Number.isInteger(row.content_byte_length) ? row.content_byte_length : null,
     contentTextLength: Number.isInteger(row.content_text_length) ? row.content_text_length : null,

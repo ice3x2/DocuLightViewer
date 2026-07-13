@@ -43,6 +43,11 @@ const { createOpenAICompatibleEmbeddingProvider } = require('./embedding-provide
 const { createRedactor } = require('./redaction');
 const { createLinkedImporter } = require('./linked-import');
 const { createOpenedMarkdownRegistrar } = require('./opened-markdown-registrar');
+const {
+  IndexedDocumentOpenError,
+  VALIDATED_MARKDOWN_CONTENT,
+  resolveIndexedMarkdownOpen
+} = require('./indexed-origin-resolver');
 const { createNativeRebuildManager } = require('./native-rebuild-manager');
 const {
   fetchRemoteImageForMediaViewer,
@@ -2847,6 +2852,24 @@ async function handleIpcMessage(socket, msg) {
 
     switch (action) {
       case 'open_markdown': {
+        // @req IR-MCP-019
+        const hasDocumentId = params.documentId !== undefined && params.documentId !== null;
+        if (hasDocumentId && (params.content !== undefined || params.filePath !== undefined)) {
+          throw new IndexedDocumentOpenError('indexed_document_ambiguous_input');
+        }
+        const indexedOpen = hasDocumentId || Boolean(params.filePath)
+          ? await resolveIndexedMarkdownOpen({
+            documentId: params.documentId,
+            filePath: params.filePath,
+            searchEngine
+          })
+          : null;
+        if (indexedOpen) {
+          params.content = indexedOpen.content;
+          params.filePath = indexedOpen.filePathInternal;
+          params[VALIDATED_MARKDOWN_CONTENT] = true;
+        }
+
         // Git info collection (stdio path — mcp-server.mjs passes projectPath via IPC)
         let gitInfo = {};
         if (params.projectPath && path.isAbsolute(params.projectPath)) {
@@ -2875,10 +2898,21 @@ async function handleIpcMessage(socket, msg) {
           });
         }
 
-        result = await windowManager.createWindow({ ...params, ...gitInfo, registerOpenedMarkdown: false });
+        try {
+          result = await windowManager.createWindow({ ...params, ...gitInfo, registerOpenedMarkdown: false });
+        } catch (err) {
+          if (indexedOpen) {
+            throw new IndexedDocumentOpenError('indexed_document_unavailable', indexedOpen.originStatus);
+          }
+          throw err;
+        }
+        if (indexedOpen) {
+          result.sourceUsed = indexedOpen.sourceUsed;
+          result.originStatus = indexedOpen.originStatus;
+        }
         try {
           const entry = windowManager.getWindowEntry(result.windowId);
-          const savedPath = await saveMcpFile(store, {
+          const savedPath = indexedOpen ? null : await saveMcpFile(store, {
             content: params.content,
             filePath: params.filePath,
             title: params.title,
@@ -2948,7 +2982,11 @@ async function handleIpcMessage(socket, msg) {
           if (entry && savedPath && !entry.win.isDestroyed()) {
             entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
             if (windowManager.formatWindowTitle) {
-              entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
+              entry.win.setTitle(windowManager.formatWindowTitle(
+                entry.meta.title,
+                entry.meta.validatedIndexedOpen ? null : entry.meta.filePath,
+                savedPath
+              ));
             }
           }
         } catch (e) {
@@ -3702,6 +3740,8 @@ function registerIpcHandlers() {
       // Set rootFilePath and build tree for the dropped file
       entry.meta.rootFilePath = filePath;
       entry.meta.filePath = filePath;
+      entry.meta.validatedIndexedOpen = false;
+      entry.meta.lastRenderedContent = undefined;
       entry.meta.history.push(filePath);
 
       // Update window title
@@ -3750,6 +3790,8 @@ function registerIpcHandlers() {
 
       // Update meta for the window (root stays the same)
       entry.meta.filePath = filePath;
+      entry.meta.validatedIndexedOpen = false;
+      entry.meta.lastRenderedContent = undefined;
       if (!entry.meta.rootFilePath) entry.meta.rootFilePath = filePath;
 
       // Start file watcher

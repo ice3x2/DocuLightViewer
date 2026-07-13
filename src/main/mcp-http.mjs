@@ -14,6 +14,11 @@ const _require = createRequire(import.meta.url);
 const { injectFrontmatter, DOC_TYPE_VALUES } = _require('./frontmatter.js');
 const { saveMcpFile, saveMcpUpdatedContent, saveDocumentToStore } = _require('./mcp-save.js');
 const { buildSmartSearchToolResult } = _require('./smart-search-response.js');
+const {
+  IndexedDocumentOpenError,
+  VALIDATED_MARKDOWN_CONTENT,
+  resolveIndexedMarkdownOpen
+} = _require('./indexed-origin-resolver.js');
 
 const PROTOCOL_VERSION = '2025-11-25';
 const SERVER_INFO = { name: 'doculight', version: '1.0.0' };
@@ -75,12 +80,13 @@ const SMART_SEARCH_SCHEMA = {
 export const TOOLS = [
   {
     name: 'open_markdown',
-    description: 'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide either content or filePath. Returns windowId for future viewer updates.',
+    description: 'Open or update a visible DocuLight viewer window for Markdown content. Use save_document instead when you only want to save Markdown to the persistent document store without showing a viewer. Provide content, filePath, or an indexed search result documentId. Returns windowId for future viewer updates.',
     inputSchema: {
       type: 'object',
       properties: {
         content:          { type: 'string', description: 'Raw Markdown content to display' },
         filePath:         { type: 'string', description: 'Absolute path to a .md file to open' },
+        documentId:       { type: 'string', description: 'Indexed search result identity. Opens a verified readable origin when available, otherwise its verified indexed copy.' },
         title:            { type: 'string', description: 'Custom window title' },
         foreground:       { type: 'boolean', description: 'Bring window to foreground (default: true)' },
         alwaysOnTop:      { type: 'boolean', description: 'Keep window above others (default: true)' },
@@ -189,12 +195,31 @@ export function createToolHandlers(windowManager, store, searchEngine) {
   const searchUnavailable = () => getSearchUnavailableResult(store, searchEngine);
 
   return {
-    async open_markdown({ content, filePath, title, foreground, alwaysOnTop, size,
+    async open_markdown({ content, filePath, documentId, title, foreground, alwaysOnTop, size,
                           windowName, severity, tags, progress, noSave,
                           project, docName, description, docType,
                           projectPath }) {
-      if (!content && !filePath) {
-        return { isError: true, content: [{ type: 'text', text: 'content or filePath is required.' }] };
+      // @req IR-MCP-019
+      const hasDocumentId = documentId !== undefined && documentId !== null;
+      if (hasDocumentId && (content !== undefined || filePath !== undefined)) {
+        return indexedOpenErrorResult('indexed_document_ambiguous_input');
+      }
+      if (!content && !filePath && !hasDocumentId) {
+        return { isError: true, content: [{ type: 'text', text: 'content, filePath, or documentId is required.' }] };
+      }
+
+      let indexedOpen = null;
+      try {
+        indexedOpen = hasDocumentId || Boolean(filePath)
+          ? await resolveIndexedMarkdownOpen({ documentId, filePath, searchEngine })
+          : null;
+      } catch (err) {
+        if (err instanceof IndexedDocumentOpenError) return indexedOpenErrorResult(err.code);
+        throw err;
+      }
+      if (indexedOpen) {
+        content = indexedOpen.content;
+        filePath = indexedOpen.filePathInternal;
       }
 
       // Git info collection
@@ -224,19 +249,27 @@ export function createToolHandlers(windowManager, store, searchEngine) {
         });
       }
 
-      const result = await windowManager.createWindow({
+      const windowOptions = {
         content, filePath, title,
         foreground: foreground ?? true,
         size: size ?? 'm',
         windowName, severity, tags, progress,
         project, docName, description, docType,
         registerOpenedMarkdown: false
-      });
+      };
+      if (indexedOpen) windowOptions[VALIDATED_MARKDOWN_CONTENT] = true;
+      let result;
+      try {
+        result = await windowManager.createWindow(windowOptions);
+      } catch (err) {
+        if (indexedOpen) return indexedOpenErrorResult('indexed_document_unavailable');
+        throw err;
+      }
       const entry = windowManager.getWindowEntry(result.windowId);
 
       let savedPath = null;
       try {
-        savedPath = await saveMcpFile(store, {
+        savedPath = indexedOpen ? null : await saveMcpFile(store, {
           content,
           filePath,
           title,
@@ -281,12 +314,14 @@ export function createToolHandlers(windowManager, store, searchEngine) {
       }
 
       if (result.upserted) {
+        const selectionLines = formatIndexedOpenSelection(indexedOpen);
         return {
-          content: [{ type: 'text', text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}` }]
+          content: [{ type: 'text', text: `Updated existing window (named: ${result.windowName}).\n  windowId: ${result.windowId}\n  title: ${result.title}${selectionLines}` }]
         };
       }
+      const selectionLines = formatIndexedOpenSelection(indexedOpen);
       return {
-        content: [{ type: 'text', text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}` }]
+        content: [{ type: 'text', text: `Opened viewer window.\n  windowId: ${result.windowId}\n  title: ${result.title}${result.windowName ? `\n  windowName: ${result.windowName}` : ''}${selectionLines}` }]
       };
     },
 
@@ -435,6 +470,20 @@ export function createToolHandlers(windowManager, store, searchEngine) {
     async smart_search(args = {}) {
       return await buildSmartSearchToolResult(args, { searchEngine, store });
     }
+  };
+}
+
+// @req IR-MCP-019
+function formatIndexedOpenSelection(indexedOpen) {
+  if (!indexedOpen) return '';
+  return `\n  sourceUsed: ${indexedOpen.sourceUsed}\n  originStatus: ${indexedOpen.originStatus}`;
+}
+
+// @req IR-MCP-019
+function indexedOpenErrorResult(errorCode) {
+  return {
+    isError: true,
+    content: [{ type: 'text', text: `errorCode: ${errorCode}` }]
   };
 }
 

@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { buildSidebarTree } = require('./link-parser');
 const { t } = require('./strings');
 const { injectFrontmatter, parseFrontmatter, DOC_TYPE_VALUES } = require('./frontmatter');
+const { VALIDATED_MARKDOWN_CONTENT } = require('./indexed-origin-resolver');
 
 // step28 Phase 4: 사이드바 트리 TTL 캐시 설정
 const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;  // 5분
@@ -177,6 +178,7 @@ class WindowManager {
   startFileWatcher(windowId) {
     const entry = this.windows.get(windowId);
     if (!entry) return;
+    if (entry.meta.validatedIndexedOpen) return;
 
     const filePath = entry.meta.filePath;
     if (!filePath) return; // content-only mode
@@ -355,6 +357,8 @@ class WindowManager {
       : await fs.promises.readFile(filePath, 'utf-8');
 
     entry.meta.filePath = filePath;
+    entry.meta.validatedIndexedOpen = false;
+    entry.meta.lastRenderedContent = undefined;
 
     this._sendMarkdownToRenderer(windowId, entry, content, filePath);
 
@@ -464,13 +468,24 @@ class WindowManager {
       throw new Error(t('error.contentRequired'));
     }
 
-    // If filePath is supplied, read from disk
+    // @req FR-DOC-036
+    // Resolver-selected content was read from a validated handle. The symbol cannot
+    // cross MCP/JSON IPC and prevents a second path-based read after validation.
+    const hasValidatedFileContent = Boolean(
+      opts[VALIDATED_MARKDOWN_CONTENT]
+      && filePath
+      && typeof content === 'string'
+    );
+
+    // If filePath is supplied, read from disk unless a trusted resolver supplied it.
     if (filePath) {
       const ext = path.extname(filePath).toLowerCase();
       if (ext !== '.md' && ext !== '.markdown') {
         throw new Error(t('error.mdOnly', { filePath }));
       }
-      content = await fs.promises.readFile(filePath, 'utf-8');
+      if (!hasValidatedFileContent) {
+        content = await fs.promises.readFile(filePath, 'utf-8');
+      }
 
       // Inject frontmatter if metadata params provided (filePath mode)
       if (project || docName || description || docType || projectPath) {
@@ -514,7 +529,7 @@ class WindowManager {
       this.extractTitle(content) ||
       (filePath ? path.basename(filePath, '.md') : null) ||
       'DocuLight';
-    const displayTitle = this.formatWindowTitle(resolvedTitle, filePath, null);
+    const displayTitle = this.formatWindowTitle(resolvedTitle, hasValidatedFileContent ? null : filePath, null);
     const fmData = content ? parseFrontmatter(content).data : {};
     const resolvedProjectMeta = project || fmData.project || null;
     const resolvedDocNameMeta = docName || fmData.docName || null;
@@ -556,7 +571,7 @@ class WindowManager {
 
     // --- Navigation history ------------------------------------------------
     const history = new NavigationHistory();
-    if (filePath) {
+    if (filePath && !hasValidatedFileContent) {
       history.push(filePath);
     }
 
@@ -568,7 +583,7 @@ class WindowManager {
         filePath: filePath || null,
         title: resolvedTitle,
         alwaysOnTop: false,
-        rootFilePath: filePath || null,
+        rootFilePath: hasValidatedFileContent ? null : (filePath || null),
         tree: null,
         history,
         // Step 19 new fields
@@ -578,7 +593,8 @@ class WindowManager {
         severity: severity || null,
         autoCloseTimer: undefined,
         progress: (progress !== undefined && progress !== null) ? progress : undefined,
-        lastRenderedContent: filePath ? undefined : (content || ''),
+        lastRenderedContent: hasValidatedFileContent || !filePath ? (content || '') : undefined,
+        validatedIndexedOpen: hasValidatedFileContent,
         project: resolvedProjectMeta,
         docName: resolvedDocNameMeta,
         description: resolvedDescriptionMeta,
@@ -655,7 +671,7 @@ class WindowManager {
     }
 
     // Track in recent files
-    if (filePath && typeof this.onRecentFile === 'function') {
+    if (filePath && !hasValidatedFileContent && typeof this.onRecentFile === 'function') {
       this.onRecentFile(filePath);
     }
     if (filePath && registerOpenedMarkdown === true && typeof this.onRegisterOpenedMarkdown === 'function') {
@@ -668,6 +684,7 @@ class WindowManager {
         resolve,
         content,
         filePath: filePath || null,
+        validatedIndexedOpen: hasValidatedFileContent,
         title: resolvedTitle,
         // Step 19 pending fields
         severity: severity || null,
@@ -826,7 +843,7 @@ class WindowManager {
       this._sendMarkdownToRenderer(windowId, entry, content, filePath || null);
 
       // Build sidebar tree for filePath-based windows (step28 Phase 2: 배치 스트리밍)
-      if (filePath) {
+      if (filePath && !pending.validatedIndexedOpen) {
         this._startSidebarTreeLoad(windowId, filePath);
       }
 
@@ -866,7 +883,7 @@ class WindowManager {
     this.pendingReady.delete(windowId);
 
     // Start file watcher if filePath exists
-    if (pending.filePath) {
+    if (pending.filePath && !pending.validatedIndexedOpen) {
       this.startFileWatcher(windowId);
     }
 
@@ -894,6 +911,14 @@ class WindowManager {
    */
   async _resendWindowState(windowId, entry) {
     const filePath = entry.meta.filePath;
+
+    if (entry.meta.validatedIndexedOpen && entry.meta.lastRenderedContent != null) {
+      this._sendMarkdownToRenderer(windowId, entry, entry.meta.lastRenderedContent, filePath);
+      if (entry.meta.severity) {
+        entry.win.webContents.send('set-severity', { severity: entry.meta.severity });
+      }
+      return;
+    }
 
     if (!filePath) {
       // Content-only 윈도우 (MCP 등)
@@ -1011,6 +1036,11 @@ class WindowManager {
           severity, flash, progress, tags, autoCloseSeconds,
           project, docName, description, docType,
           projectPath, gitRemote, gitBranch, gitLastCommit } = opts;
+    const hasValidatedFileContent = Boolean(
+      opts[VALIDATED_MARKDOWN_CONTENT]
+      && filePath
+      && typeof content === 'string'
+    );
 
     // --- Append mode (FR-19-002) -------------------------------------------
     if (appendMode) {
@@ -1032,10 +1062,13 @@ class WindowManager {
 
     // --- Read from disk if filePath provided -------------------------------
     if (filePath) {
-      if (path.extname(filePath).toLowerCase() !== '.md') {
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext !== '.md' && ext !== '.markdown') {
         throw new Error(t('error.mdOnly', { filePath }));
       }
-      content = await fs.promises.readFile(filePath, 'utf-8');
+      if (!hasValidatedFileContent) {
+        content = await fs.promises.readFile(filePath, 'utf-8');
+      }
       // Inject frontmatter metadata for filePath mode (Step 20)
       if (project || docName || description || docType || projectPath) {
         content = injectFrontmatter(content, {
@@ -1071,12 +1104,18 @@ class WindowManager {
 
       entry.meta.title = resolvedTitle;
       if (filePath) {
+        this.stopFileWatcher(windowId);
         entry.meta.filePath = filePath;
         entry.meta.lastRenderedContent = content;
-        this.startFileWatcher(windowId);
+        entry.meta.validatedIndexedOpen = hasValidatedFileContent;
+        if (hasValidatedFileContent) {
+          entry.meta.rootFilePath = null;
+          entry.meta.history = new NavigationHistory();
+        }
+        if (!hasValidatedFileContent) this.startFileWatcher(windowId);
       } else {
         // Update lastRenderedContent for content-based windows
-        if (!entry.meta.filePath) {
+        if (!entry.meta.filePath || entry.meta.validatedIndexedOpen) {
           entry.meta.lastRenderedContent = content;
         }
       }
@@ -1084,11 +1123,19 @@ class WindowManager {
       entry.meta.docName = resolvedDocNameMeta;
       entry.meta.description = resolvedDescriptionMeta;
       entry.meta.docType = resolvedDocTypeMeta;
-      entry.win.setTitle(this.formatWindowTitle(resolvedTitle, entry.meta.filePath, entry.meta.savedFilePath));
+      entry.win.setTitle(this.formatWindowTitle(
+        resolvedTitle,
+        hasValidatedFileContent || entry.meta.validatedIndexedOpen ? null : entry.meta.filePath,
+        entry.meta.savedFilePath
+      ));
     } else if (title) {
       // Title-only update
       entry.meta.title = title;
-      entry.win.setTitle(this.formatWindowTitle(title, entry.meta.filePath, entry.meta.savedFilePath));
+      entry.win.setTitle(this.formatWindowTitle(
+        title,
+        entry.meta.validatedIndexedOpen ? null : entry.meta.filePath,
+        entry.meta.savedFilePath
+      ));
     }
 
     if (content == null) {

@@ -82,7 +82,14 @@ class OpenedMarkdownRegistrar {
       }
       return this.registerContainedPath({ filePath: containedPath, content, fingerprint, ledger, sourceRoot });
     }
-    return this.registerExternalPath({ filePath: canonicalPath, content, fingerprint, ledger, sourceRoot });
+    return this.registerExternalPath({
+      filePath: canonicalPath,
+      originLexicalPathInternal: absolutePath,
+      content,
+      fingerprint,
+      ledger,
+      sourceRoot
+    });
   }
 
   isEnabled() {
@@ -136,7 +143,8 @@ class OpenedMarkdownRegistrar {
     return queueResultToRegistrationResult(queued, filePath);
   }
 
-  async registerExternalPath({ filePath, content, fingerprint, ledger, sourceRoot }) {
+  // @req DR-DOC-014
+  async registerExternalPath({ filePath, originLexicalPathInternal, content, fingerprint, ledger, sourceRoot }) {
     const alias = typeof ledger.findDocumentSourceAliasByCanonicalPath === 'function'
       ? ledger.findDocumentSourceAliasByCanonicalPath({ canonicalPathInternal: filePath })
       : null;
@@ -168,6 +176,17 @@ class OpenedMarkdownRegistrar {
       });
       if (aliasDestinationStatus.status !== 'existing') {
         return aliasDestinationStatus;
+      }
+      if (alias.documentId && typeof ledger.upsertDocumentSourceAlias === 'function') {
+        ledger.upsertDocumentSourceAlias({
+          documentId: alias.documentId,
+          originLexicalPathInternal,
+          originPathInternal: filePath,
+          aliasKind: 'opened_path',
+          contentHash: fingerprint.contentHash,
+          contentByteLength: fingerprint.contentByteLength,
+          contentTextLength: fingerprint.contentTextLength
+        });
       }
       return {
         status: 'existing',
@@ -222,7 +241,8 @@ class OpenedMarkdownRegistrar {
     if (document && typeof ledger.upsertDocumentSourceAlias === 'function') {
       ledger.upsertDocumentSourceAlias({
         documentId: document.documentId,
-        canonicalPathInternal: filePath,
+        originLexicalPathInternal,
+        originPathInternal: filePath,
         aliasKind: 'opened_path',
         contentHash: fingerprint.contentHash,
         contentByteLength: fingerprint.contentByteLength,
