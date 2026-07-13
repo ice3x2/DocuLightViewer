@@ -59,6 +59,9 @@ jobs:
         env:
           npm_config_python: ${{ steps.python.outputs.python-path }}
 
+      - name: Install Electron test runtime
+        run: npm rebuild electron
+
       - name: Build Windows
         run: npm run build:win
         env:
@@ -109,6 +112,9 @@ jobs:
         env:
           npm_config_python: ${{ steps.python.outputs.python-path }}
 
+      - name: Install Electron test runtime
+        run: npm rebuild electron
+
       - name: Build macOS
         run: npm run build:mac
         env:
@@ -157,6 +163,9 @@ jobs:
         run: npm ci --ignore-scripts
         env:
           npm_config_python: ${{ steps.python.outputs.python-path }}
+
+      - name: Install Electron test runtime
+        run: npm rebuild electron
 
       - name: Build Linux
         run: npm run build:linux

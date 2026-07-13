@@ -42,12 +42,13 @@ for (const [platform, job, buildCommand, smokeCommand] of [
   ['macOS', macosJob, 'run: npm run build:mac', 'run: npm run smoke:package'],
   ['Linux', linuxJob, 'run: npm run build:linux', 'run: xvfb-run --auto-servernum npm run smoke:package']
 ]) {
+  const electronRuntimeIndex = job.indexOf('run: npm rebuild electron');
   const buildIndex = job.indexOf(buildCommand);
   const regressionIndex = job.indexOf('run: npm run test:release-regression');
   const smokeIndex = job.indexOf(smokeCommand);
   assertWorkflow(
-    buildIndex >= 0 && regressionIndex > buildIndex && smokeIndex > regressionIndex,
-    `${platform} runs Wave 2 regression tests after native build/ABI restoration and before package smoke`
+    electronRuntimeIndex >= 0 && buildIndex > electronRuntimeIndex && regressionIndex > buildIndex && smokeIndex > regressionIndex,
+    `${platform} installs the Electron test runtime before build, then runs release regression after native ABI restoration and before package smoke`
   );
 }
 const verifyTagIndex = workflow.indexOf('- name: Verify or create release tag');
