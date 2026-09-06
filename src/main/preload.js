@@ -78,6 +78,9 @@ contextBridge.exposeInMainWorld('doclight', {
   // === Senders (Renderer → Main) ===
 
   navigateTo: (filePath) => ipcRenderer.send('navigate-to', filePath),
+  // Resolve a clicked markdown href to an absolute file path. The main process is
+  // the single authority for href decoding and target classification.
+  resolveLinkTarget: (href, baseFilePath) => ipcRenderer.invoke('resolve-link-target', href, baseFilePath),
   navigateBack: () => ipcRenderer.send('navigate-back'),
   navigateForward: () => ipcRenderer.send('navigate-forward'),
   navigateToHistoryIndex: (index) => ipcRenderer.send('navigate-to-history-index', index),

@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { decodeHrefPath, isMarkdownExtension } = require('./markdown-link-resolver');
 
 // Constants
 const MAX_DEPTH = 10;
@@ -203,10 +204,8 @@ function processLink(href, title, basePath, seen, results) {
   let cleaned = href.split('?')[0].split('#')[0];
   if (!cleaned) return;
 
-  // URI 디코딩
-  try {
-    cleaned = decodeURIComponent(cleaned);
-  } catch { /* 디코딩 오류 무시 */ }
+  // URI 디코딩 (markdown-link-resolver와 동일한 디코더를 공유)
+  cleaned = decodeHrefPath(cleaned);
 
   // 이미지/바이너리 확장자 스킵
   const ext = path.extname(cleaned).toLowerCase();
@@ -215,7 +214,7 @@ function processLink(href, title, basePath, seen, results) {
   // 확장자 없으면 .md 추가; .md/.markdown이 아니면 스킵
   if (!ext) {
     cleaned += '.md';
-  } else if (ext !== '.md' && ext !== '.markdown') {
+  } else if (!isMarkdownExtension(ext)) {
     return;
   }
 

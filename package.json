@@ -1,6 +1,6 @@
 {
   "name": "doculight",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Lightweight Markdown Document Viewer & Manager — Electron + MCP",
   "main": "src/main/index.js",
   "bin": {
@@ -24,7 +24,7 @@
     "postbuild:mac": "npm run repair:package:native && npm run rebuild:native:node",
     "prebuild:linux": "npm run bundle:mcp",
     "postbuild:linux": "npm run repair:package:native && npm run rebuild:native:node",
-    "test:wave1": "node test/test-search-engine-lifecycle.js && node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js && node test/test-settings-indexing-contract.js && node test/test-window-navigation-history-contract.js",
+    "test:wave1": "node test/test-search-engine-lifecycle.js && node test/test-mcp-http-save-parity.js && node test/test-mcp-tool-parity.js && node test/test-settings-indexing-contract.js && node test/test-window-navigation-history-contract.js && node test/test-markdown-link-resolver-contract.js",
     "test:wave1.5": "node test/test-sqlite-native-packaging-contract.js && node test/test-sqlite-keyword-index-contract.js",
     "test:garu": "node test/test-garu-tokenizer-contract.js",
     "test:wave2": "node -e \"const {spawnSync}=require('child_process'); const tests=['test/test-wave2-ledger-contract.js','test/test-wave2-embedding-settings-contract.js','test/test-wave2-mcp-contract.js','test/test-wave2-smart-search-contract.js','test/test-wave2-import-adoption-contract.js','test/test-wave2-source-scanner-contract.js','test/test-wave2-redaction-recovery-contract.js','test/test-wave2-package-contract.js','test/test-native-rebuild-manager-contract.js','test/test-opened-markdown-registrar-contract.js','test/test-indexed-origin-open-contract.js','test/test-package-smoke-launch-options.js','test/test-indexing-status-performance-contract.js','test/test-settings-status-poller-contract.js','test/test-status-coalescer-contract.js','test/test-startup-index-recovery-memory-contract.js','test/test-release-workflow-contract.js']; let failed=0; for (const t of tests) { console.log('wave2:', t); const r=spawnSync(process.execPath,[t],{stdio:'inherit'}); if ((r.status ?? 1) !== 0) failed++; } process.exit(failed ? 1 : 0);\"",

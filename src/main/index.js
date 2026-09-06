@@ -64,6 +64,7 @@ const {
 } = require('./embedding-settings');
 const { injectFrontmatter } = require('./frontmatter');
 const { resolveRuntimeProfile } = require('./runtime-profile');
+const { isUsableLinkBase, resolveMarkdownLinkTarget } = require('./markdown-link-resolver');
 
 const PACKAGE_SMOKE_REQUESTED = process.env.DOCULIGHT_PACKAGE_SMOKE === '1' || process.argv.includes('--package-smoke');
 const runtimeProfile = resolveRuntimeProfile({
@@ -3512,6 +3513,23 @@ function registerIpcHandlers() {
       }
     });
     return { success: true, status: getEmbeddingModelStatusPayload() };
+  });
+
+  // Resolve a clicked markdown href to an absolute file path.
+  // The renderer never decodes or classifies hrefs itself: single-window and tab
+  // navigation both come through here so they cannot drift apart.
+  ipcMain.handle('resolve-link-target', (event, href, baseFilePath) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const windowId = windowManager.findWindowId(win);
+    const entry = windowId ? windowManager.getWindowEntry(windowId) : null;
+
+    // In tab mode the active tab, not the window, holds the document the link was
+    // clicked in, so the renderer supplies the base and the window meta is the
+    // fallback. The base only redirects relative targets: the renderer can already
+    // name any absolute path through read-file-for-tab, so this grants nothing new.
+    const base = isUsableLinkBase(baseFilePath) ? baseFilePath : (entry ? entry.meta.filePath : null);
+
+    return { filePath: resolveMarkdownLinkTarget(href, base) };
   });
 
   // Navigate to a linked document within the same viewer window

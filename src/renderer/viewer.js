@@ -974,36 +974,23 @@
     });
   }
 
-  function hasUnsafeHrefScheme(href) {
-    return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(href) && !/^[A-Za-z]:[/\\]/.test(href);
+  /**
+   * Open an already-resolved absolute document path: as a tab when tab mode is
+   * active, otherwise in the current window. Callers must pass a resolved path,
+   * never a raw href.
+   */
+  function openResolvedDocument(filePath) {
+    if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
+      window.DocuLight.fn.navigateToForTab(filePath);
+    } else {
+      window.doclight.navigateTo(filePath);
+    }
   }
 
-  function stripHrefSuffix(href) {
-    const hashIndex = href.indexOf('#');
-    const queryIndex = href.indexOf('?');
-    let endIndex = href.length;
-    if (hashIndex >= 0) endIndex = Math.min(endIndex, hashIndex);
-    if (queryIndex >= 0) endIndex = Math.min(endIndex, queryIndex);
-    return href.slice(0, endIndex);
-  }
-
-  function getLocalMarkdownHrefTarget(href) {
-    if (!href || href.startsWith('#') || href.startsWith('http://') || href.startsWith('https://')) {
-      return null;
-    }
-    if (href.startsWith('//') || href.startsWith('\\\\') || href.includes('://') || hasUnsafeHrefScheme(href)) {
-      return null;
-    }
-
-    const target = stripHrefSuffix(href).trim();
-    if (!target) return null;
-
-    const fileName = target.replace(/\\/g, '/').split('/').pop() || '';
-    const dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex <= 0) return target;
-
-    const ext = fileName.slice(dotIndex).toLowerCase();
-    return (ext === '.md' || ext === '.markdown') ? target : null;
+  /** Absolute path of the document the user is currently reading. */
+  function activeDocumentPath() {
+    const state = window.DocuLight && window.DocuLight.state;
+    return (state && state.currentFilePath) || currentFilePath || null;
   }
 
   // === IPC Handlers ===
@@ -2374,12 +2361,7 @@
       el.addEventListener('click', function() {
         const targetPath = el.dataset.path;
         if (!targetPath) return;
-        // 탭 모드 처리 (L1652-1659 패턴 재사용, SRS 제약사항 4조)
-        if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
-          window.DocuLight.fn.navigateToForTab(targetPath);
-        } else {
-          window.doclight.navigateTo(targetPath);
-        }
+        openResolvedDocument(targetPath);
       });
       el.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -2534,13 +2516,7 @@
       });
     } else if (node.exists !== false && node.path) {
       item.addEventListener('click', () => {
-        const hasTabNav = !!(window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab);
-        console.log('[doculight-sidebar] click:', node.path, 'hasNavigateToForTab:', hasTabNav);
-        if (hasTabNav) {
-          window.DocuLight.fn.navigateToForTab(node.path);
-        } else {
-          window.doclight.navigateTo(node.path);
-        }
+        openResolvedDocument(node.path);
       });
     }
 
@@ -2777,18 +2753,24 @@
       return;
     }
 
-    // Local .md links - navigate
-    const localMarkdownTarget = getLocalMarkdownHrefTarget(href);
-    if (localMarkdownTarget) {
-      if (window.DocuLight && window.DocuLight.fn && window.DocuLight.fn.navigateToForTab) {
-        window.DocuLight.fn.navigateToForTab(localMarkdownTarget);
-      } else {
-        window.doclight.navigateTo(localMarkdownTarget);
-      }
-      return;
-    }
-
-    // Block everything else (javascript:, data:, etc.)
+    // Local .md links - navigate.
+    // The markdown parser percent-encodes hrefs, so the raw attribute is not a
+    // usable path. The main process owns decoding and target classification for
+    // both window and tab navigation; anything that is not a local markdown
+    // document (javascript:, data:, images, other file types) resolves to null
+    // and stays blocked.
+    window.doclight.resolveLinkTarget(href, activeDocumentPath())
+      .then((result) => {
+        const targetPath = result && result.filePath;
+        if (targetPath) {
+          openResolvedDocument(targetPath);
+        } else {
+          console.warn('[doculight] link is not a local markdown document:', href);
+        }
+      })
+      .catch((err) => {
+        console.error('[doculight] link target resolution failed:', href, err);
+      });
   });
 
   // === Keyboard Shortcuts ===

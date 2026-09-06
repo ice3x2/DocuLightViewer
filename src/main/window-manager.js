@@ -9,6 +9,7 @@ const { buildSidebarTree } = require('./link-parser');
 const { t } = require('./strings');
 const { injectFrontmatter, parseFrontmatter, DOC_TYPE_VALUES } = require('./frontmatter');
 const { VALIDATED_MARKDOWN_CONTENT } = require('./indexed-origin-resolver');
+const { resolveMarkdownDocumentPath } = require('./markdown-link-resolver');
 
 // step28 Phase 4: 사이드바 트리 TTL 캐시 설정
 const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;  // 5분
@@ -275,44 +276,14 @@ class WindowManager {
     return ext ? baseName.slice(0, -ext.length) : baseName;
   }
 
-  _hasUnsafeScheme(rawPath) {
-    if (typeof rawPath !== 'string') return true;
-    return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(rawPath) && !/^[A-Za-z]:[/\\]/.test(rawPath);
-  }
-
-  _stripLinkSuffix(rawPath) {
-    const hashIndex = rawPath.indexOf('#');
-    const queryIndex = rawPath.indexOf('?');
-    let endIndex = rawPath.length;
-    if (hashIndex >= 0) endIndex = Math.min(endIndex, hashIndex);
-    if (queryIndex >= 0) endIndex = Math.min(endIndex, queryIndex);
-    return rawPath.slice(0, endIndex);
-  }
-
+  // Callers hand over a path, not an href: the renderer's link click already went
+  // through resolve-link-target, so decoding here would eat percent sequences that
+  // are part of the real file name.
   _resolveNavigationPath(entry, rawPath) {
-    if (typeof rawPath !== 'string' || !rawPath.trim() || this._hasUnsafeScheme(rawPath) ||
-        rawPath.startsWith('//') || rawPath.startsWith('\\\\')) {
-      throw new Error(t('error.mdOnly', { filePath: rawPath }));
-    }
-
-    let targetPath = this._stripLinkSuffix(rawPath.trim());
+    const targetPath = resolveMarkdownDocumentPath(rawPath, entry.meta.filePath);
     if (!targetPath) {
       throw new Error(t('error.mdOnly', { filePath: rawPath }));
     }
-
-    const ext = path.extname(targetPath).toLowerCase();
-    if (ext && ext !== '.md' && ext !== '.markdown') {
-      throw new Error(t('error.mdOnly', { filePath: rawPath }));
-    }
-
-    if (!path.isAbsolute(targetPath) && entry.meta.filePath) {
-      targetPath = path.resolve(path.dirname(entry.meta.filePath), targetPath);
-    }
-
-    if (!ext) {
-      targetPath += '.md';
-    }
-
     return targetPath;
   }
 

@@ -21,13 +21,6 @@
     return dot > 0 ? baseName.substring(0, dot) : baseName;
   }
 
-  function withMarkdownExtension(filePath) {
-    if (!filePath) return filePath;
-    var normalized = normalizePath(filePath);
-    var fileName = normalized.substring(normalized.lastIndexOf('/') + 1);
-    if (!fileName || fileName.indexOf('.') > 0) return filePath;
-    return filePath + '.md';
-  }
 
   function cloneTrail(trail) {
     if (!Array.isArray(trail)) return [];
@@ -109,32 +102,18 @@
     // Wrap navigateTo for tab interception
     const originalNavigateTo = window.doclight ? window.doclight.navigateTo : null;
     if (window.DocuLight && window.DocuLight.fn) {
-      window.DocuLight.fn.navigateToForTab = function (href) {
-        console.log('[doculight-tab] navigateToForTab called:', href, 'enableTabs:', enableTabs, 'tabBarEl:', !!tabBarEl, 'tabs:', tabs.length);
+      // Takes a resolved document path, never a raw href. Hrefs are percent-encoded
+      // by the markdown parser and are turned into paths by the main process, which
+      // is also the only place that decides what a path is allowed to be — so this
+      // module makes no judgement about the shape of what it is handed.
+      window.DocuLight.fn.navigateToForTab = function (filePath) {
+        console.log('[doculight-tab] navigateToForTab called:', filePath, 'enableTabs:', enableTabs, 'tabBarEl:', !!tabBarEl, 'tabs:', tabs.length);
         if (!enableTabs) {
-          if (originalNavigateTo) originalNavigateTo(href);
+          if (originalNavigateTo) originalNavigateTo(filePath);
           return;
         }
 
-        // Resolve relative paths against current file's directory
-        var resolvedHref = href;
-        if (href && !isAbsolutePath(href)) {
-          var currentFp = window.DocuLight.state.currentFilePath;
-          if (currentFp) {
-            var dir = currentFp.replace(/\\/g, '/');
-            dir = dir.substring(0, dir.lastIndexOf('/'));
-            // Normalize ./prefix
-            var rel = href.replace(/\\/g, '/');
-            if (rel.startsWith('./')) rel = rel.substring(2);
-            resolvedHref = dir + '/' + rel;
-          } else {
-            // No current file context — fallback to main process navigation
-            if (originalNavigateTo) originalNavigateTo(href);
-            return;
-          }
-        }
-
-        resolvedHref = withMarkdownExtension(resolvedHref);
+        var resolvedHref = filePath;
         var normalizedHref = resolvedHref.replace(/\\/g, '/');
         var nextTrail = trailWithTarget(normalizedHref);
         var existing = tabs.findIndex(function (t) {
@@ -584,12 +563,6 @@
         setTimeout(function () { scrollFn(scrollInfo.query, scrollInfo.occurrenceIndex); }, 100);
       }
     }
-  }
-
-  function isAbsolutePath(p) {
-    if (!p) return false;
-    // Unix absolute or Windows absolute (C:/ or C:\)
-    return p.startsWith('/') || /^[A-Za-z]:[/\\]/.test(p);
   }
 
   function generateId() {
