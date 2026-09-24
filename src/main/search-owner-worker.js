@@ -5,6 +5,11 @@ const { SourceLedgerStore } = require('./source-ledger-store');
 const { SQLiteKeywordIndex } = require('./search-sqlite-store');
 const { createKeywordTokenizer } = require('./search-tokenizer');
 const { createWorkUnitScheduler } = require('./search-work-scheduler');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { readPendingSave } = require('./index-ingress-store');
+const { parseFrontmatter } = require('./frontmatter');
 
 const opened = [];
 function loadDatabase(role) {
@@ -26,6 +31,67 @@ let sequence = 0;
 let closing = false;
 const scheduler = createWorkUnitScheduler({ capacity: 32 });
 let fixtureWrite = null;
+let sourceRoot = null;
+
+// @req FR-DOC-019 REL-DOC-009 DR-DOC-014
+function acceptPublishedSave(payload) {
+  const failed = { saved: true, accepted: false, indexingState: 'enqueue_failed', indexing: { state: 'enqueue_failed' },
+    warnings: [{ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true }] };
+  try {
+    if (!sourceRoot || typeof payload.ingressRoot !== 'string' || typeof payload.intentId !== 'string'
+      || (payload.storeRoot && path.resolve(payload.storeRoot) !== path.resolve(sourceRoot))) return failed;
+    const reply = receipt => receipt.receipt_kind === 'queued'
+      ? { saved: true, accepted: true, indexingState: 'queued', indexing: { state: 'queued', jobId: receipt.job_id },
+        desiredRevision: receipt.desired_revision, documentId: receipt.document_id, warnings: [] }
+      : { saved: true, accepted: true, indexingState: 'provenance_only',
+        desiredRevision: null, documentId: receipt.document_id, warnings: [] };
+    const receipt = ledger.getSaveIntentReceipt(payload.intentId);
+    if (receipt) {
+      if (receipt.root_fingerprint !== crypto.createHash('sha256').update(path.resolve(sourceRoot)).digest('hex')) return failed;
+      const persisted = readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: sourceRoot,
+        intentId: payload.intentId });
+      if (persisted?.retryable || persisted?.quarantined) return failed;
+      if (persisted?.intentPath) {
+        try { fs.unlinkSync(persisted.intentPath); } catch { /* retry cleanup on later replay */ }
+      }
+      return reply(receipt);
+    }
+    const read = intentId => readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: sourceRoot, intentId });
+    const current = read(payload.intentId);
+    if (!current || current.retryable || current.quarantined) return failed;
+    if (!current.published) return failed;
+    const finalPath = path.resolve(sourceRoot, current.sourceRelativeLocator);
+    const bytes = fs.readFileSync(finalPath);
+    if (bytes.length > 10 * 1024 * 1024 || crypto.createHash('sha256').update(bytes).digest('hex') !== current.contentHash) return failed;
+    const pending = fs.readdirSync(payload.ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
+      && name.slice(0, 64) !== current.intentId).map(name => {
+      const id = name.slice(0, 64);
+      return payload.r3ReadFaultIntentId === id ? { retryable: true } : read(id);
+    });
+    if (pending.some(intent => intent?.retryable)) return failed;
+    if (pending.some(intent => intent && !intent.quarantined
+      && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
+      && !ledger.getSaveIntentReceipt(intent.intentId)
+      && intent.createdTime >= current.createdTime)) return failed;
+    const historical = pending.filter(intent => intent && !intent.quarantined
+      && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
+      && !ledger.getSaveIntentReceipt(intent.intentId))
+      .sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.intentId.localeCompare(b.intentId));
+    const accepted = ledger.acceptSaveIntent({ current, historical, storeRoot: sourceRoot,
+      finalMetadata: parseFrontmatter(bytes.toString('utf8')).data,
+      contentByteLength: bytes.length, contentTextLength: bytes.toString('utf8').length });
+    if (payload.r3SkipCleanup !== true) {
+      for (const intent of [...historical, current]) {
+        if (!ledger.getSaveIntentReceipt(intent.intentId)) continue;
+        try { fs.unlinkSync(intent.intentPath); } catch { /* durable receipt permits retry after cleanup failure */ }
+      }
+    }
+    return { saved: true, accepted: true, indexingState: 'queued', indexing: { state: 'queued', jobId: accepted.jobId },
+      desiredRevision: accepted.desiredRevision, documentId: accepted.documentId, warnings: [] };
+  } catch {
+    return failed;
+  }
+}
 
 function status(state, diagnosticCode = null, patch = {}) {
   lastSnapshot = {
@@ -48,6 +114,7 @@ async function dispatch(message) {
     started = true;
     try {
       const config = message.ownerConfig || {};
+      sourceRoot = config.sourceRoot || null;
       const tokenizer = createKeywordTokenizer({
         provider: config.keywordTokenizerProvider || 'garu',
         maxAnalysisChars: config.keywordTokenizerMaxAnalysisChars
@@ -137,6 +204,10 @@ async function dispatch(message) {
       });
       result(id, { cancelled });
     } else if (tag === 'COMMAND' && type === 'accept_save') {
+      if (!Number.isInteger(payload.r3SchedulerUnits)) {
+        result(id, acceptPublishedSave(payload));
+        return;
+      }
       if (!fixtureWrite || !Number.isInteger(payload.r3SchedulerUnits) || payload.r3SchedulerUnits < 1 ||
           payload.r3SchedulerUnits > 20000 || typeof payload.testTarget !== 'string' || !payload.testTarget) {
         result(id, null, 'owner_not_implemented');

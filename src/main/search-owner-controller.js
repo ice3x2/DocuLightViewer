@@ -117,6 +117,14 @@ class OwnerWorkerController {
     if (type === 'shutdown') return this.shutdown(id, true);
     return this._send('COMMAND', type, payload, id);
   }
+  // @req FR-DOC-019 REL-DOC-009
+  async acceptPublishedSave(payload = {}) {
+    try { return await this.command('accept_save', payload); }
+    catch {
+      return { saved: true, accepted: false, indexingState: 'enqueue_failed', indexing: { state: 'enqueue_failed' },
+        warnings: [{ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true }] };
+    }
+  }
   query(type, payload = {}, id) {
     if (type === 'get_status') {
       if (this.closing) return Promise.reject(failure('owner_shutdown'));

@@ -1,0 +1,35 @@
+{
+  "review": "S09 TDD and public compatibility",
+  "result": "PASS",
+  "sourceHash": "84ad439c7b2c2b577b69169da8ffa76e106cbfa6ed1e0b8305127d6fa5cb6a69",
+  "sha256": {
+    "src/main/search-owner-worker.js": "cdda29229149c2e2ce6eb41a04b8c7150f8903d156a2527642aaa406d00b752c",
+    "src/main/source-ledger-store.js": "2bbb474ce9edbd7adb214be60190f2a3b5d8c768dab1625d52c96d088aebbbe8",
+    "src/main/search-owner-controller.js": "0ca798f16abcfbbbb1055132dd5ceb9568ca658d42f76a6d4a3a70666d739d4",
+    "test/r3/cases/s09.cjs": "a548ee91dbe5a95d53f219ec0d0ccca02cd250c8673b2b452a0ae3c709daba20",
+    "docs/analysis/2026-09-24-s09-accept-evidence.md": "6ed551a02e24009d22791d5d1d02892bb9257bac281b2425327f31d28a1d47ea"
+  },
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014", "IR-MCP-018", "IR-APP-013"],
+  "recordedVerification": {
+    "s09": "PASS, 37 assertions, real filesystem and SQLite",
+    "s08": "PASS, 53 assertions",
+    "s06": "PASS, 42 assertions",
+    "wave2McpContract": "PASS",
+    "wave2LedgerContract": "PASS",
+    "locales": "ko, en, ja, and es retain the same 254 JSON keys",
+    "diffCheck": "PASS"
+  },
+  "tddEvidence": {
+    "preImplementation": "The original registered S09 case exited 1 with a meaningful durable-ACK assertion failure, not a setup or ABI failure.",
+    "repairReds": [
+      "ASSERTION_FAIL case=s09 assertions=7 provenance-only older intent never borrows the current job receipt",
+      "ASSERTION_FAIL case=s09 assertions=26 same-hash older intent cannot become latest while a newer intent awaits acceptance",
+      "ASSERTION_FAIL case=s09 assertions=29 crash-window fixture leaves committed intents for receipt replay",
+      "ASSERTION_FAIL case=s09 assertions=34 equal timestamp cannot make older same-body intent current"
+    ],
+    "correctiveSensitivityCheck": "After implementation, temporarily changing the new dirty = 1 SQL assignment to dirty = 0 produced ASSERTION_FAIL case=s09 assertions=19; the assignment was restored before final GREEN. This later check is not claimed as a pre-implementation RED.",
+    "historicalLimit": "The AC-8 field and initial cleanup assertions were authored before their implementation but were blocked by earlier failing assertions in the first RED suite, so their individual original RED states were not observed. The review does not fabricate a historical transcript. The later AC-8 sensitivity check and the observed cleanup crash-window RED provide corrective evidence."
+  },
+  "assessment": "The final S09 scope has no remaining actionable finding. A queued job ID follows the source, alias, metadata, desired-state, and job transaction; constraint and busy failures keep the published file and private intents and return enqueue_failed without job ID. Distinct same-body aliases and metadata survive receipt replay and cleanup. Equal-millisecond same-body ambiguity fails closed with retryable no-ACK/no-job and retained intents. The revised issue #32 assigns durable owner-authoritative ordering and automatic convergence to S10 #33. The public eight-tool MCP schema and four locale files are unchanged; the public save_document producer remains a separate #37 task.",
+  "findings": []
+}

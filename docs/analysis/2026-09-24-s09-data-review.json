@@ -1,0 +1,28 @@
+{
+  "review": "S09 independent data and recovery re-review",
+  "issue": 32,
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014"],
+  "sourceHash": "84ad439c7b2c2b577b69169da8ffa76e106cbfa6ed1e0b8305127d6fa5cb6a69",
+  "fileSha256": {
+    "src/main/search-owner-worker.js": "cdda29229149c2e2ce6eb41a04b8c7150f8903d156a2527642aaa406d00b752c",
+    "src/main/source-ledger-store.js": "2bbb474ce9edbd7adb214be60190f2a3b5d8c768dab1625d52c96d088aebbbe8",
+    "test/r3/cases/s09.cjs": "a548ee91dbe5a95d53f219ec0d0ccca02cd250c8673b2b452a0ae3c709daba20",
+    "docs/analysis/2026-09-24-s09-accept-evidence.md": "6ed551a02e24009d22791d5d1d02892bb9257bac281b2425327f31d28a1d47ea"
+  },
+  "result": "PASS",
+  "focusedTest": {
+    "command": "node test/r3/run-node.cjs --case s09",
+    "environment": "DOCULIGHT_R3_NODE_ROOT=%TEMP%/doculight-r3-node-20260924d",
+    "observed": "PASS case=s09 assertions=37",
+    "exitCode": 0,
+    "rerunByReviewer": true
+  },
+  "priorHighFindings": {
+    "perIntentReceipt": "resolved: accepted A retains its original revision and job after B; provenance-only older intent cannot borrow B's job",
+    "sameBodyProvenance": "resolved: distinct same-body intents reconcile both aliases and metadata; transient older-intent read prevents ACK",
+    "authoritativePendingFields": "resolved: desired_content_hash, active_requested_revision, dirty, keyword_dirty, and accepted_intent_id commit with revision and job",
+    "postCommitCleanup": "resolved: intent removal follows durable per-intent receipt and crash-window replay can finish cleanup"
+  },
+  "equalTimeBoundary": "Distinct same-locator, same-body intents with equal millisecond timestamps fail closed with retryable enqueue_failed, no queued job, and retained final bytes and private intents. Live issue #32 accepts this S09 boundary; S10 issue #33 must add owner-authoritative durable ordering and automatic convergence without a user re-save.",
+  "findings": []
+}

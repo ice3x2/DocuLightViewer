@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S08 #31](https://github.com/ice3x2/DocuLightViewer/issues/31) · 다음 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32) · 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `8/36` 완료(S01~S08)다. private intent와 원자적 파일 게시의 실패·재시도 경계는 실제 FS fixture로 검증했다. 원장 job의 durable 수락, 최신 revision 및 제품 저장 경로 연결은 후속 이슈에 남아 있다. 다음 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32)은 이 브랜치의 S08 인계 SHA에서 metadata·job commit과 ACK를 test-first로 진행한다.
+실행 이슈는 `9/36` 완료(S01~S09)다. private intent와 파일 게시 뒤의 원장 metadata·job 수락 및 per-intent receipt를 실제 FS+SQLite로 검증했다. 같은 밀리초에 순서를 결정할 수 없는 intent의 자동 수렴과 공개 저장 경로 연결은 후속 이슈에 남아 있다. 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33)은 이 브랜치의 S09 인계 SHA에서 durable 최신 revision과 동시 수락 순서를 test-first로 완성한다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -104,3 +104,11 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] S08 Node case를 먼저 등록하고 의미 있는 `ASSERTION_FAIL` RED(exit 1) 뒤 private intent와 atomic file publisher를 구현했다. 독립 검토가 찾은 동일 문서 update, unsafe replay, 오래된 intent provenance 손실, 무제한 final-file read도 각 assertion RED 뒤 수정했다. [S08 증거](../analysis/2026-09-24-s08-intent-evidence.md)에 실제 FS fault matrix와 Windows directory flush 한계를 기록했다. Focused Node case 53 assertions 및 기존 MCP save parity가 통과했다. SpecKiwi로 `REL-DOC-009 AC-2`와 변경 이유를 갱신했고 SRS validate는 errors 0이다.
 - [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·RED/GREEN 증거와 durability, provenance, path containment, 공개 호환성을 확인했다. [durability·보안 검토](../analysis/2026-09-24-s08-durability-review.json)와 [TDD·호환성 검토](../analysis/2026-09-24-s08-tdd-review.json)는 남은 지적 0건이다.
 - [x] 검토 지적을 수정하고 focused regression을 확인한 뒤 #31 체크박스·완료 댓글·close와 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32) 인계 SHA를 연결한다.
+
+## S09 진행 기록 — 독립 검토 완료
+
+- [x] S08 인계 SHA `11be24519754e14d6e4af1b9f4e22c300476ac86`에서 시작했다. `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `IR-MCP-018`, `IR-APP-013` 및 활성 target의 Stability 차단 없음 확인.
+- [x] [S09 RED/GREEN 및 결함 주입 증거](../analysis/2026-09-24-s09-accept-evidence.md): 실제 FS+SQLite assertion RED 뒤 owner의 metadata·alias·revision·job 원자 수락을 구현했다. 독립 검토 지적에 따라 per-intent receipt, 동일 본문 다중 alias, transient 이전 intent 오류, authoritative dirty 필드 및 ACK 이후 private intent 정리를 test-first로 보강했다. Focused Node case 37 assertions, MCP 계약, 네 locale key 일치 확인.
+- [x] S08 private intent의 `createdTime`은 밀리초 정밀도다. 동일 문서의 미수락 intent 두 개가 같은 시각이면 S09은 어느 쪽도 current job으로 ACK하지 않고 retryable로 남긴다. S10은 사용자 재저장 없이 수렴하도록 durable 게시 순서 증거나 owner의 동등한 tie 해결 계약을 추가해야 한다.
+- [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·실행 증거를 확인했다. [원장·복구 검토](../analysis/2026-09-24-s09-data-review.json)와 [TDD·공개 계약 검토](../analysis/2026-09-24-s09-tdd-review.json)는 남은 지적 0건이다. 전체 S10 latest-winner 및 #37 공개 producer 연결을 S09 완료로 주장하지 않는다.
+- [x] #32 체크박스·완료 댓글·close, 최종 SHA 및 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33) 인계를 연결한다.

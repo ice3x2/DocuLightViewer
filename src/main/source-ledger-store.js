@@ -357,6 +357,14 @@ class SourceLedgerStore {
     this.ensureColumn('documents', 'content_text_length', 'INTEGER');
     this.ensureColumn('documents', 'normalized_text_hash', 'TEXT');
     this.ensureColumn('documents', 'category', 'TEXT');
+    this.ensureColumn('documents', 'metadata_json', "TEXT NOT NULL DEFAULT '{}'");
+    this.ensureColumn('documents', 'desired_revision', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'current_job_id', 'TEXT');
+    this.ensureColumn('documents', 'desired_content_hash', 'TEXT');
+    this.ensureColumn('documents', 'active_requested_revision', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'dirty', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'keyword_dirty', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'accepted_intent_id', 'TEXT');
     this.ensureColumn('documents', 'document_tags_json', "TEXT NOT NULL DEFAULT '[]'");
     this.ensureColumn('documents', 'classification_json', "TEXT NOT NULL DEFAULT '{}'");
     this.ensureColumn('documents', 'metadata_parse_status', "TEXT NOT NULL DEFAULT 'ok'");
@@ -385,6 +393,18 @@ class SourceLedgerStore {
     this.ensureColumn('index_jobs', 'cancel_requested', 'INTEGER NOT NULL DEFAULT 0');
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS save_intent_acceptances (
+        intent_id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL REFERENCES documents(document_id),
+        source_id TEXT NOT NULL,
+        root_fingerprint TEXT NOT NULL,
+        relative_locator TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        desired_revision INTEGER,
+        job_id TEXT,
+        receipt_kind TEXT NOT NULL CHECK(receipt_kind IN ('queued', 'provenance_only')),
+        accepted_at TEXT NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS idx_documents_content_fingerprint
         ON documents(content_hash, content_byte_length, content_text_length)
         WHERE content_hash IS NOT NULL;
@@ -719,6 +739,98 @@ class SourceLedgerStore {
     applyChunk(record);
 
     return this.open().prepare('SELECT * FROM chunks WHERE chunk_id = ?').get(chunkId);
+  }
+
+  // @req FR-DOC-019 REL-DOC-009 DR-DOC-014
+  getSaveIntentReceipt(intentId) {
+    if (!/^[a-f0-9]{64}$/.test(intentId || '')) return null;
+    return this.open().prepare('SELECT * FROM save_intent_acceptances WHERE intent_id = ?').get(intentId) || null;
+  }
+
+  // @req FR-DOC-019 REL-DOC-009 DR-DOC-014
+  acceptSaveIntent({ current, historical = [], storeRoot, finalMetadata, contentByteLength, contentTextLength }) {
+    this.assertWritable();
+    const db = this.open();
+    return db.transaction(() => {
+      const existingSource = db.prepare('SELECT source_id FROM sources WHERE root_path_internal = ?')
+        .get(normalizeInternalPath(storeRoot));
+      if (existingSource && existingSource.source_id !== current.sourceId) throw new Error('Source identity mismatch');
+      const source = existingSource ? { sourceId: existingSource.source_id }
+        : this.recordSource({ sourceId: current.sourceId,
+        rootPathInternal: storeRoot, rootFingerprint: current.rootFingerprint });
+      const locator = current.sourceRelativeLocator;
+      const existing = db.prepare('SELECT * FROM documents WHERE source_id = ? AND path_key = ?')
+        .get(source.sourceId, normalizePathKey(locator));
+      const prior = this.getSaveIntentReceipt(current.intentId);
+      if (prior) return { documentId: prior.document_id, desiredRevision: prior.desired_revision,
+        jobId: prior.job_id, receiptKind: prior.receipt_kind };
+      const acceptedMetadata = existing ? JSON.parse(existing.metadata_json || '{}') : {};
+      const tags = new Set(existing ? safeJsonArray(existing.document_tags_json) : []);
+      for (const intent of [...historical, current]) {
+        for (const [key, value] of Object.entries(intent.provenance.metadata)) {
+          if (key === 'documentTags') {
+            for (const tag of value) tags.add(tag);
+          } else if (value !== '' && value !== null) {
+            acceptedMetadata[key] = value;
+          }
+        }
+      }
+      for (const [key, value] of Object.entries(finalMetadata)) {
+        if (key === 'documentTags' && Array.isArray(value)) {
+          for (const tag of value) tags.add(tag);
+        } else if (value !== '' && value !== null) {
+          acceptedMetadata[key] = value;
+        }
+      }
+      acceptedMetadata.documentTags = [...tags];
+      const document = this.upsertDocument({ sourceId: source.sourceId, sourceRelativePath: locator,
+        canonicalPathInternal: path.join(storeRoot, locator),
+        contentHash: `sha256:${current.contentHash}`, contentByteLength, contentTextLength,
+        project: acceptedMetadata.project, docType: acceptedMetadata.docType,
+        category: acceptedMetadata.category, documentTags: acceptedMetadata.documentTags,
+        pathHistory: existing ? safeJsonArray(existing.path_history_json) : [],
+        pathStatus: existing?.path_status || 'active',
+        normalizedTextHash: existing?.normalized_text_hash,
+        classification: existing ? JSON.parse(existing.classification_json || '{}') : {},
+        parseStatus: existing?.metadata_parse_status || 'ok',
+        metadataDiagnosticJson: existing?.metadata_diagnostic_json,
+        sourceMtimeOrRevision: existing?.source_mtime_or_revision,
+        lastImportJobId: existing?.last_import_job_id, importState: existing?.import_state || 'active' });
+      const documentId = document.documentId;
+      const now = this._now();
+      const desiredRevision = (existing?.desired_revision || 0) + 1;
+      const jobId = `job_${current.intentId}`;
+      db.prepare(`UPDATE documents SET metadata_json = ?, desired_revision = ?, current_job_id = ?,
+        desired_content_hash = ?, active_requested_revision = ?, dirty = 1, keyword_dirty = 1,
+        accepted_intent_id = ? WHERE document_id = ?`)
+        .run(JSON.stringify(acceptedMetadata), desiredRevision, jobId,
+          `sha256:${current.contentHash}`, desiredRevision, current.intentId, documentId);
+      for (const intent of [...historical, current]) {
+        for (const alias of intent.provenance.aliases) {
+          this.upsertDocumentSourceAlias({ documentId, aliasKind: 'opened_path',
+            originLexicalPathInternal: alias.lexicalOriginalPath,
+            originPathInternal: alias.canonicalOriginalPath,
+            canonicalPathHash: alias.canonicalPathHash,
+            contentHash: `sha256:${intent.contentHash}` });
+        }
+        const isCurrent = intent.intentId === current.intentId;
+        db.prepare(`INSERT INTO save_intent_acceptances(intent_id, document_id, source_id, root_fingerprint,
+          relative_locator, content_hash, desired_revision, job_id, receipt_kind, accepted_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(intent_id) DO NOTHING`)
+          .run(intent.intentId, documentId, source.sourceId, intent.rootFingerprint,
+            intent.sourceRelativeLocator, intent.contentHash,
+            isCurrent ? desiredRevision : null, isCurrent ? jobId : null,
+            isCurrent ? 'queued' : 'provenance_only', now);
+      }
+      db.prepare(`UPDATE index_jobs SET status = 'cancelled', finished_at = ?, updated_at = ?
+        WHERE document_id = ? AND status = 'queued' AND job_id <> ?`)
+        .run(now, now, documentId, jobId);
+      this.enqueueIndexJob({ jobId, sourceId: source.sourceId,
+        documentId, jobType: 'index_document', status: 'queued', requestedBy: current.operation,
+        currentPathInternal: path.join(storeRoot, locator), contentHash: `sha256:${current.contentHash}`,
+        contentByteLength, contentTextLength });
+      return { documentId, desiredRevision, jobId, receiptKind: 'queued' };
+    })();
   }
 
   // @req FR-DOC-019
