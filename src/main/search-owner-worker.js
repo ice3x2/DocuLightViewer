@@ -45,6 +45,10 @@ let drainRequested = false;
 let drainTimer = null;
 let drainDelay = 250;
 let derivationEnabled = false;
+let legacyMigrationCursor = {};
+let recoveryReady = false;
+let recoveryComplete = false;
+let legacyBlockedCount = 0;
 
 function validatedPublicationRoot() {
   if (!sourceRoot || !publicationRoot) return null;
@@ -106,23 +110,62 @@ async function drainDesiredPage() {
 
 function resumeInterruptedJobs() {
   if (closing || !ledger) return;
+  if (workerData?.r3RecoveryBarrier && !recoveryCursor) {
+    const barrier = new Int32Array(workerData.r3RecoveryBarrier);
+    Atomics.wait(barrier, 0, 0, 5000);
+  }
   const page = ledger.reconcileInterruptedDesiredPage({ afterJobId: recoveryCursor, limit: 32 });
   recoveryCursor = page.afterJobId;
   if (page.hasMore) setImmediate(resumeInterruptedJobs);
+  else {
+    recoveryComplete = true;
+    status(keywordReady ? 'ready' : 'stale', keywordDiagnosticCode);
+    scheduleDesiredDrain();
+  }
+}
+
+function resumeLegacyMigration() {
+  if (closing || !ledger) return;
+  if (workerData?.r3MigrationBarrier && !legacyMigrationCursor.afterJobId) {
+    const barrier = new Int32Array(workerData.r3MigrationBarrier);
+    Atomics.wait(barrier, 0, 0, 5000);
+  }
+  let page;
+  try {
+    page = ledger.migrateLegacyIndexJobsPage({ storeRoot: sourceRoot,
+      ...legacyMigrationCursor, limit: 32 });
+  } catch {
+    status('stale', 'legacy_migration_failed');
+    return;
+  }
+  if (workerData?.r3MigrationPageAudit) {
+    const audit = new Int32Array(workerData.r3MigrationPageAudit);
+    Atomics.store(audit, 0, Math.max(Atomics.load(audit, 0), page.pageSize || 0));
+    Atomics.add(audit, 1, 1);
+  }
+  legacyMigrationCursor = { afterCreatedAt: page.afterCreatedAt, afterJobId: page.afterJobId };
+  if (page.hasMore) { setImmediate(resumeLegacyMigration); return; }
+  recoveryReady = true;
+  legacyBlockedCount = page.blocked || 0;
+  status(keywordReady ? 'ready' : 'stale', keywordDiagnosticCode,
+    legacyBlockedCount ? { legacyMigration: { blocked: legacyBlockedCount } } : {});
+  setImmediate(resumeInterruptedJobs);
+  if (workerData?.r3SkipStartupReplay !== true) resumePrivateIntents();
 }
 
 function resumePrivateIntents() {
   if (!ingressRoot || closing) return;
-  let names;
-  try { names = fs.readdirSync(ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)).sort(); }
+  let directory;
+  try { directory = fs.opendirSync(ingressRoot); }
   catch { return; }
-  let cursor = 0;
   let failed = false;
   let progressed = false;
   const unit = () => {
-    if (closing) return;
-    if (cursor < names.length) {
-      const reply = acceptPublishedSave({ intentId: names[cursor++].slice(0, 64) });
+    if (closing) { directory.closeSync(); return; }
+    const entry = directory.readSync();
+    if (entry) {
+      if (!/^[a-f0-9]{64}\.intent\.json$/.test(entry.name)) { setImmediate(unit); return; }
+      const reply = acceptPublishedSave({ intentId: entry.name.slice(0, 64) });
       if (reply.accepted) {
         progressed = true;
         scheduleDesiredDrain();
@@ -134,6 +177,7 @@ function resumePrivateIntents() {
       setImmediate(unit);
       return;
     }
+    directory.closeSync();
     if (failed) {
       replayDelay = progressed ? 250 : Math.min(replayDelay * 2, 30000);
       replayTimer = setTimeout(() => { replayTimer = null; resumePrivateIntents(); }, replayDelay);
@@ -147,6 +191,7 @@ function acceptPublishedSave(payload) {
   const failed = { saved: true, accepted: false, indexingState: 'enqueue_failed', indexing: { state: 'enqueue_failed' },
     warnings: [{ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true }] };
   try {
+    if (!recoveryReady) return failed;
     const publishedRoot = validatedPublicationRoot();
     if (!publishedRoot || !ingressRoot || typeof payload.intentId !== 'string'
       || (payload.rootFingerprint && payload.rootFingerprint !== crypto.createHash('sha256')
@@ -180,12 +225,22 @@ function acceptPublishedSave(payload) {
     const finalPath = path.resolve(publishedRoot, current.sourceRelativeLocator);
     const bytes = fs.readFileSync(finalPath);
     if (bytes.length > 10 * 1024 * 1024 || crypto.createHash('sha256').update(bytes).digest('hex') !== current.contentHash) return failed;
-    const pending = fs.readdirSync(ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
-      && name.slice(0, 64) !== current.intentId).map(name => {
-      const id = name.slice(0, 64);
-      return payload.r3ReadFaultIntentId === id ? { retryable: true } : read(id);
-    });
-    if (pending.some(intent => intent?.retryable)) return failed;
+    const pending = [];
+    let retryable = false;
+    const directory = fs.opendirSync(ingressRoot);
+    try {
+      let entry;
+      while ((entry = directory.readSync())) {
+        if (!/^[a-f0-9]{64}\.intent\.json$/.test(entry.name)
+          || entry.name.slice(0, 64) === current.intentId) continue;
+        const id = entry.name.slice(0, 64);
+        const intent = payload.r3ReadFaultIntentId === id ? { retryable: true } : read(id);
+        if (intent?.retryable) retryable = true;
+        else if (intent && !intent.quarantined && intent.sourceId === current.sourceId
+          && intent.sourceRelativeLocator === current.sourceRelativeLocator) pending.push(intent);
+      }
+    } finally { directory.closeSync(); }
+    if (retryable) return failed;
     const orderOf = intent => Number.isSafeInteger(intent.publicationOrder) ? intent.publicationOrder : null;
     const notOlder = intent => {
       const left = orderOf(intent);
@@ -193,12 +248,10 @@ function acceptPublishedSave(payload) {
       if (left !== null && right !== null) return left >= right;
       return intent.createdTime >= current.createdTime;
     };
-    if (pending.some(intent => intent && !intent.quarantined
-      && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
+    if (pending.some(intent => intent
       && !ledger.getSaveIntentReceipt(intent.intentId)
       && notOlder(intent))) return failed;
-    const historical = pending.filter(intent => intent && !intent.quarantined
-      && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
+    const historical = pending.filter(intent => intent
       && !ledger.getSaveIntentReceipt(intent.intentId))
       .sort((a, b) => {
         if (orderOf(a) !== null && orderOf(b) !== null) return orderOf(a) - orderOf(b);
@@ -228,6 +281,8 @@ function status(state, diagnosticCode = null, patch = {}) {
     state, active: false, phase: null, progress: { current: 0, total: 0 },
     currentPath: null, heartbeatAt: new Date().toISOString(), cancelRequested: false,
     diagnostic: diagnosticCode ? { code: diagnosticCode } : null,
+    migrationComplete: recoveryReady, recoveryComplete,
+    ...(legacyBlockedCount ? { legacyMigration: { blocked: legacyBlockedCount } } : {}),
     ...patch
   };
   parentPort.postMessage({ tag: 'STATUS', sequence: ++sequence, snapshot: lastSnapshot });
@@ -259,8 +314,7 @@ async function dispatch(message) {
         tokenizer,
         loadDatabase: () => loadDatabase('keyword') });
       ledger.initialize();
-      const legacyMigration = ledger.migrateLegacyIndexJobs({ storeRoot: sourceRoot });
-      resumeInterruptedJobs();
+      ledger.assertLegacyMigrationMarker();
       keyword.open();
       if (workerData?.r3SchedulerFixture === true) {
         const db = keyword.open();
@@ -290,15 +344,13 @@ async function dispatch(message) {
       }
       keywordReady = !keywordDiagnostic;
       keywordDiagnosticCode = keywordDiagnostic;
-      status(keywordDiagnostic ? 'stale' : 'ready', keywordDiagnostic,
-        legacyMigration.blocked ? { legacyMigration: { blocked: legacyMigration.blocked } } : {});
+      status(keywordDiagnostic ? 'stale' : 'ready', keywordDiagnostic);
       const ledgerOpen = opened.find(item => item.role === 'ledger');
       const keywordOpen = opened.find(item => item.role === 'keyword');
       parentPort.postMessage({ tag: 'START', state: 'ready', threadId, audit: {
         ledgerOpenThreadId: ledgerOpen.threadId, keywordOpenThreadId: keywordOpen.threadId, openCount: opened.length
       } });
-      if (workerData?.r3SkipStartupReplay !== true) resumePrivateIntents();
-      scheduleDesiredDrain();
+      setImmediate(resumeLegacyMigration);
     } catch {
       status('failed');
       parentPort.postMessage({ tag: 'START', state: 'failed', error: { code: 'owner_start_failed' } });

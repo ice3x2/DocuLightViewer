@@ -1,0 +1,26 @@
+{
+  "review": "S20 scoped owner-lock and bounded startup recovery",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/43",
+  "reviewedSourceHash": "36ca3047485ec1790a914d227e0b764d804f6d77b4dfb51384885481a9877501",
+  "baseCommit": "12d176cbcd84e56aba820a13fbec43ac9dedbd26",
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "IR-APP-013", "IR-APP-010"],
+  "result": "PARTIAL_PASS_SAFE_TO_COMMIT_ISSUE_OPEN",
+  "scopedFindings": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "independentEvidence": [
+    { "command": "node -e \"console.log(require('./test/r3/runtime.cjs').sourceHash())\"", "result": "36ca3047485ec1790a914d227e0b764d804f6d77b4dfb51384885481a9877501" },
+    { "command": "node test/r3/run-node.cjs --case s20", "result": "PASS", "assertions": 21, "details": "3101 interrupted and 3101 legacy jobs; 32-job pages; ready_ms=435" },
+    { "command": "git diff --check -- <S20 tracked source and test files>", "result": "PASS" }
+  ],
+  "assessment": [
+    "Both owner and publication acquisitions take the same atomic .recovery sidecar before testing or replacing a lock. The deterministic three-contender fixtures show that A cannot acquire between B's stale read and rename, and C cannot enter while B owns the lock.",
+    "A live same-PID sibling controller remains busy; a dead process or a reused PID with different process-start identity is recoverable. Platforms unable to establish identity fail closed. A crashed sidecar remains fail-closed without age-based deletion and requires explicit operator inspection.",
+    "Owner START publishes cached health and ready before scheduling legacy migration and interrupted-job reconciliation. The 3101-row legacy fixture observes at most 32 jobs per keyset page, query and cancel replies before completion, and replay of a durably published save that was deferred during migration.",
+    "Private intent replay uses directory streaming. Save acceptance stays closed until legacy migration commits, and the deferred Markdown file remains intact. Existing S09, S10, S11, S17, S19, lifecycle, startup-memory, and index-worker runs are recorded in the S20 evidence file."
+  ],
+  "unmetIssueGates": [
+    "Product main still invokes SearchEngine.initialize and its legacy main-thread SQLite reconciliation independently of the owner lock. Product-wide DB-free startup and sole-writer cutover remain for S23/S26.",
+    "A new S20-specific checksum assertion for preservation of the prior committed keyword cache after failed or cancelled rebuild remains outstanding; existing lifecycle and worker tests provide only prior coverage.",
+    "The fail-closed crashed-sidecar condition has no product recovery action yet; operator inspection is documented as the current limit."
+  ],
+  "closureRecommendation": "The scoped partial diff is safe to commit. Keep issue #43 open and leave its completion boxes unchecked until the product-main route, committed-cache checksum proof, and full recovery-action evidence are delivered."
+}

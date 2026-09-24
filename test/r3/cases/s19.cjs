@@ -11,6 +11,16 @@ const hash = value => `sha256:${crypto.createHash('sha256').update(value).digest
 const publicFixturePath = path.join(__dirname, '../fixtures/public-ledger-12d312c.sqlite');
 const publicFixtureHash = 'e6739aa66353f85a601e56cf62af9b42c629b11b2bc36b6c08950eef74ed3bf0';
 
+async function waitForStatus(owner, predicate, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = owner.getStatus();
+    if (predicate(status)) return status;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  return owner.getStatus();
+}
+
 function seed(Database, base, { mismatch = false, fresh = false, unknown = false, disabled = false } = {}) {
   const storeRoot = path.join(base, 'store');
   fs.mkdirSync(storeRoot);
@@ -83,6 +93,7 @@ module.exports = { async run(context) {
       deriveDocuments: false, keywordTokenizerProvider: 'basic' });
     try {
       await owner.start();
+      await waitForStatus(owner, status => status.recoveryComplete === true);
       const ledger = new SourceLedgerStore({ dbPath: config.ledgerPath });
       try {
       const db = ledger.open();
@@ -113,6 +124,7 @@ module.exports = { async run(context) {
       deriveDocuments: false, keywordTokenizerProvider: 'basic' });
     try {
       await replay.start();
+      await waitForStatus(replay, status => status.recoveryComplete === true);
       context.assert(replay.getStatus().legacyMigration?.blocked === 4,
         'restart status retains the persisted blocked legacy diagnostic count');
     } finally { await replay.shutdown(); }
@@ -131,7 +143,8 @@ module.exports = { async run(context) {
       } finally { prior.close(); }
       const recovered = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await recovered.start(); } finally { await recovered.shutdown(); }
+      try { await recovered.start(); await waitForStatus(recovered, status => status.recoveryComplete === true); }
+      finally { await recovered.shutdown(); }
       const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         context.assert(check.open().prepare("SELECT desired_revision FROM documents WHERE document_id = 'doc-queued'")
@@ -151,7 +164,8 @@ module.exports = { async run(context) {
       } finally { prior.close(); }
       const owner = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await owner.start(); } finally { await owner.shutdown(); }
+      try { await owner.start(); await waitForStatus(owner, status => status.recoveryComplete === true); }
+      finally { await owner.shutdown(); }
       const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         context.assert(check.open().prepare("SELECT result FROM legacy_index_migrations WHERE job_id = 'old-corrupt'")
@@ -172,7 +186,8 @@ module.exports = { async run(context) {
       } finally { raw.close(); }
       const winner = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await winner.start(); } finally { await winner.shutdown(); }
+      try { await winner.start(); await waitForStatus(winner, status => status.recoveryComplete === true); }
+      finally { await winner.shutdown(); }
       const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         const db = check.open();
@@ -195,7 +210,8 @@ module.exports = { async run(context) {
       } finally { raw.close(); }
       const owner = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await owner.start(); } finally { await owner.shutdown(); }
+      try { await owner.start(); await waitForStatus(owner, status => status.recoveryComplete === true); }
+      finally { await owner.shutdown(); }
       const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         const db = check.open();
@@ -219,7 +235,8 @@ module.exports = { async run(context) {
       } finally { raw.close(); }
       const owner = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await owner.start(); } finally { await owner.shutdown(); }
+      try { await owner.start(); await waitForStatus(owner, status => status.recoveryComplete === true); }
+      finally { await owner.shutdown(); }
       const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         const db = check.open();
@@ -244,6 +261,7 @@ module.exports = { async run(context) {
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
       try {
         await owner.start();
+        await waitForStatus(owner, status => status.recoveryComplete === true);
         const bytes = Buffer.from('# Later valid save\n');
         const published = await publishSave({ storeRoot: input.storeRoot,
           ingressRoot: input.ingressRoot, sourceRelativeLocator: 'indexing.md',
@@ -284,9 +302,11 @@ module.exports = { async run(context) {
       } finally { setup.close(); }
       const failed = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      let rejected = false;
-      try { await failed.start(); } catch { rejected = true; }
-      context.assert(rejected, 'migration transaction fault prevents owner START-ready');
+      await failed.start();
+      const failedStatus = await waitForStatus(failed,
+        status => status.diagnostic?.code === 'legacy_migration_failed');
+      context.assert(failedStatus.diagnostic?.code === 'legacy_migration_failed',
+        'migration transaction fault leaves owner ready but gates new writes');
       context.assert((await failed.acceptPublishedSave({ intentId: '0'.repeat(64) })).accepted === false,
         'new write ACK remains closed before migration transaction commits');
       await failed.shutdown();
@@ -301,7 +321,8 @@ module.exports = { async run(context) {
       } finally { afterFault.close(); }
       const resumed = new OwnerWorkerController({ ...input, sourceRoot: input.storeRoot,
         deriveDocuments: false, keywordTokenizerProvider: 'basic' });
-      try { await resumed.start(); } finally { await resumed.shutdown(); }
+      try { await resumed.start(); await waitForStatus(resumed, status => status.recoveryComplete === true); }
+      finally { await resumed.shutdown(); }
       const final = new SourceLedgerStore({ dbPath: input.ledgerPath });
       try {
         context.assert(final.open().prepare("SELECT COUNT(*) AS n FROM index_jobs WHERE job_id LIKE 'job_legacy_%'").get().n === 2,
@@ -336,6 +357,7 @@ module.exports = { async run(context) {
           deriveDocuments: false, keywordTokenizerProvider: 'basic' });
         try {
           await gated.start();
+          await waitForStatus(gated, status => status.recoveryComplete === true);
           const check = new SourceLedgerStore({ dbPath: input.ledgerPath });
           try {
             const db = check.open();

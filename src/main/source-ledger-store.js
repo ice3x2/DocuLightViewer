@@ -450,8 +450,29 @@ class SourceLedgerStore {
   }
 
   // @req REL-DOC-009 FR-DOC-019 DR-DOC-014 SEC-DOC-003
+  assertLegacyMigrationMarker() {
+    const schema = this.open().prepare("SELECT value FROM source_ledger_meta WHERE key = 'legacy_index_jobs_schema'").get();
+    if (schema && schema.value !== '12d312cea07d') throw new Error('Unsupported legacy job schema');
+  }
+
+  // @req REL-DOC-009 FR-DOC-019 DR-DOC-014 SEC-DOC-003
   migrateLegacyIndexJobs({ storeRoot, activeHeartbeatMs = 30000 } = {}) {
+    let cursor = {};
+    let migrated = 0;
+    let page;
+    do {
+      page = this.migrateLegacyIndexJobsPage({ storeRoot, activeHeartbeatMs, ...cursor });
+      migrated += page.migrated;
+      cursor = { afterCreatedAt: page.afterCreatedAt, afterJobId: page.afterJobId };
+    } while (page.hasMore);
+    return { detected: page.detected, migrated, blocked: page.blocked };
+  }
+
+  // @req REL-DOC-009 FR-DOC-019 DR-DOC-014 SEC-DOC-003
+  migrateLegacyIndexJobsPage({ storeRoot, activeHeartbeatMs = 30000,
+    afterCreatedAt = null, afterJobId = null, limit = 32 } = {}) {
     this.assertWritable();
+    if (!Number.isInteger(limit) || limit < 1 || limit > 256) throw new Error('Invalid page limit');
     const db = this.open();
     let schema = db.prepare("SELECT value FROM source_ledger_meta WHERE key = 'legacy_index_jobs_schema'").get();
     if (!schema) {
@@ -462,7 +483,7 @@ class SourceLedgerStore {
             AND d.current_job_id IS NULL AND d.accepted_intent_id IS NULL))
           AND NOT EXISTS (SELECT 1 FROM save_intent_acceptances a WHERE a.document_id = d.document_id)
         LIMIT 1`).get();
-      if (!upgradedLegacy) return { detected: false, migrated: 0, blocked: 0 };
+      if (!upgradedLegacy) return { detected: false, migrated: 0, blocked: 0, hasMore: false };
       db.prepare(`INSERT OR IGNORE INTO source_ledger_meta(key,value)
         VALUES ('legacy_index_jobs_schema','12d312cea07d')`).run();
       schema = { value: '12d312cea07d' };
@@ -478,11 +499,13 @@ class SourceLedgerStore {
       FROM index_jobs j LEFT JOIN documents d ON d.document_id = j.document_id
       LEFT JOIN sources s ON s.source_id = d.source_id
       WHERE j.job_type = 'index_document'
-      ORDER BY j.created_at DESC, j.job_id DESC`).all();
-    const uncertainDocuments = new Set(jobs.filter(job => job.status === 'indexing'
-      && job.document_id && Number.isFinite(Date.parse(job.heartbeat_at))
-      && Date.now() - Date.parse(job.heartbeat_at) < activeHeartbeatMs)
-      .map(job => job.document_id));
+        AND (? IS NULL OR j.created_at < ? OR (j.created_at = ? AND j.job_id < ?))
+      ORDER BY j.created_at DESC, j.job_id DESC LIMIT ?`)
+      .all(afterCreatedAt, afterCreatedAt, afterCreatedAt, afterJobId, limit);
+    const activeSince = new Date(Date.now() - activeHeartbeatMs).toISOString();
+    const uncertainJob = db.prepare(`SELECT 1 FROM index_jobs
+      WHERE document_id = ? AND job_type = 'index_document' AND status = 'indexing'
+        AND heartbeat_at >= ? LIMIT 1`);
     let migrated = 0;
     db.transaction(() => {
       for (const job of jobs) {
@@ -517,7 +540,7 @@ class SourceLedgerStore {
         else if (normalizeInternalPath(job.root_path_internal) !== normalizeInternalPath(root)
           || job.root_fingerprint !== rootFingerprint) diagnostic = 'legacy_root_mismatch';
         else if (job.cancel_requested) diagnostic = 'legacy_cancel_requested';
-        else if (uncertainDocuments.has(job.document_id)) diagnostic = 'legacy_active_claim_uncertain';
+        else if (uncertainJob.get(job.document_id, activeSince)) diagnostic = 'legacy_active_claim_uncertain';
         if (!diagnostic) {
           file = path.resolve(root, job.relative_path);
           if (!isPathWithinRoot(file, root) || normalizeInternalPath(file) !== normalizeInternalPath(job.current_path_internal)) {
@@ -553,12 +576,15 @@ class SourceLedgerStore {
           VALUES (?, 'migrated', ?, ?)`).run(job.job_id, newJobId, now);
         migrated += 1;
       }
-      db.prepare(`INSERT INTO source_ledger_meta(key,value) VALUES ('legacy_index_jobs_migration','scanned')
+      if (jobs.length < limit) db.prepare(`INSERT INTO source_ledger_meta(key,value) VALUES ('legacy_index_jobs_migration','scanned')
         ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run();
     })();
     const persistedBlocked = db.prepare(`SELECT COUNT(*) AS count FROM legacy_index_migrations
       WHERE result = 'blocked'`).get().count;
-    return { detected: true, migrated, blocked: persistedBlocked };
+    return { detected: true, migrated, blocked: persistedBlocked,
+      afterCreatedAt: jobs.at(-1)?.created_at || afterCreatedAt,
+      afterJobId: jobs.at(-1)?.job_id || afterJobId,
+      hasMore: jobs.length === limit, pageSize: jobs.length };
   }
 
   // @req DR-DOC-014

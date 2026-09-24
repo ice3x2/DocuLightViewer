@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
+const { acquireOwnerLock } = require('./search-owner-lock');
 
 const TYPES = Object.freeze({
   accept_save: 'COMMAND', resolve_origin: 'QUERY', query_keyword: 'QUERY',
@@ -29,6 +30,7 @@ class OwnerWorkerController {
     this.snapshot = { state: 'idle', active: false };
     this.closing = false;
     this.readyReject = null;
+    this.releaseOwnerLock = null;
   }
 
   getStatus() { return { ...this.snapshot, sequence: this.sequence }; }
@@ -40,12 +42,16 @@ class OwnerWorkerController {
       if (this.worker === failed) this._fail('owner_worker_failed', failed, true);
     }
     if (this.worker) return this.ready;
+    this.releaseOwnerLock = acquireOwnerLock(this.config.ledgerPath);
     this.closing = false;
     this.usedIds.clear();
     this.workerSequence = 0;
     const worker = new Worker(this.config.workerPath || path.join(__dirname, 'search-owner-worker.js'), {
       workerData: { r3SchedulerFixture: this.config.r3SchedulerFixture === true,
         r3ReplayFixture: this.config.r3ReplayFixture === true,
+        r3RecoveryBarrier: this.config.r3RecoveryBarrier,
+        r3MigrationBarrier: this.config.r3MigrationBarrier,
+        r3MigrationPageAudit: this.config.r3MigrationPageAudit,
         r3SkipStartupReplay: this.config.r3SkipStartupReplay === true }
     });
     this.worker = worker;
@@ -93,6 +99,8 @@ class OwnerWorkerController {
       this.worker = null;
       this.ready = null;
       this.failedWorker = null;
+      if (this.releaseOwnerLock) this.releaseOwnerLock();
+      this.releaseOwnerLock = null;
     } else {
       this.failedWorker = worker;
     }
@@ -153,7 +161,12 @@ class OwnerWorkerController {
   cancel(target, id) { return this._send('CANCEL', 'cancel_job', { target }, id); }
 
   async shutdown(id, command = false) {
-    if (!this.worker) { this.closing = true; return { shutdown: true }; }
+    if (!this.worker) {
+      this.closing = true;
+      if (this.releaseOwnerLock) this.releaseOwnerLock();
+      this.releaseOwnerLock = null;
+      return { shutdown: true };
+    }
     const key = id === undefined ? `shutdown-${++this.nextId}` : id;
     if (typeof key !== 'string' || !key.trim()) throw failure('owner_invalid_id');
     if (this.usedIds.has(key)) throw failure('owner_duplicate_id');

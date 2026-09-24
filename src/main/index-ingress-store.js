@@ -204,11 +204,12 @@ async function withPublicationGate(ingressRoot, action) {
 }
 
 function acquirePublicationGate(privateRoot) {
+  const { processIdentity, processLiveness } = require('./process-owner-identity');
+  const { acquireAtomicOwnerGate } = require('./atomic-owner-gate');
   const lock = path.join(privateRoot, '.publication.lock');
   const token = crypto.randomUUID();
   const temp = path.join(privateRoot, `.publication-owner-${token}.tmp`);
-  const owner = { pid: process.pid, token };
-  writeFlushed(temp, Buffer.from(JSON.stringify(owner)), 'gate_owner_write', 'gate_owner_flush', undefined);
+  const owner = { pid: process.pid, identity: processIdentity(process.pid), token };
   const recover = () => {
     const stat = fs.lstatSync(lock);
     if (stat.isSymbolicLink()) throw fail('publication_busy');
@@ -226,8 +227,7 @@ function acquirePublicationGate(privateRoot) {
     let dead = false;
     if (malformed) dead = stat.isDirectory() && Date.now() - stat.mtimeMs > 5000;
     else if (Number.isSafeInteger(prior?.pid) && prior.pid > 0 && typeof prior.token === 'string') {
-      try { process.kill(prior.pid, 0); }
-      catch (probe) { dead = probe.code === 'ESRCH'; }
+      dead = processLiveness(prior) === 'dead';
     }
     if (!dead) throw fail('publication_busy');
     const abandoned = path.join(privateRoot, `.publication-abandoned-${token}`);
@@ -239,7 +239,9 @@ function acquirePublicationGate(privateRoot) {
       fs.rmdirSync(abandoned);
     } else fs.unlinkSync(abandoned);
   };
+  const releaseGate = acquireAtomicOwnerGate(lock, () => fail('publication_busy'));
   try {
+    writeFlushed(temp, Buffer.from(JSON.stringify(owner)), 'gate_owner_write', 'gate_owner_flush', undefined);
     try { fs.linkSync(temp, lock); }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
@@ -249,6 +251,7 @@ function acquirePublicationGate(privateRoot) {
     directoryFlush(privateRoot);
   } finally {
     if (fs.existsSync(temp)) fs.unlinkSync(temp);
+    releaseGate();
   }
   return () => {
     const current = JSON.parse(fs.readFileSync(lock, 'utf8'));

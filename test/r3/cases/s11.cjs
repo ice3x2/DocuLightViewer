@@ -216,7 +216,15 @@ module.exports = { async run(context) {
   const owner = new OwnerWorkerController({ ledgerPath: path.join(root, 'ledger.sqlite'),
     keywordPath: path.join(root, 'keyword.sqlite'), sourceRoot: storeRoot,
     keywordTokenizerProvider: 'basic' });
-  try { await owner.start(); } finally { await owner.shutdown(); }
+  try {
+    await owner.start();
+    const deadline = Date.now() + 3000;
+    while (!owner.getStatus().recoveryComplete && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    context.assert(owner.getStatus().recoveryComplete === true,
+      'interrupted recovery completes after START-ready before inspecting durable rows');
+  } finally { await owner.shutdown(); }
   const recoveredLedger = new SourceLedgerStore({ dbPath: path.join(root, 'ledger.sqlite') });
   try {
     const pending = recoveredLedger.getPendingDesiredPage();

@@ -1,0 +1,30 @@
+{
+  "review": "S20 independent TDD and reliability review",
+  "sourceHash": "36ca3047485ec1790a914d227e0b764d804f6d77b4dfb51384885481a9877501",
+  "baseCommit": "12d176cbcd84e56aba820a13fbec43ac9dedbd26",
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "IR-APP-013", "IR-APP-010"],
+  "verdict": "SAFE_TO_COMMIT_PARTIAL",
+  "issue43Closure": "BLOCKED",
+  "reviewed": {
+    "semanticRed": "Evidence records assertion-level RED for live owner collision, recycled PID publication, START-ready barrier, full ingress enumeration, owner/publication rename races, and real legacy migration before ready. Earlier failing snapshots were not rerun against this frozen revision.",
+    "ownerExclusivity": "Every new owner and publication lock acquisition passes through an atomic sidecar gate. A competing live owner is rejected before worker construction or SQLite open; dead and reused-PID records are recoverable when process identity proves death. The sidecar prevents another contender replacing a dead lock between inspection and rename.",
+    "startupRecovery": "Worker START-ready precedes legacy migration and interrupted-job reconciliation. Migration reads keyset pages of at most 32. The S20 test creates 3,101 real legacy jobs and audits observed page sizes and count, verifies query/cancel replies before migration completion, gates a new save ACK, and replays its durable intent after migration.",
+    "boundedReplay": "Private intent discovery uses directory iteration; the S20 fixture prohibits full ingress readdirSync and verifies an actual saved intent reaches the ledger.",
+    "regressions": "S09 and S17 remain unchanged. S10, S11, and S19 assertions were adapted to asynchronous readiness without dropping durable identity, latest-wins, or recovery checks. Allowing failed or cancelled for a superseded old claim matches its terminal-state contract."
+  },
+  "independentCommands": [
+    {"command": "node test/r3/run-node.cjs --case s20", "result": "PASS, 21 assertions; 3,101 modern jobs; ready 438 ms"},
+    {"command": "node test/r3/run-node.cjs --case s19", "result": "PASS, 47 assertions"}
+  ],
+  "recordedCommands": [
+    "s09 PASS 37", "s10 PASS 47", "s11 PASS 25", "s17 PASS 32",
+    "test-search-engine-lifecycle PASS", "test-startup-index-recovery-memory-contract PASS",
+    "test-search-index-worker-contract PASS"
+  ],
+  "openGates": [
+    {"severity": "HIGH", "finding": "Configured product startup still invokes SearchEngine.initialize, which schedules main-thread source-ledger reconciliation, materializes recoverable jobs, and writes ledger state outside the owner lock. Product-wide DB-free bounded startup remains unverified.", "requiredFor": "Issue #43 closure; S23/S26 cutover"},
+    {"severity": "MEDIUM", "finding": "S20 does not yet assert a real SQLite checksum and search result for the previous committed keyword generation through rebuild cancel and failure.", "requiredFor": "Issue #43 closure"},
+    {"severity": "LOW", "finding": "A crash while the short atomic sidecar gate is held intentionally fails closed; explicit operator recovery and cold packaged-app behavior remain outside this partial Node fixture.", "requiredFor": "Issue #43 closure and release evidence"}
+  ],
+  "scope": "This verdict permits the isolated worker/lock/test changes to be committed as partial progress. It does not mark any requirement verified or permit issue #43 to close."
+}

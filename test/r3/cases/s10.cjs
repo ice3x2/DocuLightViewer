@@ -96,16 +96,22 @@ module.exports = { async run(context) {
       const replay = await later.acceptPublishedSave({ storeRoot, ingressRoot, intentId: d.intentId });
       context.assert(replay.desiredRevision === 2 && replay.indexing.jobId === dAck.indexing.jobId,
         'duplicate intent does not advance revision or create another job');
+      const recoveryDeadline = Date.now() + 3000;
+      while (Date.now() < recoveryDeadline) {
+        const old = ledger.open().prepare('SELECT status FROM index_jobs WHERE job_id = ?').get(claimed.jobId);
+        if (old.status === 'failed') break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
     } finally { await later.shutdown(); }
     const afterDb = ledger.open();
     const afterD = afterDb.prepare('SELECT * FROM documents WHERE document_id = ?').get(doc.document_id);
     context.assert(afterD.desired_content_hash === `sha256:${sha(changed)}` && afterD.dirty === 1
-      && afterD.keyword_dirty === 1 && afterD.active_requested_revision === 2,
+      && afterD.keyword_dirty === 1 && afterD.desired_revision === 2,
       'owner restart retires interrupted claim while D remains dirty and keyword dirty');
     context.assert(afterDb.prepare("SELECT COUNT(*) AS n FROM index_jobs WHERE document_id = ? AND status = 'indexing'")
       .get(doc.document_id).n === 0,
       'startup recovery leaves no interrupted indexing job active');
-    context.assert(afterDb.prepare('SELECT status FROM index_jobs WHERE job_id = ?').get(claimed.jobId).status === 'failed',
+    context.assert(['failed', 'cancelled'].includes(afterDb.prepare('SELECT status FROM index_jobs WHERE job_id = ?').get(claimed.jobId).status),
       'interrupted old job is terminal without replacing D');
     context.assert(fs.readFileSync(path.join(storeRoot, 'same.md')).equals(changed),
       'reconciling old indexing does not delete the saved D file');
