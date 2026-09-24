@@ -1,0 +1,43 @@
+{
+  "review": "S17 linked import independent review",
+  "date": "2026-09-25",
+  "baseCommit": "87c21a439dd78cb73696df7a7fe38d4b490aa2fd",
+  "sourceHashMethod": "node -p \"require('./test/r3/runtime.cjs').sourceHash()\"",
+  "sourceHash": "1192d04e1c2c45a6c34b5a55ee71556578146a6d140acf05ee72ca1b0b6a8203",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/40",
+  "requirements": ["FR-DOC-033", "DR-DOC-013", "DR-DOC-014", "FR-DOC-019", "REL-DOC-009"],
+  "result": "PASS",
+  "findings": { "critical": [], "high": [], "medium": [], "low": [] },
+  "issue40Closure": "Ready to close after the S17 completion commit and issue evidence are recorded.",
+  "checks": [
+    {
+      "name": "Old-to-new postpublication owner-failure replay",
+      "method": "Independent real filesystem, SQLite, and owner worker reproduction",
+      "result": "PASS: first import revision 1; owner failure after new copy publication leaves revision 1 and one intent; retry accepts the exact pending intent, advances to revision 2, creates one new job, and clears the intent."
+    },
+    {
+      "name": "Different-intent guard",
+      "method": "S17 real filesystem/SQLite fault case and publisher diff review",
+      "result": "PASS: only a matching pending intent with the already published content hash bypasses the previous ledger hash; a different content attempt is rejected before overwrite."
+    },
+    {
+      "name": "Traversal, partial completion, aliases, path policy, and graph",
+      "method": "S17 and Wave 2 fixture inspection plus focused test execution",
+      "result": "PASS: canonical bounded traversal terminates cycles; C fault matrix retains B and converges on retry; alias-only acceptance preserves identity without a duplicate job; outside-root entry creates no copy or row; owner indexing reads the contained store copy and derives resolved/missing edges."
+    },
+    {
+      "name": "Private owner and public boundary",
+      "method": "Changed production file and call-site review",
+      "result": "PASS: importer performs ledger reads, publisher call, and seven-field owner acceptance; authoritative document, alias, job, and graph writes stay in the owner path. Settings remains the import trigger and no MCP import control was added."
+    }
+  ],
+  "executed": [
+    { "command": "node test/r3/run-node.cjs --case s17", "result": "PASS case=s17 assertions=32" },
+    { "command": "node test/test-wave2-import-adoption-contract.js", "result": "all assertions passed" },
+    { "command": "node test/test-wave2-ledger-contract.js", "result": "all assertions passed" },
+    { "command": "node test/r3/run-node.cjs --case s13", "result": "PASS case=s13 assertions=20" }
+  ],
+  "limitations": [
+    "The reviewer reran S17, S13, Wave 2 import, and Wave 2 ledger checks. S08, S15, and S16 pass results are reported in the author's evidence and were not repeated here."
+  ]
+}

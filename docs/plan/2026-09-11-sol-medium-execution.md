@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S16 #39](https://github.com/ice3x2/DocuLightViewer/issues/39) · 다음 [S17 #40](https://github.com/ice3x2/DocuLightViewer/issues/40).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S17 #40](https://github.com/ice3x2/DocuLightViewer/issues/40) · 다음 [S18 #41](https://github.com/ice3x2/DocuLightViewer/issues/41).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,14 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `16/36` 완료(S01~S16)다. private owner의 최신 파일·파생 색인·링크 그래프와 공개/renderer 저장 producer, 외부 원본 alias·저장소 복사본 연결을 검증했다. 다음은 [S17 #40](https://github.com/ice3x2/DocuLightViewer/issues/40)의 linked import이며, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
+실행 이슈는 `17/36` 완료(S01~S17)다. 문서별 linked import에서 파일 게시·owner 접수·실패 재시도와 이전 완료 문서 보존까지 검증했다. 다음은 [S18 #41](https://github.com/ice3x2/DocuLightViewer/issues/41)의 제한·카운터·진단이며, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
+
+## S17 진행 기록 — 독립 검토 완료
+
+- 시작 SHA `87c21a439dd78cb73696df7a7fe38d4b490aa2fd`, 격리 worktree `DocuLightViewer-r3`. 관련 `FR-DOC-033`, `DR-DOC-013`, `DR-DOC-014`, `FR-DOC-019`, `REL-DOC-009`의 Stability 차단 없음.
+- [x] [S17 RED/GREEN 증거](../analysis/2026-09-25-s17-import-evidence.md): 실제 파일·SQLite·owner worker에서 C intent/rename/post-publish/ACK/cancel fault의 부분 완료 보존과 retry, 변경 본문 replay·다른 intent 거절, lexical alias, `.markdown`, owner graph 파생을 test-first로 검증했다. 최종 Node ABI 137 `s17` 32 assertions, Wave 2 import/ledger 계약, S08 53·S13 20·S15 49·S16 24 assertions 통과.
+- [x] 작성자가 아닌 독립 검토자의 [import·데이터 검토](../analysis/2026-09-25-s17-import-review.json)와 [TDD·복구 검토](../analysis/2026-09-25-s17-tdd-review.json)를 소스 해시 `1192d04e1c2c45a6c34b5a55ee71556578146a6d140acf05ee72ca1b0b6a8203`에서 마쳤다. 기존에 실패하던 게시 후 owner 오류·재시도가 원장 revision 1→2로 수렴하는 것을 독립 재현했으며 차단 결함 0건이다.
+- [x] #40 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. 다음은 [S18 #41](https://github.com/ice3x2/DocuLightViewer/issues/41)이다.
 
 ## S03 진행 기록 — 독립 검토 완료
 

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createLinkGraphIndexer } = require('./link-graph-indexer');
+const { publishSave, readPendingSave } = require('./index-ingress-store');
 const { createRedactor, redactToken } = require('./redaction');
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown']);
@@ -15,7 +16,9 @@ class LinkedImporter {
     sourceRoot,
     knowledgeStoreRoot,
     ledger = null,
-    requestedBy = 'local.linked_import',
+    ownerController = null,
+    ingressRoot = null,
+    signal = null,
     maxDepth = 4,
     maxFiles = 100,
     maxTotalBytes = 50 * 1024 * 1024
@@ -24,7 +27,11 @@ class LinkedImporter {
     this.sourceRoot = realpathOrPath(sourceRoot);
     this.knowledgeStoreRoot = knowledgeStoreRoot ? realpathOrPath(knowledgeStoreRoot) : null;
     this.ledger = ledger || null;
-    this.requestedBy = requestedBy || 'local.linked_import';
+    this.ownerController = ownerController;
+    this.ingressRoot = ingressRoot;
+    this.signal = signal;
+    this.acknowledgedImports = new Set();
+    this.inFlight = new Map();
     this.maxDepth = Math.max(0, Number(maxDepth) || 0);
     this.maxFiles = Math.max(1, Number(maxFiles) || 1);
     this.maxTotalBytes = Math.max(1, Number(maxTotalBytes) || 1);
@@ -45,15 +52,19 @@ class LinkedImporter {
     const counts = createCounts();
     const diagnostics = [];
     const imported = [];
-    const deferredEdges = [];
     const visited = new Set();
     const pending = [{
       filePath: fs.existsSync(entryPath) ? realpathOrPath(entryPath) : path.resolve(entryPath),
+      lexicalPath: path.resolve(entryPath),
       depth: 0
     }];
     let totalBytes = 0;
 
     while (pending.length > 0) {
+      if (this.signal?.aborted) {
+        diagnostics.push(diagnostic('skipped', 'cancelled', '', this.redactor));
+        break;
+      }
       const current = pending.shift();
       const canonicalKey = canonicalIdentityKey(current.filePath);
       if (visited.has(canonicalKey)) {
@@ -78,28 +89,46 @@ class LinkedImporter {
         continue;
       }
 
-      const stat = fs.statSync(current.filePath);
-      totalBytes += stat.size;
-      if (totalBytes > this.maxTotalBytes) {
-        counts.skipped += 1;
-        diagnostics.push(diagnostic('skipped', 'total_bytes_limit', current.filePath, this.redactor));
-        continue;
+      let sourceRelativePath;
+      let content;
+      let persistResult;
+      try {
+        const stat = fs.statSync(current.filePath);
+        totalBytes += stat.size;
+        if (totalBytes > this.maxTotalBytes) {
+          counts.skipped += 1;
+          diagnostics.push(diagnostic('skipped', 'total_bytes_limit', current.filePath, this.redactor));
+          continue;
+        }
+        sourceRelativePath = toSourceRelativePath(current.filePath, this.sourceRoot);
+        const destinationCheck = this.resolveKnowledgeStoreDestination(sourceRelativePath);
+        if (destinationCheck?.status === 'ambiguous') {
+          counts.ambiguous += 1;
+          diagnostics.push(diagnostic('ambiguous', destinationCheck.diagnosticCode,
+            destinationCheck.targetPath, this.redactor));
+          continue;
+        }
+        content = await fs.promises.readFile(current.filePath, 'utf-8');
+        visited.add(canonicalKey);
+        persistResult = await this.persistCandidate({ source, filePath: current.filePath,
+          lexicalPath: current.lexicalPath || current.filePath, sourceRelativePath, content });
+      } catch (error) {
+        counts.stale += 1;
+        diagnostics.push(diagnostic('stale', error.code || 'import_candidate_failed',
+          current.filePath, this.redactor));
+        break;
       }
-
-      const content = await fs.promises.readFile(current.filePath, 'utf-8');
-      visited.add(canonicalKey);
-      const sourceRelativePath = toSourceRelativePath(current.filePath, this.sourceRoot);
-      const persistResult = await this.persistCandidate({
-        source,
-        filePath: current.filePath,
-        sourceRelativePath,
-        content
-      });
       if (persistResult && persistResult.status === 'ambiguous') {
         counts.ambiguous += 1;
         diagnostics.push(diagnostic('ambiguous', persistResult.diagnosticCode, persistResult.targetPath, this.redactor));
         visited.add(canonicalKey);
         continue;
+      }
+      if (!persistResult || persistResult.status === 'failed') {
+        counts.stale += 1;
+        diagnostics.push(diagnostic('stale', persistResult?.diagnosticCode || 'index_enqueue_failed',
+          current.filePath, this.redactor));
+        break;
       }
       const documentId = persistResult.documentId;
       if (persistResult.status === 'existing') {
@@ -122,31 +151,18 @@ class LinkedImporter {
         if (adjusted.status === 'resolved') {
           const targetPath = sourceIndex.byDocumentId.get(adjusted.toDocumentId);
           if (targetPath && !visited.has(canonicalIdentityKey(targetPath))) {
-            pending.push({ filePath: targetPath, depth: current.depth + 1 });
+            pending.push({ filePath: targetPath, lexicalPath: targetPath, depth: current.depth + 1 });
           } else {
             counts.skipped += 1;
             diagnostics.push(diagnostic('skipped', 'duplicate_or_cycle', targetPath || adjusted.normalizedHref, this.redactor));
-            const skippedEdge = {
-              ...adjusted,
-              status: 'skipped',
-              diagnosticCode: 'duplicate_or_cycle',
-              toDocumentId: null
-            };
-            recordLedgerEdge(this.ledger, skippedEdge, diagnostics, sourceRelativePath, this.redactor);
             continue;
           }
-          deferredEdges.push({ edge: adjusted, sourceRelativePath });
           continue;
         }
         incrementCount(counts, adjusted.status);
         diagnostics.push(edgeDiagnostic(adjusted, sourceRelativePath, this.redactor));
-        recordLedgerEdge(this.ledger, adjusted, diagnostics, sourceRelativePath, this.redactor);
       }
     }
-    for (const item of deferredEdges) {
-      recordLedgerEdge(this.ledger, item.edge, diagnostics, item.sourceRelativePath, this.redactor);
-    }
-
     return {
       source,
       counts,
@@ -156,152 +172,103 @@ class LinkedImporter {
   }
 
   recordSource() {
-    if (!this.ledger) return null;
-    return this.ledger.recordSource({
-      rootPathInternal: this.sourceRoot,
+    return {
+      sourceId: stableId('src', normalizeInternalPath(this.sourceRoot), stableHash(this.sourceRoot)),
       sourceKind: 'local_import_source',
-      displayName: path.basename(this.sourceRoot) || 'Local Import Source',
-      rootFingerprint: stableHash(this.sourceRoot),
-      includeGlobs: ['**/*.md', '**/*.markdown'],
-      excludeGlobs: []
-    });
+      rootFingerprint: stableHash(this.sourceRoot)
+    };
   }
 
-  async persistCandidate({ source, filePath, sourceRelativePath, content }) {
+  async persistCandidate({ source, filePath, lexicalPath, sourceRelativePath, content }) {
+    const key = canonicalIdentityKey(filePath);
+    const active = this.inFlight.get(key);
+    if (active) {
+      const result = await active;
+      return result?.documentId ? { ...result, status: 'existing' } : result;
+    }
+    const pending = this.persistCandidateOnce({ source, filePath, lexicalPath, sourceRelativePath, content });
+    this.inFlight.set(key, pending);
+    try { return await pending; }
+    finally { this.inFlight.delete(key); }
+  }
+
+  async persistCandidateOnce({ source, filePath, lexicalPath, sourceRelativePath, content }) {
     const pathKey = normalizePathKey(sourceRelativePath);
-    const sourceId = source && source.sourceId ? source.sourceId : null;
-    const fallbackDocumentId = stableDocumentId(sourceId, pathKey);
+    const sourceId = source.sourceId;
     const fingerprint = buildDocumentFingerprint(content);
-    const contentHash = fingerprint.contentHash;
     const canonicalPathInternal = realpathOrPath(filePath);
-
-    if (!this.ledger || !sourceId) {
-      const copyResult = await this.copyToKnowledgeStore(filePath, sourceRelativePath, content, { allowOverwrite: false });
-      if (copyResult && copyResult.status === 'ambiguous') return copyResult;
-      return { status: 'imported', documentId: fallbackDocumentId, contentHash };
-    }
-
-    return this.persistCandidateLocked({
-      source,
-      filePath,
-      sourceRelativePath,
-      pathKey,
-      sourceId,
-      fallbackDocumentId,
-      content,
-      contentHash,
-      fingerprint,
-      canonicalPathInternal
-    });
-  }
-
-  async persistCandidateLocked({
-    filePath,
-    sourceRelativePath,
-    pathKey,
-    sourceId,
-    fallbackDocumentId,
-    content,
-    contentHash,
-    fingerprint,
-    canonicalPathInternal
-  }) {
-    return this.ledger.runWriteTransaction(() => {
-      const existingByPath = this.ledger.findDocumentBySourcePath({
-        sourceId,
-        sourceRelativePath,
-        pathKey
-      });
-      const existingByCanonical = this.ledger.findDocumentByCanonicalPath({
-        canonicalPathInternal
-      });
-      if (existingByCanonical && existingByCanonical.sourceId && existingByCanonical.sourceId !== sourceId) {
-        return {
-          status: 'ambiguous',
-          diagnosticCode: 'canonical_source_collision',
-          targetPath: filePath
-        };
-      }
-      const existing = existingByPath || existingByCanonical || null;
-      const documentId = existing ? existing.documentId : fallbackDocumentId;
-      if (hasSameContentFingerprint(existing, fingerprint)) {
-        return { status: 'existing', documentId, contentHash };
-      }
-
-      const destinationCheck = this.checkKnowledgeStoreDestination(sourceRelativePath, content, { allowOverwrite: Boolean(existing) });
-      if (destinationCheck && destinationCheck.status === 'ambiguous') return destinationCheck;
-
-      const status = existing ? 'updated' : 'imported';
-      this.ledger.upsertDocument({
-        sourceId,
-        documentId,
-        sourceRelativePath,
-        pathKey,
-        canonicalPathInternal,
-        contentHash,
-        contentByteLength: fingerprint.contentByteLength,
-        contentTextLength: fingerprint.contentTextLength,
-        normalizedTextHash: fingerprint.normalizedTextHash,
-        importState: 'active'
-      });
-      this.ledger.enqueueIndexJob({
-        sourceId,
-        documentId,
-        status: 'queued',
-        requestedBy: this.requestedBy,
-        currentPathInternal: canonicalPathInternal,
-        contentHash
-      });
-      this.copyToKnowledgeStoreSync(filePath, sourceRelativePath, content, { allowOverwrite: Boolean(existing) });
-
-      return { status, documentId, contentHash };
-    });
-  }
-
-  async copyToKnowledgeStore(sourcePath, sourceRelativePath, content, { allowOverwrite = false } = {}) {
-    if (!this.knowledgeStoreRoot) return null;
     const destination = this.resolveKnowledgeStoreDestination(sourceRelativePath);
-    if (!destination) return null;
     if (destination.status === 'ambiguous') return destination;
     const { targetPath } = destination;
-    if (fs.existsSync(targetPath)) {
-      const existing = await fs.promises.readFile(targetPath, 'utf-8');
-      if (existing === content) return { status: 'existing', targetPath };
-      if (allowOverwrite) {
-        await fs.promises.writeFile(targetPath, content, 'utf-8');
-        return { status: 'updated', targetPath };
-      }
-      return {
-        status: 'ambiguous',
-        diagnosticCode: 'destination_collision',
-        targetPath
-      };
+    const existingByPath = this.ledger?.findDocumentBySourcePath({ sourceId, sourceRelativePath, pathKey });
+    const existingByCanonical = this.ledger?.findDocumentByCanonicalPath({ canonicalPathInternal });
+    if (existingByCanonical?.sourceId && existingByCanonical.sourceId !== sourceId) {
+      return { status: 'ambiguous', diagnosticCode: 'canonical_source_collision', targetPath: filePath };
     }
-    await fs.promises.writeFile(targetPath, content, 'utf-8');
-    return { status: 'written', targetPath };
-  }
-
-  copyToKnowledgeStoreSync(sourcePath, sourceRelativePath, content, { allowOverwrite = false } = {}) {
-    if (!this.knowledgeStoreRoot) return null;
-    const destination = this.resolveKnowledgeStoreDestination(sourceRelativePath);
-    if (!destination) return null;
-    if (destination.status === 'ambiguous') return destination;
-    const { targetPath } = destination;
-    if (fs.existsSync(targetPath)) {
-      const existing = fs.readFileSync(targetPath, 'utf-8');
-      if (allowOverwrite && existing === content) return { status: 'existing', targetPath };
-      if (allowOverwrite) {
-        fs.writeFileSync(targetPath, content, 'utf-8');
-        return { status: 'updated', targetPath };
-      }
-      return {
-        status: 'ambiguous',
-        diagnosticCode: existing === content ? 'legacy_destination_without_source_identity' : 'destination_collision',
-        targetPath
-      };
+    const existing = existingByPath || existingByCanonical || null;
+    const canonicalPathHash = stableHash(normalizeInternalPath(canonicalPathInternal));
+    const hasExactAlias = existing && this.ledger?.hasExactDocumentSourceAlias({
+      documentId: existing.documentId, originLexicalPathInternal: lexicalPath,
+      canonicalPathHash, contentHash: fingerprint.contentHash });
+    const destinationExists = fs.existsSync(targetPath);
+    const ingressRoot = this.ingressRoot || this.ownerController?.config?.ingressRoot;
+    const pendingPublication = !existing && destinationExists && ingressRoot && fs.existsSync(ingressRoot)
+      ? fs.readdirSync(ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name))
+        .map(name => readPendingSave({ ingressRoot, storeRoot: this.knowledgeStoreRoot,
+          intentId: name.slice(0, 64) }))
+        .find(intent => intent?.published && intent.sourceId === sourceId
+          && intent.sourceRelativeLocator === sourceRelativePath
+          && intent.contentHash === stableHash(Buffer.from(content, 'utf8')))
+      : null;
+    if (!existing && destinationExists && !pendingPublication) return { status: 'ambiguous',
+      diagnosticCode: fs.readFileSync(targetPath, 'utf8') === content
+        ? 'legacy_destination_without_source_identity' : 'destination_collision', targetPath };
+    if (existing && hasSameContentFingerprint(existing, fingerprint)) {
+      if (!destinationExists || fs.readFileSync(targetPath, 'utf8') !== content) return {
+        status: 'ambiguous', diagnosticCode: 'destination_content_mismatch', targetPath };
+      if (hasExactAlias) return { status: 'existing', documentId: existing.documentId,
+        contentHash: fingerprint.contentHash };
     }
-    fs.writeFileSync(targetPath, content, 'utf-8');
-    return { status: 'written', targetPath };
+    if (existing && !destinationExists) return { status: 'ambiguous',
+      diagnosticCode: 'destination_missing', targetPath };
+    if (!this.ownerController?.acceptPublishedSave || !this.knowledgeStoreRoot) return {
+      status: 'failed', diagnosticCode: 'owner_unavailable' };
+    const contentBytes = Buffer.from(content, 'utf8');
+    const contentHash = stableHash(contentBytes);
+    const operation = existing && !hasSameContentFingerprint(existing, fingerprint) ? 'update' : 'linked_import';
+    const rootFingerprint = stableHash(path.resolve(this.knowledgeStoreRoot));
+    const provenance = { aliases: [{ lexicalOriginalPath: path.resolve(lexicalPath),
+      canonicalOriginalPath: canonicalPathInternal,
+      canonicalPathHash }], metadata: {} };
+    let publication;
+    try {
+      publication = await publishSave({ storeRoot: this.knowledgeStoreRoot, ingressRoot,
+        contentBytes, contentHash, operation, sourceId, rootFingerprint,
+        sourceRelativeLocator: sourceRelativePath, provenance,
+        faultAt: typeof this.r3PublishFaultAt === 'function'
+          ? this.r3PublishFaultAt({ sourceRelativePath }) : undefined,
+        expectedExistingHash: existing && operation === 'update'
+          ? existing.contentHash?.replace(/^sha256:/, '') : undefined,
+        requireVacant: !existing && !pendingPublication });
+    } catch (error) {
+      if (!existing && error.code === 'published_file_mismatch') {
+        const raced = this.ledger?.findDocumentBySourcePath({ sourceId, sourceRelativePath, pathKey });
+        if (hasSameContentFingerprint(raced, fingerprint)) return {
+          status: 'existing', documentId: raced.documentId, contentHash: fingerprint.contentHash };
+      }
+      return { status: 'failed', diagnosticCode: error.code || 'index_enqueue_failed' };
+    }
+    let accepted;
+    try { accepted = await this.ownerController.acceptPublishedSave({ intentId: publication.intentId,
+      operation, sourceId, rootFingerprint, sourceRelativeLocator: sourceRelativePath,
+      contentHash, provenance }); }
+    catch { return { status: 'failed', diagnosticCode: 'index_enqueue_failed' }; }
+    if (!accepted?.accepted) return { status: 'failed', diagnosticCode: 'index_enqueue_failed' };
+    const alreadyAcknowledged = this.acknowledgedImports.has(publication.intentId);
+    this.acknowledgedImports.add(publication.intentId);
+    return { status: alreadyAcknowledged || accepted.indexingState === 'provenance_only'
+      ? 'existing' : existing ? 'updated' : 'imported', documentId: accepted.documentId,
+      desiredRevision: accepted.desiredRevision, contentHash: fingerprint.contentHash };
   }
 
   checkKnowledgeStoreDestination(sourceRelativePath, content, { allowOverwrite = false } = {}) {
@@ -614,35 +581,6 @@ function createCounts() {
 function incrementCount(counts, status) {
   if (Object.prototype.hasOwnProperty.call(counts, status)) {
     counts[status] += 1;
-  }
-}
-
-function recordLedgerEdge(ledger, edge, diagnostics, sourceRelativePath, redactor) {
-  if (!ledger || !edge || !edge.fromDocumentId || typeof ledger.recordLinkEdge !== 'function') return;
-  let record = edge;
-  if (record.status === 'resolved') {
-    const target = record.toDocumentId && typeof ledger.getDocument === 'function'
-      ? ledger.getDocument(record.toDocumentId)
-      : null;
-    if (!target) {
-      record = {
-        ...record,
-        status: 'skipped',
-        diagnosticCode: 'target_not_imported',
-        toDocumentId: null
-      };
-    }
-  }
-  try {
-    ledger.recordLinkEdge(record);
-  } catch (err) {
-    diagnostics.push({
-      status: 'skipped',
-      diagnosticCode: 'ledger_edge_record_failed',
-      sourceRelativePath,
-      redactedHref: redactToken('HREF', record.originalHref || record.normalizedHref || ''),
-      message: redactor.redactString(err && err.message ? err.message : String(err))
-    });
   }
 }
 

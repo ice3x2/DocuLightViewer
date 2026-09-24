@@ -292,7 +292,7 @@ function publishSaveLocked(input) {
   const destination = path.resolve(documentRoot, sourceRelativeLocator);
   const extension = path.extname(destination).toLowerCase();
   const openedMarkdownLocator = extension === '.markdown'
-    && ['opened_markdown', 'update'].includes(operation)
+    && ['opened_markdown', 'linked_import', 'update'].includes(operation)
     && Array.isArray(input.provenance?.aliases) && input.provenance.aliases.length > 0;
   if (!contained(documentRoot, destination)
     || (extension !== '.md' && !openedMarkdownLocator)) throw fail('path_policy_violation');
@@ -300,10 +300,6 @@ function publishSaveLocked(input) {
   checkedDirectory(privateRoot, privateRoot);
   if (fs.statSync(path.dirname(destination)).dev !== fs.statSync(privateRoot).dev) throw fail('path_policy_violation');
   if (fs.existsSync(destination) && fs.lstatSync(destination).isSymbolicLink()) throw fail('path_policy_violation');
-  if (input.expectedExistingHash != null
-    && (!/^[a-f0-9]{64}$/.test(input.expectedExistingHash)
-      || !fs.existsSync(destination)
-      || boundedFileHash(destination) !== input.expectedExistingHash)) throw fail('published_file_mismatch');
   if (input.requireVacant === true && !input.intentId && fs.existsSync(destination)) throw fail('published_file_mismatch');
   const provenance = provenanceOf(input.provenance || { aliases: [], metadata: {} });
   const identity = { operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, provenance };
@@ -325,6 +321,15 @@ function publishSaveLocked(input) {
     ? sameIdentity.find(item => item.intentId === input.intentId)
     : candidate && (candidate.publicationOrder || 0) === highest ? candidate : null;
   if (input.intentId && !replay) throw fail('invalid_intent');
+  if (input.expectedExistingHash != null) {
+    if (!/^[a-f0-9]{64}$/.test(input.expectedExistingHash)) throw fail('published_file_mismatch');
+    const actualHash = fs.existsSync(destination) ? boundedFileHash(destination) : null;
+    // A matching private intent already published these bytes before owner ACK failed.
+    // Only that exact replay may bypass the old ledger hash; new updates retain the guard.
+    if (!(replay && actualHash === contentHash) && actualHash !== input.expectedExistingHash) {
+      throw fail('published_file_mismatch');
+    }
+  }
   const publicationOrder = replay ? replay.publicationOrder : nextPublicationOrder(privateRoot);
   const intentId = replay ? replay.intentId : digest({ ...identity, publicationOrder });
   const intentPath = path.join(privateRoot, `${intentId}.intent.json`);

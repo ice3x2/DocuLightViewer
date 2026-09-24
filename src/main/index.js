@@ -3350,7 +3350,7 @@ function registerIpcHandlers() {
         sourceRoot,
         knowledgeStoreRoot,
         ledger,
-        requestedBy: 'settings.linked_import'
+        ownerController: searchEngine?.ownerController || null
       });
       const importResult = await importer.importMarkdownGraph(entryPath);
       return { success: true, ...importResult };

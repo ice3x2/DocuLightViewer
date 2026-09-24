@@ -776,19 +776,37 @@ class SourceLedgerStore {
     this.assertWritable();
     const db = this.open();
     return db.transaction(() => {
+      const linkedImport = current.operation === 'linked_import'
+        || (current.operation === 'update' && current.provenance.aliases.length > 0
+          && current.sourceId !== db.prepare('SELECT source_id FROM sources WHERE root_path_internal = ?')
+            .get(normalizeInternalPath(storeRoot))?.source_id);
+      const original = linkedImport ? current.provenance.aliases[0] : null;
+      let originRoot = null;
+      if (linkedImport) {
+        if (!original) throw new Error('Linked import origin is required');
+        originRoot = path.resolve(original.canonicalOriginalPath,
+          ...current.sourceRelativeLocator.split('/').map(() => '..'));
+        const reconstructed = path.resolve(originRoot, current.sourceRelativeLocator);
+        if (normalizeInternalPath(reconstructed) !== normalizeInternalPath(original.canonicalOriginalPath)
+          || current.sourceId !== stableId('src', normalizeInternalPath(originRoot), stableHash(originRoot))) {
+          throw new Error('Linked import source identity mismatch');
+        }
+      }
+      const sourceRoot = linkedImport ? originRoot : storeRoot;
       const existingSource = db.prepare('SELECT source_id FROM sources WHERE root_path_internal = ?')
-        .get(normalizeInternalPath(storeRoot));
+        .get(normalizeInternalPath(sourceRoot));
       if (existingSource && existingSource.source_id !== current.sourceId) throw new Error('Source identity mismatch');
       const source = existingSource ? { sourceId: existingSource.source_id }
         : this.recordSource({ sourceId: current.sourceId,
-        rootPathInternal: storeRoot, rootFingerprint: current.rootFingerprint });
+        rootPathInternal: sourceRoot, sourceKind: linkedImport ? 'local_import_source' : 'knowledge_store',
+        rootFingerprint: linkedImport ? stableHash(originRoot) : current.rootFingerprint });
       const locator = current.sourceRelativeLocator;
       const existing = db.prepare('SELECT * FROM documents WHERE source_id = ? AND path_key = ?')
         .get(source.sourceId, normalizePathKey(locator));
       const prior = this.getSaveIntentReceipt(current.intentId);
       if (prior) return { documentId: prior.document_id, desiredRevision: prior.desired_revision,
         jobId: prior.job_id, receiptKind: prior.receipt_kind };
-      if (existing && current.operation === 'opened_markdown' && historical.length === 0
+      if (existing && ['opened_markdown', 'linked_import'].includes(current.operation) && historical.length === 0
         && existing.content_hash === `sha256:${current.contentHash}`
         && Object.keys(current.provenance.metadata).length === 0) {
         const now = this._now();
@@ -834,7 +852,7 @@ class SourceLedgerStore {
       }
       acceptedMetadata.documentTags = [...tags];
       const document = this.upsertDocument({ sourceId: source.sourceId, sourceRelativePath: locator,
-        canonicalPathInternal: path.join(storeRoot, locator),
+        canonicalPathInternal: linkedImport ? original.canonicalOriginalPath : path.join(storeRoot, locator),
         contentHash: `sha256:${current.contentHash}`, contentByteLength, contentTextLength,
         project: acceptedMetadata.project, docType: acceptedMetadata.docType,
         category: acceptedMetadata.category, documentTags: acceptedMetadata.documentTags,
@@ -879,7 +897,8 @@ class SourceLedgerStore {
         WHERE document_id = ? AND status = 'queued' AND job_id <> ?`)
         .run(now, now, documentId, jobId);
       this.enqueueIndexJob({ jobId, sourceId: source.sourceId,
-        documentId, jobType: 'index_document', status: 'queued', requestedBy: current.operation,
+        documentId, jobType: 'index_document', status: 'queued',
+        requestedBy: linkedImport ? 'local.linked_import' : current.operation,
         currentPathInternal: path.join(storeRoot, locator), contentHash: `sha256:${current.contentHash}`,
         contentByteLength, contentTextLength });
       return { documentId, desiredRevision, jobId, receiptKind: 'queued' };

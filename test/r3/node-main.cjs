@@ -10,7 +10,7 @@ const name = process.argv.length === 4 && process.argv[2] === '--case' ? process
 const root = process.env.DOCULIGHT_R3_NODE_ROOT || '';
 let fixture;
 let selectedCase;
-run(['harness-self', 's04', 's05', 's06', 's07', 's08', 's09', 's10', 's11', 's12', 's13', 's14', 's15', 's16'].map(name => ({ name, async run(context) { return selectedCase.run(context); } })), name, {
+run(['harness-self', 's04', 's05', 's06', 's07', 's08', 's09', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17'].map(name => ({ name, async run(context) { return selectedCase.run(context); } })), name, {
   write: line => console.error(line),
   async setup() {
     const check = validateRoot(root, 'node', process.env.DOCULIGHT_R3_SOURCE_HASH);

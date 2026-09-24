@@ -2,7 +2,7 @@
 const path = require('node:path');
 const { sourceHash, validateRoot, runBoundedNode, PREPARE } = require('./runtime.cjs');
 
-const cases = ['harness-self', 's04', 's05', 's06', 's07', 's08', 's09', 's10', 's11', 's12', 's13', 's14', 's15', 's16'];
+const cases = ['harness-self', 's04', 's05', 's06', 's07', 's08', 's09', 's10', 's11', 's12', 's13', 's14', 's15', 's16', 's17'];
 const name = process.argv.length === 4 && process.argv[2] === '--case' ? process.argv[3] : '';
 if (new Set(cases).size !== cases.length || !cases.includes(name)) {
   console.error(`SETUP_ERROR missing, unknown, or duplicate case; Usage: --case NAME; available: ${cases.join(', ')}`);

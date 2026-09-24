@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createSourceLedgerStore } = require('../src/main/source-ledger-store');
+const { OwnerWorkerController } = require('../src/main/search-owner-controller');
 
 function wave2Assert(condition, message) {
   assert(condition, `Wave 2 linked import contract: ${message}`);
@@ -75,6 +76,7 @@ async function removeTreeWithRetry(targetPath) {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-wave2-import-'));
   let ledger = null;
+  let owner = null;
   try {
     const sourceRoot = path.join(root, 'source');
     const storeRoot = path.join(root, 'store');
@@ -155,6 +157,12 @@ async function removeTreeWithRetry(targetPath) {
       userDataDir: path.join(root, 'userData')
     });
     ledger.initialize();
+    const ingressRoot = path.join(root, 'private');
+    fs.mkdirSync(ingressRoot);
+    owner = new OwnerWorkerController({ ledgerPath: ledger.dbPath,
+      keywordPath: path.join(root, 'keyword.sqlite'), sourceRoot: storeRoot,
+      ingressRoot, keywordTokenizerProvider: 'basic', deriveDocuments: false });
+    await owner.start();
     const externalSource = ledger.recordSource({
       rootPathInternal: path.join(root, 'external-ledger-source'),
       displayName: 'External Ledger Source',
@@ -177,6 +185,8 @@ async function removeTreeWithRetry(targetPath) {
       sourceRoot,
       knowledgeStoreRoot: storeRoot,
       ledger,
+      ownerController: owner,
+      ingressRoot,
       maxDepth: 4,
       maxFiles: 10,
       maxTotalBytes: 1024 * 1024
@@ -274,6 +284,8 @@ async function removeTreeWithRetry(targetPath) {
         sourceRoot: sourceRootAlias,
         knowledgeStoreRoot: storeRoot,
         ledger,
+        ownerController: owner,
+        ingressRoot,
         maxDepth: 4,
         maxFiles: 10,
         maxTotalBytes: 1024 * 1024
@@ -289,8 +301,8 @@ async function removeTreeWithRetry(targetPath) {
       wave2Assert(localSourceRows.count === 1, 'source root symlink alias does not create a second local_import_source row');
     }
     const importLinkDiagnostics = ledger.getLinkDiagnostics({ documentId: importedA.documentId });
-    wave2Assert(importLinkDiagnostics.counts.resolved >= 1, 'linked import records resolved graph edges in the ledger');
-    wave2Assert(importLinkDiagnostics.counts.missing >= 1, 'linked import records missing graph diagnostics in the ledger');
+    wave2Assert(importLinkDiagnostics.counts.resolved === 0 && importLinkDiagnostics.counts.missing === 0,
+      'producer leaves graph writes to S13 owner indexing after the per-document ACK');
 
     const repeatImport = await importer.importMarkdownGraph(path.join(sourceRoot, 'A.md'));
     wave2Assert(repeatImport.counts.imported === 0, 'repeated unchanged linked import does not save duplicate documents');
@@ -358,6 +370,9 @@ async function removeTreeWithRetry(targetPath) {
     const shallowImporter = createLinkedImporter({
       sourceRoot,
       knowledgeStoreRoot: storeRoot,
+      ledger,
+      ownerController: owner,
+      ingressRoot,
       maxDepth: 1,
       maxFiles: 10,
       maxTotalBytes: 1024 * 1024
@@ -455,6 +470,7 @@ async function removeTreeWithRetry(targetPath) {
     );
     wave2Assert(!adoptionResult.rewrittenPaths || adoptionResult.rewrittenPaths.length === 0, 'legacy adoption does not rewrite existing files');
   } finally {
+    if (owner) await owner.shutdown();
     if (ledger) ledger.close();
     await removeTreeWithRetry(root);
   }

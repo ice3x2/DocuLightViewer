@@ -7,11 +7,13 @@ const { withPublicationGate } = require('./index-ingress-store');
 // @req FR-DOC-019 REL-DOC-009
 async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onValidated, onFinalValidated, afterFinalRead }) {
   const target = ledger.open().prepare(`SELECT d.relative_path AS relativePath,
-    d.metadata_json AS metadataJson, s.root_path_internal AS sourceRoot
+    d.metadata_json AS metadataJson, s.root_path_internal AS sourceRoot,
+    s.source_kind AS sourceKind
     FROM documents d JOIN sources s ON s.source_id = d.source_id WHERE d.document_id = ?`)
     .get(claim.documentId);
   const canonical = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
-  if (!target || canonical(target.sourceRoot) !== canonical(storeRoot)) {
+  if (!target || (canonical(target.sourceRoot) !== canonical(storeRoot)
+    && target.sourceKind !== 'local_import_source')) {
     ledger.failClaimedJob({ claim });
     return { completed: false, retryable: true };
   }

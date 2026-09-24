@@ -1,0 +1,23 @@
+# S17 linked import evidence — 2026-09-25
+
+Start: clean `feature/issue-24-s01-sol-medium` checkout at `87c21a439dd78cb73696df7a7fe38d4b490aa2fd`. Scope: `FR-DOC-033` AC-11, `DR-DOC-013`, `DR-DOC-014`, `FR-DOC-019`, `REL-DOC-009`; no draft/deprecated stability blocker. The only product trigger remains the Settings `document-import:linked-markdown` dialog. No MCP import control was added.
+
+## RED and GREEN
+
+- `node test/r3/run-node.cjs --case s17` first reached semantic RED, exit 1: `C owner failure returns partial counts and preserves B copy, identity, revision, and job`. The test used actual files, SQLite, and the real owner worker; it was not a harness or ABI setup failure.
+- A second semantic RED, exit 1 at assertion 7, showed a case-variant original alias was not retained without a duplicate indexing job. A third RED, exit 1 at assertion 10, showed `.markdown` import was rejected by the shared publisher. Each was fixed after its failing assertion.
+- Independent review found two additional semantic defects. An already-published changed copy failed retry against the old ledger hash; `s17` exited 1 at assertion 7, then passed after the S08 publisher accepted only an exact matching pending-intent replay. A real imported graph produced no derived edges; `s17` exited 1 at assertion 5, then passed after the owner job processor read the contained store copy for `local_import_source` while retaining the original source identity.
+- The C fault matrix initially exited 1 at `intent_rename: C boundary retains B copy, document, and owner job with partial count`; it passed after a test-only S08 publication fault seam was connected. Its scenarios are intent rename, document rename, post-publish, lost ACK after owner commit, and cancel after B ACK. An update retry also rejects a different new intent while an older published intent is pending.
+- Final R3 source snapshot hash: `1192d04e1c2c45a6c34b5a55ee71556578146a6d140acf05ee72ca1b0b6a8203`, Node ABI 137, Electron ABI 130, Windows. `node test/r3/run-node.cjs --case s17` passed 32 assertions. `node test/test-wave2-import-adoption-contract.js` and `node test/test-wave2-ledger-contract.js` passed. Adjacent `s08` 53, `s13` 20, `s15` 49, and `s16` 24 assertions passed. `git diff --check` passed.
+
+## Publication and recovery observations
+
+The importer reads each contained candidate, publishes a bounded body-free `linked_import` intent and an atomic contained store copy through `publishSave`, then sends exactly the private seven-field identity/provenance payload to the existing owner. It counts a document after the owner ACK. Owner acceptance creates or updates the source identity, original alias, document, desired revision, and job in one SQLite transaction. The importer no longer writes those rows or link rows. S13 owner indexing handles graph persistence after ACK. The integrated owner drain produced one resolved and one missing edge from imported A, with the indexing job reading the contained store copy while the source ledger retained the external source root.
+
+With C owner acceptance faulted after A and B ACK, the S17 case observed `imported=2`, B's final copy and revision 1/job intact, and a published C copy plus private body-free C intent. On retry, A and B counted as existing, C was accepted once with revision 1, one alias, and one job; its intent was cleared. The five C-boundary faults each returned partial counts, retained B, and converged C to one identity/revision/acceptance on retry. A changed-content owner fault retained the published new copy with the old ledger revision, then replayed the matching intent to revision 2. A different-intent attempt could not overwrite that copy or bypass the old-hash guard. An unchanged run produced no duplicate intent. Changing B kept its document ID and advanced its owner desired revision to 2. A case-variant lexical alias added provenance without a new job. Cancellation after D ACK retained D and stopped before E. The Korean and space `.markdown` file was published and committed; an outside-root entry created no copy or document row.
+
+The older Wave 2 import fixture now supplies one real owner instead of relying on importer ledger writes. Its immediate link-row assertion was changed to reflect that S13 graph indexing is asynchronous; the new integrated S17 owner drain proves eventual resolved/missing graph rows from imported copies. Destination collision, path policy, bounded traversal, source-root alias and duplicate-concurrency assertions still pass.
+
+## Remaining boundary
+
+S17 exercises representative C-boundary fault points and S08 retains the exhaustive publisher-level fault coverage. No commit, push, or GitHub issue mutation was made in this task.

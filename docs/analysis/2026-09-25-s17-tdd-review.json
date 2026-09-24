@@ -1,0 +1,36 @@
+{
+  "review": "S17 independent TDD and reliability review",
+  "issue": 40,
+  "requirements": ["FR-DOC-033", "DR-DOC-013", "DR-DOC-014", "FR-DOC-019", "REL-DOC-009"],
+  "baselineCommit": "87c21a439dd78cb73696df7a7fe38d4b490aa2fd",
+  "sourceSnapshotSha256": "1192d04e1c2c45a6c34b5a55ee71556578146a6d140acf05ee72ca1b0b6a8203",
+  "verdict": "PASS",
+  "issueComplete": true,
+  "severity": "none",
+  "findings": [],
+  "verification": {
+    "independentRuns": [
+      "node test/r3/run-node.cjs --case s17: exit 0, PASS assertions=32",
+      "node test/r3/run-node.cjs --case s08: exit 0, PASS assertions=53",
+      "node test/r3/run-node.cjs --case s13: exit 0, PASS assertions=20",
+      "node test/r3/run-node.cjs --case s15: exit 0, PASS assertions=49",
+      "node test/r3/run-node.cjs --case s16: exit 0, PASS assertions=24",
+      "node test/test-wave2-import-adoption-contract.js: exit 0",
+      "node test/test-wave2-ledger-contract.js: exit 0",
+      "git diff --check: exit 0"
+    ],
+    "semanticRedEvidence": "Author evidence reports assertion-failure REDs for C owner partial preservation, lexical alias, .markdown publication, changed-copy replay, missing imported graph edges, and integrated C intent fault. These are behavior assertions using real files, SQLite, and the owner worker, rather than setup failures.",
+    "redChronologyLimit": "Preimplementation RED transcripts and source snapshots were not retained independently; chronology is author-reported."
+  },
+  "assessment": [
+    "The integrated A→B→C→A case exercises C intent rename, document rename, post-publication, lost ACK after owner commit, and cancellation after B ACK. It checks partial counts, B copy and identity preservation, C retry convergence to one identity/revision/intent acceptance, and safe private-intent state. Separate S08 tests retain broader publisher fault coverage.",
+    "An owner failure after a changed copy publishes leaves the previous desired revision and the new copy; matching-intent replay advances the same document to revision 2. A different intent cannot bypass the previous-hash guard. Unchanged rerun adds no intent or job, while canonical alias provenance adds no duplicate revision.",
+    "The importer performs no ledger or graph writes. It publishes a body-free private intent and contained copy, then sends exactly seven identity/provenance fields to the existing owner. Owner acceptance commits source, alias, document, desired revision, and job; the owner indexing job reads the contained copy for local_import_source while preserving the external source root.",
+    "The revised S17 owner-drain fixture proves eventual resolved and missing graph rows for an imported document. The Wave 2 fixture checks that the producer itself does not write graph rows immediately, so the two tests together preserve graph connectivity coverage without introducing a second writer.",
+    "The outside-root entry produces no store copy or document row. Settings remains the explicit import trigger; the reviewed diff adds no MCP import or indexing control."
+  ],
+  "documentedLimits": [
+    "The C matrix uses a test-only fault hook on the importer instance; production callers do not set it. The S08 suite tests additional individual publisher faults.",
+    "S17 verifies representative failure boundaries and focused adjacent regressions; it does not claim a full release or package test run."
+  ]
+}
