@@ -1789,22 +1789,10 @@ function startNativeRepairIfNeeded() {
 function getIndexingStatusPayload() {
   const sourceRootConfigured = isDocumentStoreSourceRootConfigured();
   const rawStatus = searchEngine ? searchEngine.getStatus() : { state: 'unavailable' };
-  const status = {
-    ...rawStatus,
-    sourceRootConfigured,
-    canRebuild: sourceRootConfigured
-  };
-  if (!sourceRootConfigured) {
-    status.state = 'storage-not-configured';
-    status.indexedCount = 0;
-    status.pendingCount = 0;
-    status.failedCount = 0;
-    status.currentPath = null;
-    status.phase = null;
-    status.progress = null;
-    status.rebuildSession = null;
-    status.errorSummary = null;
-  }
+  // The owner publishes an immutable in-memory snapshot. Never query its SQLite stores on this route.
+  const ownerStatus = saveDocumentOwner ? saveDocumentOwner.getStatus() : null;
+  const { composeIndexingStatusPayload } = require('./ledger-status-registry');
+  const status = composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured);
   if (!nativeRebuildManager) return status;
   const nativeRepair = nativeRebuildManager.getStatus();
   const nativeActive = nativeRepair && (nativeRepair.active || nativeRepair.state === 'checking' || nativeRepair.state === 'repairing');

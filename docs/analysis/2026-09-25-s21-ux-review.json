@@ -1,0 +1,32 @@
+{
+  "issue": 44,
+  "review": "S21 Settings and viewer UX independent review",
+  "baseSha": "8a098e3d9fdfa22abff84b67e157e05130ec3a8c",
+  "sourceHash": "324e8edff76aae5c0a25182f62da7f43bdaa1f7cdf5059d9ca5fd4836788078b",
+  "result": "PARTIAL_PASS_SAFE_TO_COMMIT",
+  "issueClosure": "KEEP_OPEN",
+  "requirements": ["IR-APP-013", "IR-APP-010", "FR-APP-006", "FR-APP-007", "FR-DOC-019", "REL-DOC-009"],
+  "findings": [],
+  "verified": [
+    "The exact 30 state-to-code registry is unique and matches IR-APP-013 AC-2; four locale files have matching new keys and aligned meaning.",
+    "Settings receives the cached owner snapshot alongside the unchanged legacy state precedence; mixed public rebuilding and owner READY visibly announces rebuilding.",
+    "A full legacy rebuild and unsupported owner-only cancel/retry states keep their legacy IPC actions disabled; an active non-rebuild legacy worker retains Cancel, and failed legacy documents retain Retry.",
+    "The Settings status region uses role=status, aria-live=polite and aria-atomic=true; tested state, progress bucket and terminal transitions coalesce without heartbeat announcements; unrecoverable states use localized role=alert without moving focus.",
+    "Global capacity status does not claim a file was saved. Viewer feedback says Saved only for a successful private save receipt, distinguishes queued/deferred/retryable indexing, and retains the saved path.",
+    "The eight public MCP tools and tested response contracts remain unchanged."
+  ],
+  "independentChecks": [
+    "node test/r3/run-electron.cjs --scenario s21: PASS, 23 assertions, Windows Electron ABI 130",
+    "node test/test-ledger-status-registry.js: PASS",
+    "node test/test-settings-indexing-contract.js: PASS",
+    "node test/test-settings-status-poller-contract.js: PASS",
+    "node test/test-status-coalescer-contract.js: PASS",
+    "node test/test-wave2-mcp-contract.js: PASS"
+  ],
+  "unmetGates": [
+    "S20 #43 remains open; S23 #46 and S26 #49 must finish product-wide DB-free status, focus and close paths and release latency evidence.",
+    "The S20 owner emits only a subset of the 30 canonical states. Complete P0 action dispatch and Cartesian lifecycle evidence remain pending.",
+    "The pre-existing embedding registration UI and keys remain in this branch; S24 #47 owns their removal before #44 can close.",
+    "A real ingress-capacity fault before publication may fail the save producer; the current viewer result correctly reports saved-plus-deferred only when a successful private receipt exists."
+  ]
+}

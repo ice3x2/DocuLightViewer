@@ -133,6 +133,8 @@
   let embeddingStatusRequest = null;
   let indexingActionRequest = null;
   let lastIndexingStatus = null;
+  let lastLedgerAnnouncement = null;
+  let indexingActionNotice = null;
   let savedDocumentStorePath = '';
   const ACTIVE_INDEXING_POLL_MS = 500;
   const IDLE_INDEXING_POLL_MS = 3000;
@@ -480,7 +482,7 @@
 
   function setIndexingActionsBusy(busy) {
     for (const button of [indexingRebuildBtn, indexingCancelBtn, indexingRetryBtn, indexingCompactBtn, indexingOpenDirBtn]) {
-      if (button) button.disabled = Boolean(busy);
+      if (button) button.disabled = Boolean(busy) && button !== document.activeElement;
     }
   }
 
@@ -491,6 +493,8 @@
 
   function renderIndexingStatus(status) {
     if (!status || !indexingStatusEl) return;
+    const statusKey = [status.state || '', status.ledgerState || '', status.ledgerCode || ''].join('|');
+    if (indexingActionNotice && indexingActionNotice.statusKey !== statusKey) indexingActionNotice = null;
     lastIndexingStatus = status;
     const rebuildSession = status.rebuildSession || null;
     const nativeRepair = status.nativeRepair || null;
@@ -499,8 +503,35 @@
     const state = nativeRepairActive
       ? (nativeRepair.state === 'checking' ? 'checking' : 'repairing')
       : (status.state || 'unknown');
-    indexingStatusEl.textContent = t('settings.indexingStatus', { state });
+    const ledgerState = typeof status.ledgerState === 'string' ? status.ledgerState : null;
+    const ledgerCode = typeof status.ledgerCode === 'string' ? status.ledgerCode : '';
+    const ledgerPercent = Number.isFinite(status.ledgerProgress)
+      ? Math.max(0, Math.min(100, status.ledgerProgress)) : null;
+    const legacyActive = nativeRepairActive || isFullRebuildActive(status, state) ||
+      Boolean(status.indexingWorker && status.indexingWorker.active);
+    const displayPercent = legacyActive ? formatProgressPercent(status.progress) : ledgerPercent;
+    const bucket = displayPercent === null ? '' : (displayPercent === 100 ? 100 : Math.floor(displayPercent / 10) * 10);
+    const recoveryRequired = ['CORRUPT_DEGRADED', 'CHECKER_EXIT_BLOCKED',
+      'OWNER_EXIT_BLOCKED', 'ROLLBACK_REQUIRED'].includes(ledgerState);
+    const stateLabelKey = status.ledgerCondition === 'indexing_ingress_capacity'
+      ? 'settings.ledger.deferred' : 'settings.ledger.state.' + ledgerState;
+    const label = legacyActive
+      ? t('settings.indexingStatus', { state: t('settings.legacyState.' + state) })
+      : ledgerState ? t(stateLabelKey) : t('settings.indexingStatus', { state });
+    const condition = legacyActive && status.ledgerCondition === 'indexing_ingress_capacity'
+      ? ' ' + t('settings.ledger.deferred') : '';
+    const announcement = label + (bucket !== '' ? ' ' + t('settings.ledger.progress', { percent: displayPercent }) : '') + condition;
+    const announcementKey = `${legacyActive ? state : ledgerState || state}|${ledgerCode}|${status.ledgerCondition || ''}|${bucket}`;
+    if (announcementKey !== lastLedgerAnnouncement) {
+      indexingStatusEl.textContent = announcement;
+      lastLedgerAnnouncement = announcementKey;
+    }
     indexingStatusEl.className = 'status-indicator ' + (state === 'degraded' || state === 'failed' || nativeRepairFailed ? 'error' : 'info');
+    if (indexingErrorEl) {
+      const unrecoverable = ['CHECKER_EXIT_BLOCKED', 'OWNER_EXIT_BLOCKED', 'ROLLBACK_REQUIRED'].includes(ledgerState);
+      if (unrecoverable) indexingErrorEl.setAttribute('role', 'alert');
+      else indexingErrorEl.removeAttribute('role');
+    }
     if (indexingIndexedCountEl) indexingIndexedCountEl.textContent = String(rebuildSession ? rebuildSession.indexedCount : (status.indexedCount || 0));
     if (indexingPendingCountEl) indexingPendingCountEl.textContent = String(rebuildSession ? rebuildSession.pendingCount : (status.pendingCount || 0));
     if (indexingFailedCountEl) indexingFailedCountEl.textContent = String(status.failedCount || 0);
@@ -532,17 +563,25 @@
             reason: formatIndexingDiagnostic(nativeRepair.diagnostic.message || nativeRepair.diagnostic.code)
           })
         : '';
-      setIndexingDiagnostic(nativeDiagnostic || status.errorSummary || '');
+      setIndexingDiagnostic(nativeDiagnostic || (recoveryRequired ? t('settings.ledger.recoveryHelp') : '') || status.errorSummary || '');
+      if (indexingActionNotice) setIndexingDiagnostic(indexingActionNotice.message, indexingActionNotice.type);
     }
     const active = isIndexingWorkerActive(state) || nativeRepairActive;
     const rebuildActive = isFullRebuildActive(status, state);
     const sourceRootConfigured = status.sourceRootConfigured !== false;
+    const legacyCancelAvailable = !nativeRepairActive && !rebuildActive &&
+      Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild');
+    const legacyRetryAvailable = !active && sourceRootConfigured && (status.failedCount || 0) > 0;
     if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
-    if (indexingCancelBtn) indexingCancelBtn.disabled = busy || rebuildActive || !active || nativeRepairActive;
-    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active || !sourceRootConfigured;
-    if (indexingRetryBtn) indexingRetryBtn.disabled = busy || active || !sourceRootConfigured || (status.failedCount || 0) === 0;
-    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || !sourceRootConfigured;
+    if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement) || !legacyCancelAvailable;
+    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || (ledgerState
+      ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
+      : active || !sourceRootConfigured);
+    if (indexingRetryBtn) indexingRetryBtn.disabled = busy || !legacyRetryAvailable;
+    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || (ledgerState
+      ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
+      : active || !sourceRootConfigured);
     if (indexingOpenDirBtn) indexingOpenDirBtn.disabled = busy || !sourceRootConfigured;
   }
 
@@ -853,6 +892,10 @@
         renderIndexingStatus(result && result.status ? result.status : await window.doclight.getIndexingStatus());
         const actionResult = formatIndexingActionResult(result);
         if (actionResult && actionResult.message) {
+          indexingActionNotice = {
+            ...actionResult,
+            statusKey: [lastIndexingStatus.state || '', lastIndexingStatus.ledgerState || '', lastIndexingStatus.ledgerCode || ''].join('|')
+          };
           setIndexingDiagnostic(actionResult.message, actionResult.type);
         }
       } catch (err) {

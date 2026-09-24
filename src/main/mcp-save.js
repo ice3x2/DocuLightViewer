@@ -355,7 +355,8 @@ async function publishMcpSave(store, destPath, { content, filePath, operation },
       catch { /* published file and private intent remain retryable */ }
     }
     return { savedPath, indexingState: accepted?.accepted && accepted.indexingState === 'queued'
-      ? 'queued' : 'enqueue_failed', jobId: accepted?.accepted ? accepted.indexing?.jobId : undefined };
+      ? 'queued' : 'enqueue_failed', jobId: accepted?.accepted ? accepted.indexing?.jobId : undefined,
+      warningCode: accepted?.warnings?.find(warning => warning.code === 'indexing_ingress_capacity')?.code };
   }
   throw new Error('Could not allocate a unique MCP filename.');
 }
@@ -436,7 +437,8 @@ async function mcpManualSave(store, { content, filePath, title, project, severit
   try {
     const saved = await publishMcpSave(store, destPath, { filePath, content,
       operation: 'opened_markdown' }, searchEngine);
-    return { success: true, filePath: saved.savedPath };
+    return { success: true, filePath: saved.savedPath, indexingState: saved.indexingState,
+      warningCode: saved.warningCode };
   } catch (err) {
     if (err.code === 'EACCES' || err.code === 'EPERM') {
       return { success: false, errorKey: 'viewer.saveErrorPermission' };

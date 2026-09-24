@@ -1447,6 +1447,15 @@
     }, duration);
   }
 
+  function showSaveFeedback(result) {
+    const saved = t('viewer.savedToast') + ': ' + result.filePath;
+    const indexing = result.warningCode === 'indexing_ingress_capacity'
+      ? t('viewer.indexingDeferred')
+      : result.indexingState === 'enqueue_failed' ? t('viewer.indexingRetryable')
+      : result.indexingState === 'queued' ? t('viewer.indexingQueued') : '';
+    showViewerToast(indexing ? saved + '. ' + indexing : saved);
+  }
+
   // === Save As / Quick Save (FR-21-002, FR-21-003) ===
   function getDefaultFileName() {
     if (currentFilePath) {
@@ -1482,7 +1491,7 @@
     var result = await window.doclight.saveAs(params);
     if (result.success) {
       saveAsFilePath = result.filePath;
-      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+      showSaveFeedback(result);
     } else if (result.error) {
       showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
     }
@@ -1494,7 +1503,7 @@
 
     var result = await window.doclight.quickSave(params);
     if (result.success) {
-      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+      showSaveFeedback(result);
     } else if (result.reason === 'no-directory') {
       handleSaveAs();
     } else if (result.error) {
@@ -1524,7 +1533,7 @@
     var result = await window.doclight.mcpManualSave(params);
     if (result.success) {
       savedFilePath = result.filePath;
-      showViewerToast(t('viewer.savedToast') + ': ' + result.filePath);
+      showSaveFeedback(result);
     } else {
       showViewerToast(t(result.errorKey) + (result.errorDetail ? ': ' + result.errorDetail : ''), 'error');
     }

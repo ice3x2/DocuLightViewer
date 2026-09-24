@@ -1,0 +1,37 @@
+{
+  "issue": 44,
+  "reviewType": "independent-tdd-compatibility",
+  "baseCommit": "8a098e3d9fdfa22abff84b67e157e05130ec3a8c",
+  "reviewedSourceHash": "324e8edff76aae5c0a25182f62da7f43bdaa1f7cdf5059d9ca5fd4836788078b",
+  "outcome": "safe_partial_pass",
+  "issueClosure": "keep_open",
+  "requirements": ["IR-APP-013", "IR-APP-010", "FR-APP-006", "FR-APP-007", "FR-DOC-019", "REL-DOC-009"],
+  "findingsWithinReviewedSlice": {"critical": [], "high": [], "medium": [], "low": []},
+  "reviewedBehavior": [
+    "The S21 Electron case loads actual Settings and viewer pages with the production preload; controlled private IPC handlers provide owner snapshots and save receipts. It invokes real SearchEngine cancel and retry methods for legacy action checks.",
+    "The evidence records an Electron ARIA assertion RED after successful setup, followed by semantic RED assertions for unsafe canonical cancel, suppressed legacy controls, false owner READY copy, and full-rebuild Cancel. This review inspected the corresponding tests and reran GREEN; historical RED output is documented in the S21 evidence file.",
+    "The mixed product-shaped payload with public rebuilding and owner READY announces rebuilding. Global ingress-capacity copy reports deferred indexing without claiming a save; viewer copy says Saved only after its own successful private save receipt and retains the file path.",
+    "Full legacy rebuild and owner-only states cannot invoke legacy Cancel or Retry. A supported active non-rebuild legacy worker retains Cancel through private IPC with focus preserved. A failed legacy Retry result remains visible after refresh.",
+    "The Settings live region has role=status, aria-live=polite, and aria-atomic=true. The Electron case verifies state and progress-bucket announcements, no heartbeat-only repeats, terminal 100 percent once, unrecoverable role=alert, and no automatic focus move.",
+    "The registry matches all 30 approved state-to-code pairs. Four locale JSON files have equal key sets and translated state labels. Public state precedence and the existing eight-tool MCP contract remain unchanged."
+  ],
+  "verification": [
+    {"command": "node test/r3/run-electron.cjs --scenario s21", "result": "PASS case=s21 assertions=23", "environment": "Windows Electron ABI 130; DOCULIGHT_R3_ELECTRON_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-electron-20260924d"},
+    {"command": "node test/r3/run-node.cjs --case s18", "result": "PASS case=s18 assertions=19"},
+    {"command": "node test/r3/run-node.cjs --case s20", "result": "PASS case=s20 assertions=21"},
+    {"command": "node test/test-ledger-status-registry.js", "result": "PASS"},
+    {"command": "node test/test-settings-indexing-contract.js", "result": "PASS; baseline full-rebuild Cancel guard retained as a stronger semantic assertion"},
+    {"command": "node test/test-settings-status-poller-contract.js", "result": "PASS"},
+    {"command": "node test/test-status-coalescer-contract.js", "result": "PASS"},
+    {"command": "node test/test-settings-linked-import-uncertainty.js", "result": "PASS"},
+    {"command": "node test/test-wave2-mcp-contract.js", "result": "PASS"},
+    {"command": "locale key-set comparison for en/ko/ja/es", "result": "equal"}
+  ],
+  "unmetGates": [
+    "Issue #44 remains open: S24 #47 must remove the baseline embedding registration UI and keys before that completion condition is met.",
+    "Canonical owner Cancel and Retry actions and the full P0 state-action matrix are not dispatched by this S21 slice; unsupported owner actions remain disabled.",
+    "S20 #43 remains open. S23 #46 and S26 #49 must cut over product-main legacy SQLite reconciliation before product-wide status, focus, close, and cancel paths can be called DB-free or release-latency complete.",
+    "The viewer capacity test supplies a successful private save receipt. It does not prove that a real capacity fault before file publication yields saved-success; the S17/S19 publication boundary must supply that result."
+  ],
+  "scopeLimit": "This is a safe partial review of S21 UI, locale, and private IPC behavior. It is not verification of every IR-APP-013 or REL-DOC-009 acceptance criterion and does not authorize closing issue #44 or promoting requirement status."
+}

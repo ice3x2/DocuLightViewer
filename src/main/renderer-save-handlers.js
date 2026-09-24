@@ -16,8 +16,8 @@ function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, windowMa
       if (result.canceled) return { success: false };
       const savePath = result.filePath;
       store.set('lastSaveAsDirectory', path.dirname(savePath));
-      await saveRendererFile(store, savePath, params, searchEngine);
-      return { success: true, filePath: savePath };
+      const saved = await saveRendererFile(store, savePath, params, searchEngine);
+      return { success: true, filePath: savePath, indexingState: saved.indexingState, warningCode: saved.warningCode };
     } catch (error) { return { success: false, error: error.message }; }
   });
 
@@ -26,8 +26,8 @@ function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, windowMa
       const lastDir = store.get('lastSaveAsDirectory', '');
       if (!lastDir) return { success: false, reason: 'no-directory' };
       const savePath = path.join(lastDir, params.defaultFileName || 'untitled.md');
-      await saveRendererFile(store, savePath, params, searchEngine);
-      return { success: true, filePath: savePath };
+      const saved = await saveRendererFile(store, savePath, params, searchEngine);
+      return { success: true, filePath: savePath, indexingState: saved.indexingState, warningCode: saved.warningCode };
     } catch (error) { return { success: false, error: error.message }; }
   });
 

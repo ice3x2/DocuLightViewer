@@ -12,6 +12,7 @@ const settingsJs = fs.readFileSync(path.join(root, 'src/renderer/settings.js'), 
 const settingsCss = fs.readFileSync(path.join(root, 'src/renderer/settings.css'), 'utf-8');
 const settingsPollerPath = path.join(root, 'src/renderer/settings-status-poller.js');
 const { SearchEngine } = require('../src/main/search-engine');
+const { composeIndexingStatusPayload } = require('../src/main/ledger-status-registry');
 
 const apiNames = [
   'getIndexingStatus',
@@ -114,9 +115,14 @@ assert(!settingsJs.includes('mcpAutoSaveCheckbox.checked = hasPath'), 'settings 
 assert(settingsJs.includes('indexingManageBtn.disabled = !hasSavedPath'), 'settings renderer disables search index management until the current path is saved');
 assert(/function showIndexingManagementView\(\)\s*{[\s\S]{0,180}if \(!hasSavedDocumentStorePath\(\)\) return;/.test(settingsJs), 'settings renderer prevents entering index management without a saved document store path');
 assert(/const sourceRootConfigured\s*=/.test(main), 'main process computes document store source-root availability for indexing status');
-assert(/canRebuild:\s*sourceRootConfigured/.test(main), 'main indexing status exposes whether rebuild is currently allowed');
+assert(main.includes('composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured)') &&
+  composeIndexingStatusPayload({ state: 'ready' }, { state: 'ready' }, true).canRebuild === true,
+  'main indexing status composes source-root rebuild capability with cached owner status');
 assert(/fs\.statSync\([^)]*\)\.isDirectory\(\)/.test(main), 'main process treats only existing directories as configured document store roots');
-assert(settingsJs.includes('indexingCancelBtn.disabled = busy || rebuildActive || !active || nativeRepairActive'), 'settings renderer does not expose indexing cancel during native repair or full rebuild');
+assert(settingsJs.includes('const legacyCancelAvailable = !nativeRepairActive && !rebuildActive') &&
+  settingsJs.includes('status.indexingWorker.active && status.indexingWorker.kind !== \'rebuild\'') &&
+  settingsJs.includes('|| !legacyCancelAvailable'),
+  'settings renderer preserves full-rebuild cancel guard and permits supported non-rebuild worker cancel');
 assert(settingsJs.includes('const showPhase'), 'technical phase text is hidden unless indexing is actively running');
 assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings renderer tracks an in-flight indexing status request');
 assert(settingsJs.includes('if (indexingStatusRequest) return indexingStatusRequest'), 'settings renderer prevents overlapping indexing status polling');
@@ -136,8 +142,9 @@ assert(/phaseParts\.push\(formatIndexingDisplayPath\(status\.currentPath\)\)/.te
 assert(/formatLinkedImportMessage\(\(result && result\.message\)/.test(settingsJs), 'linked import result errors are sanitized before rendering');
 assert(settingsJs.includes('confirm(t(\'settings.indexingCompactConfirm\'))'), 'compact index requires confirmation');
 assert(
-  /indexingCancelBtn\.disabled\s*=\s*busy\s*\|\|\s*rebuildActive\s*\|\|\s*!active\s*\|\|\s*nativeRepairActive/.test(settingsJs),
-  'settings renderer disables the stop-indexing button while full rebuild is active'
+  settingsJs.includes('const legacyCancelAvailable = !nativeRepairActive && !rebuildActive') &&
+    settingsJs.includes('|| !legacyCancelAvailable'),
+  'settings renderer keeps full-rebuild cancel disabled despite an owner snapshot'
 );
 assert(
   /searchEngine\.resetForSourceRootChange\(\);\s*initializeSearchEngineIfConfigured\(\);/.test(main),
