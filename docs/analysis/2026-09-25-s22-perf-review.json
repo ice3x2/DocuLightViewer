@@ -1,0 +1,53 @@
+{
+  "review": "S22 independent performance and owner review",
+  "issue": 45,
+  "requirements": ["REL-DOC-007", "IR-APP-013", "FR-DOC-019", "IR-APP-010"],
+  "baseCommit": "a5a615baeb20fba842f8d578c84900de2983b18f",
+  "sourceHash": "f7be1d510e9e697cf129a80b59f1f12d56bd73430468971d59c3219a2f9bd9c8",
+  "verdict": "safe_partial",
+  "issueReadyToClose": false,
+  "codeFindings": [],
+  "unmetGate": {
+    "severity": "HIGH",
+    "summary": "Product main status/cancel IPC and viewer focus/close request completion were not measured.",
+    "evidence": "The S22 Electron scenario calls OwnerWorkerController.query('get_status'), OwnerWorkerController.cancel(), BrowserWindow.focus(), and BrowserWindow.close() directly. Its reported numbers apply to the isolated owner and test windows, not the application request handlers.",
+    "handoff": "Keep #45 open. After #43, #46, and #49 product cutover, measure the real status/cancel IPC and viewer focus/close completion events against the same limits."
+  },
+  "verified": {
+    "fixture": {
+      "bytes": 10484650,
+      "sha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+      "withinRealIngress10MiBLimit": true,
+      "sparse160MiBTokenizerBenchmarkIsSeparate": true
+    },
+    "rawSamples": {
+      "status": 50,
+      "focus": 25,
+      "close": 25,
+      "nearestRankRecomputed": true,
+      "allElapsedTimesFiniteAndConsistent": true,
+      "allMarkedActiveForAckedJob": true,
+      "p95P99MaxWithinIsolatedOwnerLimits": true
+    },
+    "heartbeat": {
+      "activeWindowMs": 10258.8544,
+      "gapCountIncludingTerminalTail": 670,
+      "gapSumEqualsActiveWindow": true,
+      "maxGapMs": 20.4249,
+      "within250Ms": true
+    },
+    "owner": {
+      "sqliteConnectionsOpenedOnWorkerThread": 2,
+      "workerThreadId": 1,
+      "singleOwnerWriterInTestedPath": true,
+      "cancelReachedTerminal": true,
+      "cancelledRevisionSavedFileHashPreserved": true,
+      "priorCommittedLargeDocumentKeywordHitPreserved": true
+    },
+    "missingWorkerSampleMarkerFailsScenario": true,
+    "noBestOfRetries": true,
+    "statusPerformanceContractExit": 0,
+    "gitDiffCheckExit": 0
+  },
+  "limits": "The isolated owner evidence does not establish application-wide DB-free status/focus/close or close #45. FR-DOC-019 and IR-APP-013 remain incomplete."
+}

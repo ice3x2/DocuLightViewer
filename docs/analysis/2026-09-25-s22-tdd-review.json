@@ -1,0 +1,42 @@
+{
+  "review": "S22 independent TDD and reliability review",
+  "issue": 45,
+  "requirements": ["REL-DOC-007", "IR-APP-013", "FR-DOC-019", "IR-APP-010"],
+  "baseCommit": "a5a615baeb20fba842f8d578c84900de2983b18f",
+  "sourceHash": "f7be1d510e9e697cf129a80b59f1f12d56bd73430468971d59c3219a2f9bd9c8",
+  "verdict": "safe_partial_commit",
+  "issueReadyToClose": false,
+  "blockingIssueGate": {
+    "severity": "HIGH",
+    "finding": "The measured status/cancel calls use OwnerWorkerController directly, and focus/close timings use BrowserWindow methods on test windows. Product index.js IPC and viewer focus/close completion are not measured.",
+    "requiredFollowUp": "Keep #45 open. After #43, #46, and #49 product cutover, measure the real status/cancel IPC and viewer focus/close lifecycle events against the existing limits."
+  },
+  "scopedChecks": {
+    "realFixtureBytes": 10484650,
+    "realIngressLimitBytes": 10485760,
+    "fixtureSha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+    "sparse160MiBTokenizerBenchmarkSeparate": true,
+    "electronScenarioAssertions": 18,
+    "activeJobSampleCounts": { "status": 50, "focus": 25, "close": 25 },
+    "allSamplesFiniteAndMarkedForAcknowledgedActiveJob": true,
+    "lastSampleFractionOfActiveWindow": 0.9992538153,
+    "heartbeatGapCountIncludingTerminalTail": 670,
+    "heartbeatGapSumMatchesActiveWindow": true,
+    "heartbeatMaxMs": 20.4249,
+    "nearestRankP95P99MaxRecomputedFromRawSamples": true,
+    "oneWorkerOpenedBothSQLiteConnections": true,
+    "cancelledRevisionTerminalAndSavedFileHashChecked": true,
+    "priorCommittedKeywordHitAfterCancelChecked": true,
+    "statusPerformanceFixtureOnlyCorrectsReadOnlyStub": true,
+    "s12ReplacesFixedWaitWithCompletionMarker": true,
+    "noThresholdWeakeningOrBestOfRetriesFound": true,
+    "redEvidence": "Narrative records semantic assertion failures for active marker, cancel receipt, chunk progress, and terminal heartbeat gap before implementation; chronology was not independently replayed."
+  },
+  "evidence": [
+    "docs/analysis/2026-09-25-s22-large-document-evidence.md",
+    "docs/analysis/2026-09-25-s22-large-document-samples.json",
+    "docs/analysis/2026-09-25-s22-perf-review.json",
+    "test/r3/cases/s22.cjs"
+  ],
+  "notes": "Owner path is suitable for a scoped partial commit. The measurements do not establish application-wide main-process responsiveness or complete #45, FR-DOC-019, or IR-APP-013."
+}

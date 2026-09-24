@@ -31,6 +31,7 @@ class OwnerWorkerController {
     this.closing = false;
     this.readyReject = null;
     this.releaseOwnerLock = null;
+    this.documentCancel = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
   }
 
   getStatus() { return { ...this.snapshot, sequence: this.sequence }; }
@@ -52,7 +53,8 @@ class OwnerWorkerController {
         r3RecoveryBarrier: this.config.r3RecoveryBarrier,
         r3MigrationBarrier: this.config.r3MigrationBarrier,
         r3MigrationPageAudit: this.config.r3MigrationPageAudit,
-        r3SkipStartupReplay: this.config.r3SkipStartupReplay === true }
+        r3SkipStartupReplay: this.config.r3SkipStartupReplay === true,
+        documentCancelBuffer: this.documentCancel.buffer }
     });
     this.worker = worker;
     this.ready = new Promise((resolve, reject) => {
@@ -158,7 +160,21 @@ class OwnerWorkerController {
     }
     return this._send('QUERY', type, payload, id);
   }
-  cancel(target, id) { return this._send('CANCEL', 'cancel_job', { target }, id); }
+  cancel(target, id) {
+    const snapshot = this.snapshot;
+    if (this.worker && !this.closing && snapshot.active === true
+      && snapshot.jobId === target && snapshot.phase === 'index_document') {
+      const key = id === undefined ? `owner-${++this.nextId}` : id;
+      if (typeof key !== 'string' || !key.trim()) return Promise.reject(failure('owner_invalid_id'));
+      if (this.usedIds.has(key)) return Promise.reject(failure('owner_duplicate_id'));
+      this.usedIds.add(key);
+      const token = snapshot.cancelToken;
+      const cancelled = Number.isInteger(token) && token > 0
+        && Atomics.compareExchange(this.documentCancel, 0, token, token + 1) === token;
+      return Promise.resolve({ cancelled });
+    }
+    return this._send('CANCEL', 'cancel_job', { target }, id);
+  }
 
   async shutdown(id, command = false) {
     if (!this.worker) {

@@ -12,6 +12,21 @@ const { deriveValidatedDocument } = require('../../../src/main/derived-document-
 
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 
+function waitForCompletedJob(owner, jobId) {
+  if (owner.getStatus().jobId === jobId && owner.getStatus().phase === 'completed') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { owner.worker.off('message', onMessage); reject(new Error('document completion marker missing')); }, 10000);
+    function onMessage(message) {
+      if (message.tag !== 'STATUS' || message.snapshot?.jobId !== jobId
+        || message.snapshot.phase !== 'completed') return;
+      clearTimeout(timer);
+      owner.worker.off('message', onMessage);
+      resolve();
+    }
+    owner.worker.on('message', onMessage);
+  });
+}
+
 // @req FR-DOC-019 REL-DOC-004 DR-DOC-007 DR-DOC-008 DR-DOC-014
 module.exports = { async run(context) {
   const root = context.fixture.root;
@@ -261,7 +276,7 @@ module.exports = { async run(context) {
     const accepted = await mismatched.acceptPublishedSave({ ingressRoot: newIngress,
       intentId: published.intentId, storeRoot: newStore });
     context.assert(accepted.accepted === true, 'mismatch still accepts the saved document');
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await waitForCompletedJob(mismatched, accepted.indexing.jobId);
     context.assert(mismatched.getStatus().diagnostic?.code === 'keyword_source_mismatch'
       && (await mismatched.query('query_keyword', { query: 'oldrootmarker' })).length === 0,
     'new save cannot make incompatible old-root keyword rows queryable');
@@ -299,9 +314,9 @@ module.exports = { async run(context) {
       sourceRelativeLocator: 'token-new.md', operation: 'update', sourceId: 'token_source',
       rootFingerprint: sha(oldStore), contentBytes: bytes, contentHash: sha(bytes),
       provenance: { aliases: [], metadata: {} } });
-    await tokenOwner.acceptPublishedSave({ ingressRoot: tokenIngress, intentId: published.intentId,
+    const tokenAccepted = await tokenOwner.acceptPublishedSave({ ingressRoot: tokenIngress, intentId: published.intentId,
       storeRoot: oldStore });
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await waitForCompletedJob(tokenOwner, tokenAccepted.indexing.jobId);
     context.assert(tokenOwner.getStatus().diagnostic?.code === 'keyword_tokenizer_mismatch'
       && (await tokenOwner.query('query_keyword', { query: 'oldrootmarker' })).length === 0,
     'new save cannot expose incompatible tokenizer cache');

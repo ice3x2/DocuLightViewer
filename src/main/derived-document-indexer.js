@@ -8,7 +8,8 @@ const { createLinkGraphIndexer } = require('./link-graph-indexer');
 
 // @req FR-DOC-019 DR-DOC-007 DR-DOC-008 DR-DOC-014
 async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, validated,
-  deferKeyword = false, faults = {} }) {
+  deferKeyword = false, faults = {}, shouldCancel = () => false,
+  beginCommit = () => true, onProgress = () => {} }) {
   if (!claim || !validated || validated.documentId !== claim.documentId
     || validated.revision !== claim.requestedRevision || validated.hash !== claim.desiredContentHash) return false;
   const db = ledger.open();
@@ -37,9 +38,14 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
   const chunks = createHeadingAwareChunker().chunkMarkdown(validated.content, { documentId: claim.documentId });
   const preparedChunks = [];
   for (const chunk of chunks) {
+    if (shouldCancel()) return { cancelled: true };
     const value = keyword.tokenizer.buildSearchText(chunk.text);
     const searchText = typeof value?.then === 'function' ? await value : value;
     preparedChunks.push({ ...chunk, searchText: `${searchText}\n${[project, docType, category, ...documentTags].filter(Boolean).join(' ')}`.trim() });
+    if (preparedChunks.length % 16 === 0 || preparedChunks.length === chunks.length) {
+      onProgress(preparedChunks.length, chunks.length + 2);
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
   const sourceId = before.source_id;
   const links = createLinkGraphIndexer({ sourceRoot: storeRoot }).extractLinks(validated.content, {
@@ -49,6 +55,7 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
       return target?.pathStatus === 'active' ? target : null;
     }
   });
+  if (shouldCancel() || !beginCommit()) return { cancelled: true };
   if (faults.beforeLedgerCommit) faults.beforeLedgerCommit();
   const committed = ledger.runWriteTransaction(() => {
     if (!isCurrent(current())) return false;
@@ -81,7 +88,12 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
     return true;
   });
   if (!committed || !isCurrent(current())) return false;
-  if (deferKeyword) return true;
+  onProgress(chunks.length + 1, chunks.length + 2);
+  await new Promise(resolve => setImmediate(resolve));
+  if (deferKeyword) {
+    onProgress(chunks.length + 2, chunks.length + 2);
+    return true;
+  }
   const meta = { title: metadata.title || null, project, docName: metadata.docName || null,
     docType, category, documentTags, description: metadata.description || null,
     date: metadata.date || null, gitBranch: metadata.gitBranch || null,
@@ -96,6 +108,8 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
     if (isCurrent(current())) db.prepare('UPDATE documents SET keyword_dirty = 0 WHERE document_id = ?')
       .run(claim.documentId);
   });
+  onProgress(chunks.length + 2, chunks.length + 2);
+  await new Promise(resolve => setImmediate(resolve));
   return true;
 }
 

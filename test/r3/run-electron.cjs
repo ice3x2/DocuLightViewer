@@ -1,10 +1,11 @@
 'use strict';
 const path = require('node:path');
+const fs = require('node:fs');
 const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
-const { sourceHash, validateRoot, PREPARE, electronAppEnv, electronExitCode } = require('./runtime.cjs');
+const { sourceRoot, sourceHash, validateRoot, PREPARE, electronAppEnv, electronExitCode } = require('./runtime.cjs');
 
-const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs')];
+const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs'), require('./cases/s22.cjs')];
 const name = process.argv.length === 4 && process.argv[2] === '--scenario' ? process.argv[3] : '';
 const names = cases.map(item => item.name);
 if (new Set(names).size !== names.length || !names.includes(name)) {
@@ -25,8 +26,23 @@ if (new Set(names).size !== names.length || !names.includes(name)) {
         encoding: 'utf8', timeout: 60000
       });
       if (child.stdout) process.stdout.write(child.stdout);
-      if (child.stderr) process.stderr.write(child.stderr);
-      const exitCode = electronExitCode(child, name);
+      let stderr = child.stderr || '';
+      let metricsPresent = name !== 's22';
+      if (name === 's22') {
+        const line = stderr.split(/\r?\n/).find(item => item.startsWith('S22_METRICS '));
+        if (line) {
+          const metrics = JSON.parse(line.slice('S22_METRICS '.length));
+          if (metrics.sourceHash === check.manifest.sourceHash) {
+            const artifact = path.join(sourceRoot, 'docs/analysis/2026-09-25-s22-large-document-samples.json');
+            fs.writeFileSync(artifact, `${JSON.stringify(metrics, null, 2)}\n`);
+            console.error(`S22_ARTIFACT ${artifact}`);
+            metricsPresent = true;
+          }
+          stderr = stderr.split(/\r?\n/).filter(item => item !== line).join('\n');
+        }
+      }
+      if (stderr) process.stderr.write(stderr);
+      const exitCode = metricsPresent ? electronExitCode(child, name) : 2;
       if (exitCode === 2) console.error(`SETUP_ERROR Electron scenario ${name} did not finish with an exact positive PASS marker`);
       process.exitCode = exitCode;
     } catch (error) {

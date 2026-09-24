@@ -60,8 +60,14 @@ async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onV
         return { completed: false, cancelled: true };
       }
       if (afterFinalRead) await afterFinalRead();
-      if (onFinalValidated) await onFinalValidated({ ...validated, content: latest.content,
-        hash: latest.contentHash });
+      if (onFinalValidated) {
+        const finalResult = await onFinalValidated({ ...validated, content: latest.content,
+          hash: latest.contentHash });
+        if (finalResult?.cancelled) {
+          ledger.failClaimedJob({ claim, cancelled: true });
+          return { completed: false, cancelled: true };
+        }
+      }
       return { completed: ledger.completeClaimedJob({ claim, actualFileHash: latest.contentHash }) };
     });
   } catch {

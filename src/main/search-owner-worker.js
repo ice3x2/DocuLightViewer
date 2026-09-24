@@ -49,6 +49,9 @@ let legacyMigrationCursor = {};
 let recoveryReady = false;
 let recoveryComplete = false;
 let legacyBlockedCount = 0;
+const documentCancel = workerData?.documentCancelBuffer
+  ? new Int32Array(workerData.documentCancelBuffer) : null;
+let documentCancelRevision = 0;
 
 function validatedPublicationRoot() {
   if (!sourceRoot || !publicationRoot) return null;
@@ -78,13 +81,30 @@ async function drainDesiredPage() {
       if (closing) break;
       const claim = ledger.claimDesiredJob(item);
       if (!claim) continue;
+      const cancelToken = ++documentCancelRevision * 4 + 1;
+      if (documentCancel) Atomics.store(documentCancel, 0, cancelToken);
+      status('indexing', keywordDiagnosticCode, { active: true, phase: 'index_document', jobId: claim.jobId,
+        cancelToken, progress: { current: 0, total: 1 } });
+      const shouldCancel = () => {
+        if (!documentCancel || Atomics.load(documentCancel, 0) !== cancelToken + 1) return false;
+        ledger.updateIndexJob(claim.jobId, { cancelRequested: true });
+        return true;
+      };
+      const beginCommit = () => !documentCancel
+        || Atomics.compareExchange(documentCancel, 0, cancelToken, cancelToken + 2) === cancelToken;
+      const onProgress = (current, total) => status('indexing', keywordDiagnosticCode,
+        { active: true, phase: 'index_document', jobId: claim.jobId, cancelToken,
+          progress: { current, total } });
       const result = await runClaimedDesiredJob({ ledger, claim, storeRoot: sourceRoot, ingressRoot,
-        onValidated: async () => {},
+        onValidated: async () => shouldCancel() ? { cancelled: true } : null,
         onFinalValidated: validated => deriveValidatedDocument({ ledger, keyword, claim,
-          storeRoot: sourceRoot, validated,
+          storeRoot: sourceRoot, validated, shouldCancel, beginCommit, onProgress,
           deferKeyword: keywordDiagnosticCode === 'keyword_source_mismatch'
             || keywordDiagnosticCode === 'keyword_tokenizer_mismatch' }) });
-      if (!result.completed) retry = true;
+      status('indexing', keywordDiagnosticCode, { active: false, phase: result.cancelled ? 'cancelled' :
+        result.completed ? 'completed' : 'retryable', jobId: claim.jobId,
+        progress: { current: 1, total: 1 } });
+      if (!result.completed && !result.cancelled) retry = true;
       else {
         if (keywordDiagnosticCode === 'keyword_index_missing') {
           keywordReady = Boolean(keyword.getCommittedGeneration());

@@ -31,7 +31,10 @@ function insertJob(db, job) {
 
 function createSearchEngine(ledger) {
   const engine = new SearchEngine({ get(_key, defaultValue) { return defaultValue; } });
-  engine._getAvailableSourceLedger = () => ledger;
+  engine._openReadOnlySourceLedger = () => ({
+    getSemanticIndexingProgress: () => ledger.getSemanticIndexingProgress(),
+    close() {}
+  });
   return engine;
 }
 
