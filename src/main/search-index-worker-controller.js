@@ -64,6 +64,7 @@ class IndexingWorkerController {
     this.workerPath = options.workerPath || path.join(__dirname, 'search-index-worker.js');
     this.sourceRootProvider = typeof options.sourceRootProvider === 'function' ? options.sourceRootProvider : null;
     this.ledgerProvider = typeof options.ledgerProvider === 'function' ? options.ledgerProvider : null;
+    this.statusLedgerProvider = typeof options.statusLedgerProvider === 'function' ? options.statusLedgerProvider : null;
     this.onJobCompleted = typeof options.onJobCompleted === 'function' ? options.onJobCompleted : null;
     this.onJobFailed = typeof options.onJobFailed === 'function' ? options.onJobFailed : null;
     this.activeJob = null;
@@ -640,7 +641,7 @@ class IndexingWorkerController {
 
   // @req REL-DOC-007
   _readDurableJob(jobId) {
-    const ledger = this._getLedger();
+    const ledger = this.statusLedgerProvider ? this.statusLedgerProvider() : this._getLedger();
     if (!ledger || typeof ledger.getIndexJob !== 'function') return null;
     try {
       const job = ledger.getIndexJob(jobId);
@@ -664,6 +665,8 @@ class IndexingWorkerController {
       };
     } catch {
       return null;
+    } finally {
+      if (this.statusLedgerProvider) ledger.close();
     }
   }
 

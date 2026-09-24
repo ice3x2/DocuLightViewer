@@ -302,6 +302,7 @@ migratePlaintextEmbeddingApiKey({
 searchEngine = new SearchEngine(store, {
   indexBackend: 'sqlite',
   indexDataDir: runtimeProfile.indexDataDir,
+  ownerManaged: true,
   embeddingConfigProvider: () => getStoredEmbeddingSettings(),
   embeddingApiKeyProvider: () => getEmbeddingApiKey().key,
   embeddingProvider: createOpenAICompatibleEmbeddingProvider({
@@ -1769,6 +1770,9 @@ function initializeSearchEngineIfConfigured() {
   if (!searchEngine || !isDocumentStoreSourceRootConfigured()) {
     return;
   }
+  searchEngine.getSaveDocumentOwner(store.get('mcpAutoSavePath', '')).catch(err => {
+    console.error('[doculight] Search owner init error:', err.message);
+  });
   searchEngine.initialize().catch(err => {
     console.error('[doculight] Search engine init error:', err.message);
   });

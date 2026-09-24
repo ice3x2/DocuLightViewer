@@ -206,3 +206,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S22 증거](../analysis/2026-09-25-s22-large-document-evidence.md)와 [원시 측정치](../analysis/2026-09-25-s22-large-document-samples.json)에 fixture checksum, 전체 색인 구간에 걸친 direct owner/BrowserWindow 응답 100개 sample, terminal tail 포함 main heartbeat 670개, 환경과 명령을 기록했다. 기존 benchmark, baseline부터 실패하던 stub을 교정한 status-performance, Node S07/S11/S12/S13, Electron S07이 통과했다.
 - [x] [성능·owner 경계 독립 검토](../analysis/2026-09-25-s22-perf-review.json)와 [TDD·회귀 독립 검토](../analysis/2026-09-25-s22-tdd-review.json)는 소스 해시 `f7be1d510e9e697cf129a80b59f1f12d56bd73430468971d59c3219a2f9bd9c8`의 변경을 안전한 부분 커밋으로 판정했다. 직접 호출 측정치를 제품 IPC 수치로 해석하지 않는다.
 - [ ] 제품 main의 실제 status/cancel IPC 및 viewer close/focus 요청 handler를 경유한 성능은 아직 측정하지 않았다. [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)·[S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46)·[S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49) 전환 뒤 동일 기준과 실제 focus/close 완료 사건을 검증하고 #45를 닫는다. 이 부분 결과는 완료율에 포함하지 않는다.
+
+## S23 진행 기록 — product-main read-only 부분 전환
+
+- 시작 SHA `e6c905a957c8bf9967d595efce4ea39f841be7b6`, 격리 worktree `DocuLightViewer-r3`. `FR-DOC-019`, `FR-DOC-033`, `FR-DOC-035`, `DR-DOC-014`, `REL-DOC-009`의 Stability 차단 없음.
+- [x] [실제 inventory·RED/GREEN·잔여 의존성](../analysis/2026-09-25-s23-cutover-evidence.md): 제품 SearchEngine 시작 시 keyword SQLite를 읽기 전용으로 열고 main의 startup ledger reconciliation을 owner recovery에 맡겼다. active status는 읽기 전용 ledger만 연다. 독립 검토에서 찾은 owner 시작 실패 시 기존 검색 불능 결함을 실제 제품 시작 함수 RED 뒤 수정하여 이전 committed keyword 결과와 S17/S19/S20 재시작 회귀를 보존했다.
+- [x] [writer·제품 경로 독립 검토](../analysis/2026-09-25-s23-inventory-review.json)와 [TDD·호환 독립 검토](../analysis/2026-09-25-s23-tdd-review.json)는 소스 해시 `16fef874888cc5847419e32642a79ab610cdaed62e569bd3412b434a89f6016c`의 시작·검색 read-only 부분 변경을 안전한 중간 커밋으로 판정했다.
+- [ ] #46 전체 완료는 보류한다. Settings legacy index worker, linked import, opened registration, semantic Settings callback이 아직 main/단기 worker ledger writer를 호출한다. S26 #49에서 대체 owner 경로와 실제 Electron product IPC를 검증해야 한다. #43·#45도 열린 상태로 유지한다.

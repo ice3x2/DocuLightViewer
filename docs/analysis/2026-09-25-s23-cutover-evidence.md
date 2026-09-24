@@ -1,0 +1,29 @@
+# S23 product-main cutover: safe partial evidence
+
+- Start: `e6c905a957c8bf9967d595efce4ea39f841be7b6` in isolated `DocuLightViewer-r3`.
+- Requirements: `FR-DOC-019` (in_progress/stable), `FR-DOC-033` (in_progress/stable), `FR-DOC-035` (implemented/evolving), `DR-DOC-014` (in_progress/evolving), `REL-DOC-009` (planned/evolving). Active target `0.11.0-w2`; no draft/deprecated blocker.
+- This is a **partial S23 result**. Do not close #46, #43, or #45 on this evidence.
+
+## Exact target inventory and call graph
+
+`git ls-tree -r --name-only e6c905a9 src/main` contains `search-index-worker-controller.js`, `search-index-worker.js`, `search-owner-controller.js`, `search-owner-worker.js`, `search-engine.js`, `search-sqlite-store.js`, `source-ledger-store.js`, and `index-ingress-store.js`. It contains no `candidate-saga-owner.js`, `candidate-io-worker.js`, `indexing-worker-runtime.js`, graph coordinator, or cross-worker root-grant module. Those private candidates are absent/no-op; there is nothing to delete.
+
+| Candidate/site | Caller and substitute | Legacy data and decision |
+| --- | --- | --- |
+| Product main keyword `SQLiteKeywordIndex.open()` | `index.js` → `SearchEngine.initialize()` → `_loadIndex()`; main uses a read-only handle while `search-owner-worker.js` remains the writable owner | Keep committed index, metadata/source-root/tokenizer checks, and filtered public search; change main open mode only. |
+| Product main startup ledger reconciliation | `SearchEngine.initialize()` previously scheduled `reconcileStartupIndexJobsAsync()` → writable `_getAvailableSourceLedger()`; owner `START` schedules `resumeLegacyMigration()` then bounded recovery | Do not schedule legacy reconciliation in owner-managed product mode. Preserve the old adapter in `SearchEngine` for non-owner callers and S19 data readers. |
+| Product main active status ledger | `getIndexingStatusPayload()` → `SearchEngine.getStatus()` → `IndexingWorkerController.getStatus()` → `_readDurableJob()` → `_getSourceLedger()` | Active status now uses a temporary read-only ledger handle in owner-managed mode. Existing legacy controller mutation calls remain live. |
+| Owner SQLite writable opens | `index.js` → `getSaveDocumentOwner()` → `OwnerWorkerController.start()` → `search-owner-worker.js` → `SourceLedgerStore.initialize()` and `SQLiteKeywordIndex.open()` | Keep: sole-owner lock, S19 migration marker, old journal transition, S17 import recovery and private ingress replay. |
+| Old index worker/controller | `SearchEngine` constructor and Settings rebuild/cancel/retry/compact/clear, plus semantic work | Live. Its `ledgerProvider`, worker keyword writes, and main job patches prevent full sole-writer claim. Preserve until S26 replacement and compatibility evidence. |
+| Linked import and opened registration | Settings linked-import IPC calls `searchEngine.getSourceLedger()` with `searchEngine.ownerController || null`; opened registrar and semantic registration also reach legacy ledger writes | Live. No safe deletion without an owner command substitute. |
+| Rollback/cleanup candidates | `search-owner-worker.js` removes accepted private intents; `index-ingress-store.js` removes private temp/lock files. `SearchEngine` semantic reindex rollback updates job status | No reachable saved Markdown delete/before-image rollback found. Private cleanup and old job-status handling remain necessary; no deletion. |
+
+The owner wire registry remains `accept_save`, `resolve_origin`, `query_keyword`, `get_status`, `cancel_job`, `shutdown`. Existing `query_keyword` has only a fixed simple query/limit path; it cannot replace public `search_documents`, `search_projects`, or `smart_search` filters. The product therefore keeps the read-only SearchEngine query facade.
+
+## RED, GREEN, and remaining gate
+
+`node test/r3/run-node.cjs --case s23` was registered and failed with `ASSERTION_FAIL ... product main opens keyword SQLite read-only` after a real committed keyword SQLite fixture was present. A second RED failed `active product status never opens a writable main-process ledger`. Independent review found that coupling `getSaveDocumentOwner()` success to `SearchEngine.initialize()` hid a prior committed index when the owner could not start. A third semantic RED extracted and ran the actual product `initializeSearchEngineIfConfigured()` function against real committed SQLite: `ASSERTION_FAIL ... owner startup failure still loads previous committed product search index`. The final product function starts owner recovery and the read-only search load independently. These were assertion failures, not ABI/setup failures. After the scoped changes, S23 passes 9 assertions at sourceHash `16fef874888cc5847419e32642a79ab610cdaed62e569bd3412b434a89f6016c`. The case injects a main-process SQLite constructor that rejects writable keyword opens, instruments actual source-ledger opens during active status, and confirms the previous committed keyword result remains searchable even when owner startup fails.
+
+Using the prepared Node ABI 137 snapshot on Windows: S17 `32`, S19 `47`, S20 `21` assertions pass; S20 recovered `3,101` pending jobs in bounded pages. `test-search-engine-lifecycle.js` and `test-sqlite-keyword-index-contract.js` pass. The snapshot Electron ABI is 130. No S23 cold product Electron session was run.
+
+S26 #49 must replace or confine the remaining live Settings/worker/linked-import/opened-registration/semantic ledger mutation routes, prove no product-main writable source/keyword SQLite open under real startup, search, status, cancel, focus, and close IPC, and preserve the committed index checksum after failure/cancel. S20 #43 also retains its sidecar recovery gate. S22 #45 retains real product IPC latency and focus/close evidence. S23 #46 cannot meet the sole-writer completion criterion until those paths are cut over.

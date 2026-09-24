@@ -10,12 +10,13 @@ const SQLITE_INDEX_FILENAME = 'search-index.sqlite3';
 const MAX_SEARCH_BODY_CHARS = 1200;
 
 class SQLiteKeywordIndex {
-  constructor({ dbPath, sourceRoot, loadDatabase, tokenizer } = {}) {
+  constructor({ dbPath, sourceRoot, loadDatabase, tokenizer, readOnly = false } = {}) {
     if (!dbPath) throw new Error('SQLite keyword index requires dbPath');
     this.dbPath = dbPath;
     this.sourceRoot = normalizeSourceRoot(sourceRoot);
     this._loadDatabase = loadDatabase || (() => require('better-sqlite3'));
     this.tokenizer = tokenizer || createBasicKeywordTokenizer();
+    this.readOnly = readOnly === true;
     this.db = null;
   }
 
@@ -26,14 +27,17 @@ class SQLiteKeywordIndex {
   open() {
     if (this.db) return this.db;
 
-    fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
+    if (!this.readOnly) fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
     const Database = this._loadDatabase();
     this.db = new Database(this.dbPath, {
-      timeout: 5000
+      timeout: 5000,
+      ...(this.readOnly ? { readonly: true, fileMustExist: true } : {})
     });
 
-    this._applyPragmas();
-    this._ensureSchema();
+    if (!this.readOnly) {
+      this._applyPragmas();
+      this._ensureSchema();
+    }
     return this.db;
   }
 

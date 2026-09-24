@@ -89,17 +89,17 @@ class SearchEngine {
           new Error('Search index is missing; rebuild it from Settings > Search Index Management.')
         );
       }
-      this._scheduleStartupIndexJobReconciliation();
+      if (!this.options.ownerManaged) this._scheduleStartupIndexJobReconciliation();
     } catch (err) {
       if (err.code === 'SQLITE_INDEX_INCOMPLETE') {
         this._markIndexRebuildRequired('index_incomplete', indexPath, err);
-        this._scheduleStartupIndexJobReconciliation();
+        if (!this.options.ownerManaged) this._scheduleStartupIndexJobReconciliation();
         return;
       }
       if (err.code === 'SQLITE_INDEX_SOURCE_MISMATCH' || err.code === 'SQLITE_INDEX_TOKENIZER_MISMATCH') {
         console.warn('[doculight] SQLite search index metadata changed; settings rebuild required:', err.message);
         this._markIndexRebuildRequired('index_metadata_mismatch', indexPath, err);
-        this._scheduleStartupIndexJobReconciliation();
+        if (!this.options.ownerManaged) this._scheduleStartupIndexJobReconciliation();
         return;
       }
       console.warn('[doculight] Search index load failed; settings rebuild required:', err.message);
@@ -2090,6 +2090,7 @@ class SearchEngine {
       workerPath: this.options.indexingWorkerPath || this.options.workerPath,
       sourceRootProvider: () => this._getSourceRoot(),
       ledgerProvider: () => (this.indexDataDir ? this._getSourceLedger() : null),
+      statusLedgerProvider: this.options.ownerManaged ? () => this._openReadOnlySourceLedger() : null,
       onJobCompleted: (job) => this._handleIndexingWorkerCompleted(job),
       onJobFailed: (job) => this._handleIndexingWorkerFailed(job)
     });
@@ -2767,7 +2768,8 @@ class SearchEngine {
       dbPath: indexPath,
       sourceRoot: this._getSourceRoot(),
       loadDatabase: this.options.sqliteLoadDatabase,
-      tokenizer: this.keywordTokenizer
+      tokenizer: this.keywordTokenizer,
+      readOnly: this.options.ownerManaged === true
     });
     return this.sqliteIndex;
   }
