@@ -1,0 +1,42 @@
+{
+  "review": "S26 independent product integration review",
+  "baseCommit": "a4b1c4285c69daff46bfc03b902f43dcc7d490f0",
+  "reviewedSourceHash": "a0f1f029c78b13269d3cb1dceea52697291f73341e842141acd143a257e196e8",
+  "verdict": "PASS_S26_CORE",
+  "issue49CoreClosureReady": true,
+  "inheritedIssuesRemainOpen": [43, 45, 46],
+  "requirements": ["FR-DOC-019", "FR-DOC-033", "FR-DOC-035", "DR-DOC-014", "IR-MCP-018", "IR-APP-013"],
+  "reviewedInputs": [
+    "GitHub issue #49 including corrected two-origin fixture and S20/S22/S23 dependency notes",
+    "docs/spec/00.index.md and six scoped SRS requirements",
+    "full tracked diff from base and untracked S26 scenario and keyword refresh test",
+    "docs/analysis/2026-09-25-s26-electron-integration-evidence.md",
+    "docs/analysis/2026-09-25-s26-electron-integration-samples.json"
+  ],
+  "verification": {
+    "standardSourceHashRecomputed": true,
+    "reportedElectronRun": "PASS case=s26 assertions=25; S26_FIRST_RUN_COMPLETE; S26_RESTART_RECOVERED; S26_ALL_ASSERTIONS_REACHED",
+    "electronRunIndependentlyRepeated": false,
+    "focusedKeywordRefreshTest": "PASS",
+    "focusedOpenedRegistrarTest": "PASS",
+    "unknownElectronScenarioExit": 2,
+    "gitDiffCheck": "PASS"
+  },
+  "findings": [],
+  "coreEvidence": {
+    "productRoutes": "Two cold launches of product index.js through Electron, real HTTP MCP save/search/open, second-instance external opens, and real Settings renderer/preload status, import, and cancel IPC",
+    "toolSurface": "Exact existing eight HTTP MCP tools; test-only private IPC actions require both an environment flag and argv flag",
+    "processSafety": "Distinct inspected app-owned PIDs 18700 and 134176; graceful app.quit after command-line inspection; no broad process termination",
+    "saveAndIndex": "save_document returned saved=true with separate queued state and diagnostic jobId, later observed completed",
+    "origin": "Two lexical A/junction-B aliases retain one canonical identity/hash and documentId; a separate real distinct-canonical same-byte registrar test asserts duplicate_candidate",
+    "import": "Settings import returned imported=2 and missing=1; both completed files and document IDs persisted through restart with contained file checksums",
+    "cancelAndRecovery": "Active owner cancellation left the 2782074-byte NEW source and store copy at SHA-256 e81eb2a05827ca2815d61ddf03fa4945d344c69b15fe0d4bc6217c73ad6896a3, desired revision 2 dirty; restart completed revision 2, returned the NEW public hit, and removed the OLD full marker",
+    "keywordRefresh": "Owner-managed read-only cache refresh covered cold creation, data_version change, source-root and tokenizer mismatch, and transient read fault with degraded status and prior committed result preservation"
+  },
+  "limits": [
+    "This S26 core review does not close #43: full cold product DB-open audit, failed/cancelled full-rebuild checksum preservation, and abandoned-sidecar operator recovery remain separate gates.",
+    "This S26 core review does not close #45: roughly 10 MiB product IPC/viewer focus-close completion latency samples and heartbeat thresholds remain separate gates.",
+    "This S26 core review does not close #46: sole-writer cutover of remaining live Settings, opened/import, semantic, and search routes still needs its complete product audit.",
+    "The full S26 Electron lifecycle was assessed from hash-bound run evidence and code, not independently rerun in this review; the two focused Node regressions were rerun."
+  ]
+}

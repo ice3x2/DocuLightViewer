@@ -1360,6 +1360,36 @@ class SearchEngine {
   }
 
   async ensureFresh() {
+    if (this.options.ownerManaged && this._usesSQLiteBackend()) {
+      const indexPath = this.getIndexPath();
+      if (fs.existsSync(indexPath)) {
+        try {
+          const sqliteIndex = this._getSQLiteIndex(indexPath);
+          sqliteIndex.assertSourceRoot();
+          this._assertSQLiteTokenizerMetadata(sqliteIndex);
+          const generation = sqliteIndex.getCommittedGeneration();
+          if (generation) {
+            const version = sqliteIndex.open().pragma('data_version', { simple: true });
+            if (this._ownerKeywordDataVersion !== version || this.dirty) {
+              await this._loadIndex(indexPath);
+              this._ownerKeywordDataVersion = version;
+              this.initialized = true;
+              this.dirty = false;
+            }
+          }
+        } catch (err) {
+          if (err.code === 'SQLITE_INDEX_SOURCE_MISMATCH' || err.code === 'SQLITE_INDEX_TOKENIZER_MISMATCH') {
+            this._markIndexRebuildRequired('index_metadata_mismatch', indexPath, err);
+          } else {
+            this._ownerKeywordDataVersion = null;
+            this._lastDegradedReason = 'sqlite-read-error';
+            this._status = { ...this._status, state: 'failed', phase: 'freshness-check',
+              errorSummary: 'Keyword cache read failed; previous committed results remain available.',
+              failedFiles: [] };
+          }
+        }
+      }
+    }
     if (this.dirty || !this.initialized) {
       if (!this.initialized) {
         this._createFreshEngine();

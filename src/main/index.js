@@ -115,6 +115,7 @@ let searchEngine = null; // Initialized after store is created
 let saveDocumentOwner = null;
 let openedMarkdownRegistrar = null;
 let nativeRebuildManager = null;
+let r3SettingsProbeWindow = null;
 const mediaViewerWindowsByParent = new Map();
 const mediaViewerParentByWindowId = new Map();
 const mediaViewerWindows = new Map();
@@ -2420,6 +2421,57 @@ async function handleIpcMessage(socket, msg) {
     let result;
 
     switch (action) {
+      case 'r3_test_graceful_quit':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        result = { accepted: true };
+        setImmediate(async () => {
+          if (saveDocumentOwner) await saveDocumentOwner.shutdown();
+          if (r3SettingsProbeWindow && !r3SettingsProbeWindow.isDestroyed()) r3SettingsProbeWindow.destroy();
+          app.quit();
+        });
+        break;
+      case 'r3_test_settings_probe':
+      case 'r3_test_settings_status':
+      case 'r3_test_settings_cancel':
+      case 'r3_test_settings_import':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        if (!r3SettingsProbeWindow || r3SettingsProbeWindow.isDestroyed()) {
+          r3SettingsProbeWindow = new BrowserWindow({ show: false, webPreferences: {
+            preload: path.join(__dirname, 'preload.js'), contextIsolation: true,
+            nodeIntegration: false, sandbox: true
+          } });
+          await r3SettingsProbeWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings.html'));
+        }
+        if (action === 'r3_test_settings_import') {
+          const tempRoot = fs.realpathSync.native(app.getPath('temp'));
+          const selectedPath = typeof params.filePath === 'string' && fs.existsSync(params.filePath)
+            ? fs.realpathSync.native(params.filePath) : '';
+          const relativeToTemp = selectedPath ? path.relative(tempRoot, selectedPath) : '';
+          if (!relativeToTemp || relativeToTemp === '..'
+            || relativeToTemp.startsWith(`..${path.sep}`) || path.isAbsolute(relativeToTemp)) {
+            throw new Error('R3 import fixture must be inside OS temp');
+          }
+          const originalDialog = dialog.showOpenDialog;
+          dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] });
+          try {
+            result = await r3SettingsProbeWindow.webContents.executeJavaScript('window.doclight.importLinkedMarkdown()');
+          } finally { dialog.showOpenDialog = originalDialog; }
+        } else {
+          result = action === 'r3_test_settings_probe' ? { ready: true }
+            : await r3SettingsProbeWindow.webContents.executeJavaScript(action === 'r3_test_settings_status'
+              ? 'window.doclight.getIndexingStatus()' : 'window.doclight.cancelIndexingJob()');
+        }
+        break;
+      case 'r3_test_owner_snapshot':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        result = saveDocumentOwner ? saveDocumentOwner.getStatus() : { state: 'unavailable' };
+        break;
       case 'open_markdown': {
         // @req IR-MCP-019
         const hasDocumentId = params.documentId !== undefined && params.documentId !== null;
@@ -2823,6 +2875,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('indexing:cancel-job', () => {
+    if (searchEngine.getStatus().state === 'rebuilding') return searchEngine.cancelRebuild();
+    const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
+    if (ownerStatus?.active && ownerStatus.phase === 'index_document' && ownerStatus.jobId) {
+      return saveDocumentOwner.cancel(ownerStatus.jobId);
+    }
     return searchEngine.cancelRebuild();
   });
 
@@ -2884,17 +2941,14 @@ function registerIpcHandlers() {
       }
       const entryPath = path.resolve(result.filePaths[0]);
       const sourceRoot = path.dirname(entryPath);
-      const ledger = searchEngine && typeof searchEngine.getSourceLedger === 'function'
-        ? searchEngine.getSourceLedger()
-        : null;
-      const importer = createLinkedImporter({
-        sourceRoot,
-        knowledgeStoreRoot,
-        ledger,
-        ownerController: searchEngine?.ownerController || null
-      });
-      const importResult = await importer.importMarkdownGraph(entryPath);
-      return { success: true, ...importResult };
+      const owner = await searchEngine.getSaveDocumentOwner(knowledgeStoreRoot);
+      const ledger = searchEngine._openReadOnlySourceLedger();
+      try {
+        const importer = createLinkedImporter({ sourceRoot, knowledgeStoreRoot, ledger,
+          ownerController: owner, ingressRoot: owner.config.ingressRoot });
+        const importResult = await importer.importMarkdownGraph(entryPath);
+        return { success: true, ...importResult };
+      } finally { if (ledger) ledger.close(); }
     } catch (err) {
       const redactor = createRedactor({
         sourceRoots: [store.get('mcpAutoSavePath', '')].filter(Boolean),

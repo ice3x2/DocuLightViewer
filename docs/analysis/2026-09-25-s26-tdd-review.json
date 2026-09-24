@@ -1,0 +1,31 @@
+{
+  "review": "S26 real Electron lifecycle TDD and reliability",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/49",
+  "baseCommit": "a4b1c4285c69daff46bfc03b902f43dcc7d490f0",
+  "sourceHash": "a0f1f029c78b13269d3cb1dceea52697291f73341e842141acd143a257e196e8",
+  "result": "PASS",
+  "scope": "S26 core product save/open/import/update/cancel/restart lifecycle; no requirement-wide verified promotion or inherited #43/#45/#46 closure",
+  "requirements": ["FR-DOC-019", "FR-DOC-033", "FR-DOC-035", "DR-DOC-014", "IR-MCP-018", "IR-APP-013"],
+  "findings": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": []
+  },
+  "checks": [
+    "The standard R3 sourceHash was recomputed before and after review and matched the frozen hash. The author evidence prose and redacted raw JSON agree on sourceHash, PIDs 18700/134176, save state, import counts, update checksum, and recovery time.",
+    "An independent run against the prepared Electron 33.4.11 ABI 130 runtime returned exit 0, PASS case=s26 assertions=25, and S26_FIRST_RUN_COMPLETE, S26_RESTART_RECOVERED, S26_ALL_ASSERTIONS_REACHED. It observed distinct owned PIDs 122316/39200. The author's raw sample was restored byte-identically after this run.",
+    "The scenario uses one OS-temp profile and store across two real src/main/index.js processes. It inspects each PID and full command line, invokes a gated graceful app.quit action, and waits for exact process exit before restart. Readiness and indexing convergence use RPC and SQLite events with deadlines rather than fixed success sleeps.",
+    "Public save_document asserts saved=true, indexing.state=queued, a diagnostic jobId without queued boolean, and a separate completed ledger job. Public search finds the control document. The exact eight-tool HTTP list is checked; independent MCP parity regression passed.",
+    "External A and a second lexical junction path B resolve to one canonical original and retain two aliases under one document ID. The distinct-canonical same-byte case remains duplicate_candidate under FR-DOC-035 AC-7 and passes the registrar contract test; issue #49 now states this distinction.",
+    "The Settings preload and product IPC run linked import with imported=2 and missing=1. Two contained completed files and their document IDs survive restart; a later import write failure or import cancellation is not claimed by this product sample and S25 supplies focused cancellation evidence.",
+    "A 2,782,074-byte OLD-to-NEW original update is cancelled through the Settings preload while an owner document job is active. The cancelled job is durable, desired revision 2 remains dirty, and original/store checksums match. Restart completes revision 2, retains aliases and project/category/tags, retrieves NEW, and reports no OLD hit.",
+    "The test-first record gives the exact S26 command and named exit-1 assertions for missing graceful quit, legacy cancel routing, stale keyword cache, and linked import owner routing. It separately labels fixture timeout and search-oracle corrections as non-product RED. The focused keyword refresh test records a separate exit-1 read-fault assertion before GREEN.",
+    "Independent owner-managed keyword refresh, opened registrar, and MCP parity tests passed. Unknown scenario exit 2 and S25/S23/S20/S21 plus adjacent contracts are recorded in the author evidence. Test-only private actions require both a specific environment flag and argv flag and add no public MCP tool."
+  ],
+  "limits": [
+    "Historical RED executions and the broader regression matrix were assessed from the author's documented commands, assertion names, and evidence; this reviewer independently reran final S26 GREEN and three focused contracts.",
+    "The product sample does not prove all cold main writable SQLite opens are absent, prior keyword checksum survives failed/cancelled full rebuild, safe abandoned-sidecar action, or full-active-interval product focus/close/status/cancel latency thresholds. Issues #43, #45, and #46 remain open."
+  ],
+  "closureRecommendation": "S26 core issue #49 may close after this reviewed result is committed and its final SHA is recorded; do not close #43, #45, or #46 or mark all linked requirements verified from S26 alone."
+}

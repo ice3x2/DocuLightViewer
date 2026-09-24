@@ -5,7 +5,7 @@ const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
 const { sourceRoot, sourceHash, validateRoot, PREPARE, electronAppEnv, electronExitCode } = require('./runtime.cjs');
 
-const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs'), require('./cases/s22.cjs'), require('./cases/s24-electron.cjs')];
+const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs'), require('./cases/s22.cjs'), require('./cases/s24-electron.cjs'), require('./scenarios/s26.cjs')];
 const name = process.argv.length === 4 && process.argv[2] === '--scenario' ? process.argv[3] : '';
 const names = cases.map(item => item.name);
 if (new Set(names).size !== names.length || !names.includes(name)) {
@@ -20,6 +20,12 @@ if (new Set(names).size !== names.length || !names.includes(name)) {
   } else {
     try {
       const executable = createRequire(path.join(root, 'package.json'))('electron');
+      if (name === 's26') {
+        const { run } = require('./dispatch.cjs');
+        run(cases, name, { setup: async () => ({ executable, root, sourceHash: check.manifest.sourceHash }) })
+          .then(result => { process.exitCode = result.exitCode; });
+        return;
+      }
       const child = spawnSync(executable, [path.join(root, 'test/r3/electron-main.cjs'), '--scenario', name], {
         cwd: root,
         env: electronAppEnv({ ...process.env, DOCULIGHT_R3_ELECTRON_ROOT: root, DOCULIGHT_R3_SOURCE_HASH: check.manifest.sourceHash }),
