@@ -1,6 +1,6 @@
 # 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S05 #28](https://github.com/ice3x2/DocuLightViewer/issues/28) · 다음 [S06 #29](https://github.com/ice3x2/DocuLightViewer/issues/29).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S06 #29](https://github.com/ice3x2/DocuLightViewer/issues/29) · 다음 [S07 #30](https://github.com/ice3x2/DocuLightViewer/issues/30).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `5/36` 완료(S01~S05)다. 원본 alias와 읽기 전용 열기 경로의 집중 검증은 통과했고, 저장·색인 전체 흐름과 실제 앱 통합 검증은 후속 이슈에 남아 있다. 다음 [S06 #29](https://github.com/ice3x2/DocuLightViewer/issues/29)은 이 브랜치의 S05 인계 SHA에서 단일 장기 worker의 생명주기와 프로토콜을 test-first로 시작한다.
+실행 이슈는 `6/36` 완료(S01~S06)다. 새 owner 경로의 단일 worker 생명주기와 프로토콜은 검증했으며, 실제 save-write 감사와 전체 producer 전환은 후속 이슈에 남아 있다. 다음 [S07 #30](https://github.com/ice3x2/DocuLightViewer/issues/30)은 이 브랜치의 S06 인계 SHA에서 query·status·cancel의 bounded scheduling을 test-first로 진행한다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -83,3 +83,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S05 RED/GREEN 증거](../analysis/2026-09-24-s05-origin-evidence.md)에 실제 Node assertion RED exit 1, 최종 focused GREEN exit 0(23 assertions), 기존 origin 계약 GREEN, 읽기 전용 DB·FS byte 비교를 기록했다.
 - [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·TDD 증거·기존 계약 oracle 갱신을 확인했다. [원본 보안 검토](../analysis/2026-09-24-s05-origin-review.json)와 [TDD·회귀 검토](../analysis/2026-09-24-s05-tdd-review.json)는 남은 지적 0건이다.
 - [x] #28 체크박스·완료 댓글·close와 인계 SHA를 연결한다. 다음 작업은 [S06 #29](https://github.com/ice3x2/DocuLightViewer/issues/29)이다.
+
+## S06 진행 기록 — 독립 검토 완료
+
+- [x] S05 인계 SHA `1377cfe547aba663d554978be1a000c993b93c88`에서 시작했다. 관련 요구사항은 `FR-DOC-019`, `REL-DOC-007`, `DR-DOC-014`, `IR-APP-013`이고 Stability 차단은 없다.
+- [x] [S06 RED/GREEN 증거](../analysis/2026-09-24-s06-owner-evidence.md)에 실제 Node/Electron assertion RED와 최종 focused GREEN(각 42 assertions)을 기록했다. 두 SQLite 연결은 새 owner worker에서 열리고 READY 전에 migration/integrity 및 keyword root/tokenizer gate를 통과한다. 빈 root/이전 root/없는 keyword generation은 stale 상태에서 검색 결과를 차단하고 자동 재빌드하지 않는다. 실제 garu committed cache는 검색 가능하며 진짜 tokenizer 불일치는 차단한다. Worker 재시작 뒤 cached STATUS sequence도 단조 증가하고 error/exit interleaving은 두 owner를 겹치지 않는다. S05의 private `documentId`/indexed `filePath` 조회는 같은 문서 ID·실제 indexed copy·root·relative locator를 반환한다.
+- [x] 작성자가 아닌 독립 검토자가 요구사항·diff·실행 증거를 확인했다. [owner 아키텍처 검토](../analysis/2026-09-24-s06-architecture-review.json)와 [TDD·runtime 검토](../analysis/2026-09-24-s06-tdd-review.json)는 남은 지적 0건이다. `accept_save` durable write와 모든 producer migration은 S08 이후에 남아 있으며 S06에서 전역 sole-writer 완료를 주장하지 않는다.
+- [x] 독립 검토 지적을 해결하고 S06 완료 조건을 판정해 #29 상태와 다음 [S07 #30](https://github.com/ice3x2/DocuLightViewer/issues/30) 인계 계약을 갱신한다. 실제 두 저장의 write audit는 S08~S12, 기존 경로 제거는 S23, 실제 앱 통합은 S26에서 검증한다.

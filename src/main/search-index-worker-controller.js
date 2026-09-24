@@ -753,5 +753,6 @@ function serializeError(err) {
 
 module.exports = {
   IndexingWorkerController,
+  OwnerWorkerController: require('./search-owner-controller').OwnerWorkerController,
   RESPONSIVENESS_CONTRACT
 };

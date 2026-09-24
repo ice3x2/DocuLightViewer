@@ -1,0 +1,38 @@
+{
+  "review": "S06 independent TDD and runtime review",
+  "issue": 29,
+  "requirements": ["FR-DOC-019", "REL-DOC-007", "DR-DOC-014", "IR-APP-013"],
+  "result": "PASS",
+  "findings": [],
+  "sourceHashSha256": "27ba7348f4cf31532ae56839319b31f6e3b6e08d57ef8e8d433f6708e3c4b55e",
+  "sourceHashMatchesIsolatedNodeAndElectronManifests": true,
+  "isolatedAbis": { "node": "137", "electron": "130" },
+  "reviewedFilesSha256": {
+    "src/main/search-owner-worker.js": "898088dffb55a7a877d13c7e5ecf6453cf61129b2ce225d39d4383e3532f6f25",
+    "test/r3/cases/s06.cjs": "2d42a201771e4efd2517f7e4372cd5e1de6f9d9a1d0fefbb2e4ac5c88483160f",
+    "docs/analysis/2026-09-24-s06-owner-evidence.md": "ac5dab92b5fa8803b6e96830e3a8f589012f1e40e2dd72b51dbd40413f796805"
+  },
+  "independentCommands": [
+    {
+      "command": "node test/r3/run-node.cjs --case s06 (DOCULIGHT_R3_NODE_ROOT set to isolated Node snapshot)",
+      "exitCode": 0,
+      "output": "PASS case=s06 assertions=42"
+    },
+    {
+      "command": "node test/r3/run-electron.cjs --scenario s06 (DOCULIGHT_R3_ELECTRON_ROOT set to isolated Electron snapshot)",
+      "exitCode": 0,
+      "output": "PASS case=s06 assertions=42"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "output": "No whitespace errors; Git emitted only LF-to-CRLF working-copy notices."
+    }
+  ],
+  "deltaAssessment": "The real SQLite fixture's completed import resolves by documentId and by indexed filePath to the same documentId. The corrected oracle compares actual indexedPathInternal to the fixture path and to the documentId lookup, and checks sourceRootInternal plus sourceRelativePath. It does not compare optional fields that can both be undefined. Windows path normalization accounts for the ledger's lowercase canonical path. The worker forwards filePath only within its private resolve_origin query to the existing read-only ledger lookup. No public path field, save-write claim, or legacy-worker behavior change is introduced. The current issue #29 explicitly defers write audits and product-wide cutover.",
+  "tddEvidence": {
+    "reportedSemanticRed": "The author records Node exit 1, ASSERTION_FAIL case=s06 assertions=19 private indexed filePath resolves same read-only document and copy candidate before the worker forwarded filePath. The documentId portion of that initial assertion was meaningful; its optional indexedCopy comparison was weak and was replaced with actual-field assertions.",
+    "oracleCorrection": "The stronger actual-field oracle was added after production behavior was implemented. An intermediate failure due to Windows lowercase path normalization was a test-oracle correction, not independent semantic RED evidence. No production code changed after this correction; final Node and Electron cases pass.",
+    "limitation": "Original preimplementation RED console transcripts and exact source snapshots were not archived. This review confirms the final assertion, old-code failure mechanism, source/snapshot hashes, and isolated GREEN, but cannot independently reconstruct historical edit order."
+  }
+}

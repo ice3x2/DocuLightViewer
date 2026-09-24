@@ -1,0 +1,20 @@
+{
+  "review": "S06 independent architecture and contract review",
+  "sourceHash": "27ba7348f4cf31532ae56839319b31f6e3b6e08d57ef8e8d433f6708e3c4b55e",
+  "requirements": ["FR-DOC-019", "REL-DOC-007", "DR-DOC-014", "IR-APP-013"],
+  "result": "PASS",
+  "findings": [],
+  "evidence": {
+    "focusedNode": "PASS case=s06 assertions=42; Node ABI 137",
+    "focusedElectron": "PASS case=s06 assertions=42; Electron ABI 130",
+    "existingWorkerContract": "PASS",
+    "reviewed": [
+      "One persistent owner worker opens and checks both SQLite handles before the owner START acknowledgement; the new main adapter uses cached status and does not open SQLite.",
+      "A missing, wrong-root, unconfigured-root, or tokenizer-incompatible keyword cache cannot return stale hits; a matching real garu cache remains queryable without automatic rebuild.",
+      "Worker failure and restart preserve saved files and completed import identity; cached STATUS and get_status use the same monotonic controller sequence.",
+      "Unknown or duplicate commands, invalid IDs, cancellation, and in-flight shutdown settle with stable correlated results or errors.",
+      "Private resolve_origin forwards documentId or indexed filePath to the existing read-only S05 ledger lookup and preserves its internal indexed path, source root, and relative locator. The S05 validated reader remains responsible for file containment before content is opened. No public raw-path field or MCP tool was added."
+    ]
+  },
+  "scopeLimit": "S06 proves owner lifecycle, connection ownership, and protocol on the new route. accept_save is intentionally unimplemented; actual two-save write audits, durable replay, producer cutover, and product-wide sole-writer proof remain assigned to later epic issues."
+}
