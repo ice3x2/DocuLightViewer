@@ -10,6 +10,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { readPendingSave } = require('./index-ingress-store');
 const { parseFrontmatter } = require('./frontmatter');
+const { runClaimedDesiredJob } = require('./desired-job-processor');
+const { deriveValidatedDocument } = require('./derived-document-indexer');
 
 const opened = [];
 function loadDatabase(role) {
@@ -25,6 +27,7 @@ let ledger = null;
 let keyword = null;
 let started = false;
 let keywordReady = false;
+let keywordDiagnosticCode = 'keyword_index_missing';
 let lastSnapshot = null;
 const seen = new Set();
 let sequence = 0;
@@ -36,6 +39,59 @@ let ingressRoot = null;
 let replayTimer = null;
 let replayDelay = 250;
 let recoveryCursor = '';
+let draining = false;
+let drainRequested = false;
+let drainTimer = null;
+let drainDelay = 250;
+let derivationEnabled = false;
+
+// @req FR-DOC-019 DR-DOC-014
+function scheduleDesiredDrain(delay = 0) {
+  if (closing || !derivationEnabled || !ledger || !keyword || !sourceRoot || !ingressRoot) return;
+  if (draining) { drainRequested = true; return; }
+  if (drainTimer) return;
+  drainTimer = setTimeout(() => { drainTimer = null; void drainDesiredPage(); }, delay);
+}
+
+async function drainDesiredPage() {
+  if (closing || draining) return;
+  draining = true;
+  let retry = false;
+  let more = false;
+  try {
+    const pending = ledger.getPendingDesiredPage({ limit: 16 });
+    for (const item of pending) {
+      if (closing) break;
+      const claim = ledger.claimDesiredJob(item);
+      if (!claim) continue;
+      const result = await runClaimedDesiredJob({ ledger, claim, storeRoot: sourceRoot, ingressRoot,
+        onValidated: async () => {},
+        onFinalValidated: validated => deriveValidatedDocument({ ledger, keyword, claim,
+          storeRoot: sourceRoot, validated,
+          deferKeyword: keywordDiagnosticCode === 'keyword_source_mismatch'
+            || keywordDiagnosticCode === 'keyword_tokenizer_mismatch' }) });
+      if (!result.completed) retry = true;
+      else {
+        if (keywordDiagnosticCode === 'keyword_index_missing') {
+          keywordReady = Boolean(keyword.getCommittedGeneration());
+          if (keywordReady) keywordDiagnosticCode = null;
+        }
+        status(keywordReady ? 'ready' : 'stale', keywordDiagnosticCode);
+      }
+    }
+    more = pending.length === 16;
+  } catch {
+    retry = true;
+  } finally {
+    draining = false;
+    if ((more || drainRequested) && !retry) scheduleDesiredDrain();
+    drainRequested = false;
+    if (retry) {
+      scheduleDesiredDrain(drainDelay);
+      drainDelay = Math.min(drainDelay * 2, 30000);
+    } else drainDelay = 250;
+  }
+}
 
 function resumeInterruptedJobs() {
   if (closing || !ledger) return;
@@ -59,6 +115,7 @@ function resumePrivateIntents() {
         storeRoot: sourceRoot });
       if (reply.accepted) {
         progressed = true;
+        scheduleDesiredDrain();
         if (workerData?.r3ReplayFixture === true) status('stale', null, { phase: 'r3_replay_accepted' });
       } else {
         failed = true;
@@ -168,6 +225,7 @@ async function dispatch(message) {
       const config = message.ownerConfig || {};
       sourceRoot = config.sourceRoot || null;
       ingressRoot = config.ingressRoot || null;
+      derivationEnabled = config.deriveDocuments === true;
       const tokenizer = createKeywordTokenizer({
         provider: config.keywordTokenizerProvider || 'garu',
         maxAnalysisChars: config.keywordTokenizerMaxAnalysisChars
@@ -207,6 +265,7 @@ async function dispatch(message) {
         }
       }
       keywordReady = !keywordDiagnostic;
+      keywordDiagnosticCode = keywordDiagnostic;
       status(keywordDiagnostic ? 'stale' : 'ready', keywordDiagnostic);
       const ledgerOpen = opened.find(item => item.role === 'ledger');
       const keywordOpen = opened.find(item => item.role === 'keyword');
@@ -214,6 +273,7 @@ async function dispatch(message) {
         ledgerOpenThreadId: ledgerOpen.threadId, keywordOpenThreadId: keywordOpen.threadId, openCount: opened.length
       } });
       resumePrivateIntents();
+      scheduleDesiredDrain();
     } catch {
       status('failed');
       parentPort.postMessage({ tag: 'START', state: 'failed', error: { code: 'owner_start_failed' } });
@@ -226,6 +286,7 @@ async function dispatch(message) {
   if (tag === 'SHUTDOWN') {
     closing = true;
     if (replayTimer) clearTimeout(replayTimer);
+    if (drainTimer) clearTimeout(drainTimer);
     status('shutdown');
     if (ledger) ledger.close();
     if (keyword) keyword.close();
@@ -261,7 +322,9 @@ async function dispatch(message) {
       result(id, { cancelled });
     } else if (tag === 'COMMAND' && type === 'accept_save') {
       if (!Number.isInteger(payload.r3SchedulerUnits)) {
-        result(id, acceptPublishedSave(payload));
+        const accepted = acceptPublishedSave(payload);
+        result(id, accepted);
+        if (accepted.accepted) scheduleDesiredDrain();
         return;
       }
       if (!fixtureWrite || !Number.isInteger(payload.r3SchedulerUnits) || payload.r3SchedulerUnits < 1 ||

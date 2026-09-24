@@ -768,11 +768,16 @@ class SourceLedgerStore {
       if (prior) return { documentId: prior.document_id, desiredRevision: prior.desired_revision,
         jobId: prior.job_id, receiptKind: prior.receipt_kind };
       const acceptedMetadata = existing ? JSON.parse(existing.metadata_json || '{}') : {};
-      const tags = new Set(existing ? safeJsonArray(existing.document_tags_json) : []);
+      const validTag = value => typeof value === 'string' && value.trim()
+        && !/^[\[{]/.test(value.trim());
+      const validCategory = value => typeof value === 'string' && validTag(value);
+      const tags = new Set((existing ? safeJsonArray(existing.document_tags_json) : []).filter(validTag));
       for (const intent of [...historical, current]) {
         for (const [key, value] of Object.entries(intent.provenance.metadata)) {
           if (key === 'documentTags') {
-            for (const tag of value) tags.add(tag);
+            for (const tag of value) if (validTag(tag)) tags.add(tag);
+          } else if (key === 'category' && !validCategory(value)) {
+            continue;
           } else if (value !== '' && value !== null) {
             acceptedMetadata[key] = value;
           }
@@ -780,7 +785,9 @@ class SourceLedgerStore {
       }
       for (const [key, value] of Object.entries(finalMetadata)) {
         if (key === 'documentTags' && Array.isArray(value)) {
-          for (const tag of value) tags.add(tag);
+          for (const tag of value) if (validTag(tag)) tags.add(tag);
+        } else if (key === 'category' && !validCategory(value)) {
+          continue;
         } else if (value !== '' && value !== null) {
           acceptedMetadata[key] = value;
         }

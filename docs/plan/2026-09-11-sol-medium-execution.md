@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S11 #34](https://github.com/ice3x2/DocuLightViewer/issues/34) · 다음 [S12 #35](https://github.com/ice3x2/DocuLightViewer/issues/35).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S12 #35](https://github.com/ice3x2/DocuLightViewer/issues/35) · 다음 [S13 #36](https://github.com/ice3x2/DocuLightViewer/issues/36).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `11/36` 완료(S01~S11)다. private owner에서 최신 파일 재검증과 requested revision 완료 판정, 실패·취소·중단 job의 재시도까지 검증했다. 파생 검색 데이터 갱신은 [S12 #35](https://github.com/ice3x2/DocuLightViewer/issues/35), 제품 저장 경로 연결은 S14~S16, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
+실행 이슈는 `12/36` 완료(S01~S12)다. private owner에서 최신 파일 재검증·완료 판정과 문서별 metadata/chunk/link/FTS 파생 갱신을 검증했다. 링크 그래프 복구는 [S13 #36](https://github.com/ice3x2/DocuLightViewer/issues/36), 제품 저장 경로 연결은 S14~S16, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -126,3 +126,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S11 실제 FS·SQLite RED/GREEN 및 독립 검토 보완](../analysis/2026-09-25-s11-revision-evidence.md): claim revision/hash, S08 root 게시 잠금 아래 최종 파일 재검증과 완료 CAS, 새 desired revision, 실패·취소·중단된 claim의 재시작 retry를 확인했다. 문서 외 `keyword_rebuild` job 불변 조건도 RED/GREEN으로 검증했다. S11 24, S10 46, S09 37, S08 53 assertions가 통과했다. S20 #43의 cross-controller owner exclusivity와 첫 복구 페이지의 START-ready 이전 실행은 별도 후속 범위다.
 - [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·실행 증거를 확인했다. [최신 revision 검토](../analysis/2026-09-25-s11-latest-review.json)와 [TDD·호환 검토](../analysis/2026-09-25-s11-tdd-review.json)는 차단 결함 0건이다. S12가 parser/classifier/chunks/FTS derivative write를 소유하며 S11은 검증된 입력만 인계한다.
 - [x] #34 완료 조건 검토 뒤 이슈 본문·댓글·close와 최종 SHA를 연결한다. 다음 작업은 [S12 #35](https://github.com/ice3x2/DocuLightViewer/issues/35)이다.
+
+## S12 진행 기록 — 독립 검토 완료
+
+- 시작 SHA `d421a49730d635b75cf58c3eda4bbdccfc28605e`; 격리 worktree `DocuLightViewer-r3`.
+- [x] [S12 RED/GREEN 및 파생 색인 증거](../analysis/2026-09-25-s12-derivation-evidence.md): 문서별 ledger transaction, revision guard, keyword FTS replace, durable dirty retry, 원본 alias/사용자 metadata 보존을 확인했다.
+- [x] 원 요구사항·diff·실행 증거에 대한 작성자 외 [데이터 정합성 검토](../analysis/2026-09-25-s12-data-review.json)와 [TDD·호환 검토](../analysis/2026-09-25-s12-tdd-review.json)를 마쳤다. 출발점의 캐시 호환성·메타데이터·revision 문제와 인라인 태그 파서 회귀를 고친 최종 해시에서 차단 결함 0건이다. S12 28 assertions, S11/S10/S09/S08/S06와 keyword·ledger 계약 검증이 통과했다.
+- [x] #35 완료 판정, 체크박스·댓글·close, 최종 SHA 연결. 다음 작업 [S13 #36](https://github.com/ice3x2/DocuLightViewer/issues/36).

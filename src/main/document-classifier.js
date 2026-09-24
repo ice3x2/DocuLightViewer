@@ -177,20 +177,31 @@ function normalizeTags(value, diagnostics) {
   if (value == null) return { tags: [] };
   const raw = String(value).trim();
   if (!raw) return { tags: [] };
-  if (looksStructuredYamlScalar(raw)) {
+  const inlineList = raw.startsWith('[') && raw.endsWith(']');
+  if (!inlineList && looksStructuredYamlScalar(raw)) {
     diagnostics.push({ field: 'documentTags', reason: 'unsupported_structured_scalar' });
     return { tags: [] };
   }
-  const withoutBrackets = raw.startsWith('[') && raw.endsWith(']') ? raw.slice(1, -1) : raw;
-  return { tags: [...new Set(withoutBrackets
+  const withoutBrackets = inlineList ? raw.slice(1, -1) : raw;
+  if (inlineList && /[\[\]{}]/.test(withoutBrackets)) {
+    diagnostics.push({ field: 'documentTags', reason: 'unsupported_structured_scalar' });
+    return { tags: [] };
+  }
+  const tags = withoutBrackets
     .split(/[,\n]/)
     .map((tag) => normalizeScalar(tag.replace(/^[-\s]+/, '')))
-    .filter(Boolean))] };
+    .filter((tag) => {
+      if (!tag) return false;
+      if (!looksStructuredYamlScalar(tag)) return true;
+      diagnostics.push({ field: 'documentTags', reason: 'unsupported_structured_scalar' });
+      return false;
+    });
+  return { tags: [...new Set(tags)] };
 }
 
 function looksStructuredYamlScalar(value) {
   const raw = String(value || '').trim();
-  return (raw.startsWith('{') && raw.endsWith('}')) || (raw.startsWith('[') && raw.endsWith(']') && /:/.test(raw));
+  return /^[\[{]/.test(raw);
 }
 
 function inferCategoryFromTitleAndText(filePath, body) {

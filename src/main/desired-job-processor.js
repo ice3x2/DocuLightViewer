@@ -5,7 +5,7 @@ const { readValidatedMarkdownCandidate } = require('./indexed-origin-resolver');
 const { withPublicationGate } = require('./index-ingress-store');
 
 // @req FR-DOC-019 REL-DOC-009
-async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onValidated, afterFinalRead }) {
+async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onValidated, onFinalValidated, afterFinalRead }) {
   const target = ledger.open().prepare(`SELECT d.relative_path AS relativePath,
     d.metadata_json AS metadataJson, s.root_path_internal AS sourceRoot
     FROM documents d JOIN sources s ON s.source_id = d.source_id WHERE d.document_id = ?`)
@@ -58,6 +58,8 @@ async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onV
         return { completed: false, cancelled: true };
       }
       if (afterFinalRead) await afterFinalRead();
+      if (onFinalValidated) await onFinalValidated({ ...validated, content: latest.content,
+        hash: latest.contentHash });
       return { completed: ledger.completeClaimedJob({ claim, actualFileHash: latest.contentHash }) };
     });
   } catch {

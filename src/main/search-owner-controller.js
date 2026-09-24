@@ -76,6 +76,7 @@ class OwnerWorkerController {
       keywordPath: this.config.keywordPath,
       sourceRoot: this.config.sourceRoot,
       ingressRoot: this.config.ingressRoot,
+      deriveDocuments: this.config.deriveDocuments === true,
       keywordTokenizerProvider: this.config.keywordTokenizerProvider || 'garu',
       keywordTokenizerMaxAnalysisChars: this.config.keywordTokenizerMaxAnalysisChars
     } });

@@ -1,0 +1,25 @@
+{
+  "issue": 35,
+  "review": "S12 independent data and atomicity review",
+  "baselineCommit": "d421a49730d635b75cf58c3eda4bbdccfc28605e",
+  "sourceHash": "c231ea047724ae28477b31496b266b4d5474e8166747b683fb2aa6aeaac7e368",
+  "requirements": ["FR-DOC-019", "REL-DOC-004", "DR-DOC-007", "DR-DOC-008", "DR-DOC-014"],
+  "result": "PASS",
+  "findings": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "checks": [
+    "Per-document ledger transaction guards the active job, desired revision and content hash, and rolls back metadata, chunks and links together on injected failure.",
+    "Per-document keyword transaction replaces segments and FTS rows atomically; an injected keyword failure retains the prior cache and durable keyword_dirty marker for retry.",
+    "A source-root or tokenizer mismatch keeps the committed cache and stale diagnostic unchanged. New saved documents derive into the ledger without making incompatible keyword rows queryable.",
+    "Malformed category and YAML-list documentTags do not erase or pollute prior valid user metadata; source aliases and document identity remain intact.",
+    "Flat inline YAML tag lists normalize, while nested list and object fragments yield no indexed tags and a parse diagnostic.",
+    "A cache revision ahead of the authoritative ledger is replaced by the guarded ledger revision, and retry clears keyword_dirty only after keyword commit."
+  ],
+  "focusedEvidence": [
+    { "command": "node test/r3/run-node.cjs --case s12", "result": "PASS case=s12 assertions=28", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/test-sqlite-keyword-index-contract.js", "result": "all assertions passed" },
+    { "command": "node test/test-wave2-ledger-contract.js", "result": "all assertions passed" },
+    { "command": "direct DocumentClassifier parser matrix", "result": "[alpha, beta] and alpha, beta normalize without diagnostic; nested list/object fragments produce no tags with diagnostic" },
+    { "command": "git diff --check", "result": "exit 0" }
+  ],
+  "contractNote": "On an incompatible cache, completed_revision may equal desired_revision while keyword_dirty remains 1. This records completed authoritative derivation and a deferred keyword cache; the stale diagnostic and Settings rebuild requirement prevent exposure of the old cache. Transient keyword commit failures instead keep a retryable desired job."
+}

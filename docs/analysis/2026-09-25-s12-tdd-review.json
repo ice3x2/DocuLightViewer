@@ -1,0 +1,45 @@
+{
+  "review": "S12 independent TDD and compatibility",
+  "issue": 35,
+  "requirements": ["FR-DOC-019", "REL-DOC-004", "DR-DOC-007", "DR-DOC-008", "DR-DOC-014"],
+  "verdict": "PASS",
+  "sourceSnapshotSha256": "c231ea047724ae28477b31496b266b4d5474e8166747b683fb2aa6aeaac7e368",
+  "reviewedFileSha256": {
+    "src/main/desired-job-processor.js": "432d384122be69f64550ec7d3349a962d21ba85fc9348b4639a0af9e391481f0",
+    "src/main/search-owner-controller.js": "9737205f7e01ccb271f60ccaed8b2615cdd4438d94e8ec14d94630f2ec12158b",
+    "src/main/search-owner-worker.js": "34e967563c3e562e9ccb0d1b19b56a469dd7b3de3a1f24b9698fa667a0de4fe3",
+    "src/main/search-sqlite-store.js": "8c296a5908d32340fdb11f67a379b705898f3cf2e4cb69c64e696eb63830e0aa",
+    "src/main/source-ledger-store.js": "cbbd5d0db7d112268276bae025472379a161712cfea77b9f531bd785cb96733e",
+    "src/main/document-classifier.js": "1e005b12f8bc940f065a8592615be42249308f20a7e492977d9d1a6ddebb355",
+    "src/main/derived-document-indexer.js": "1b33d1fdee5a5e05c3d3dfec095d893c00d1a9c300a6c3e2cef4e865f77c5157",
+    "test/r3/cases/s12.cjs": "6e60992fd625e7e2ef93af248bf6da481f7ee9e5712cc82520d82e9fdaaaed5e",
+    "test/r3/node-main.cjs": "966adeaa2ddd9a6e2f8447629cf0351a1d8df3432367ccec883bf3af2787c76d",
+    "test/r3/run-node.cjs": "938d9059448fb191f68a7f3f6ed8570e7b894812c5d4e2d0d5da5dca185a491a",
+    "docs/analysis/2026-09-25-s12-derivation-evidence.md": "72b6d324c5a68425ec9c5021ac36084d68ff61b293122f799a4aee56865eef61"
+  },
+  "verification": {
+    "independentFocusedRuns": [
+      "s12: exit 0, PASS case=s12 assertions=28",
+      "s11: exit 0, PASS case=s11 assertions=24",
+      "s10: exit 0, PASS case=s10 assertions=46",
+      "s09: exit 0, PASS case=s09 assertions=37",
+      "s08: exit 0, PASS case=s08 assertions=53",
+      "s06: exit 0, PASS case=s06 assertions=42",
+      "test-sqlite-keyword-index-contract: exit 0",
+      "test-wave2-ledger-contract: exit 0",
+      "git diff --check: exit 0"
+    ],
+    "semanticRedEvidence": "Author evidence records exit-1 ASSERTION_FAIL results before implementation and for root mismatch, malformed prior metadata, cache revision ahead of ledger, bracketed category/tags, valid inline tags, and malformed nested inline tags. Each RED names a behavioral assertion; setup and ABI failures were excluded.",
+    "redChronologyLimit": "The preimplementation RED transcripts and source snapshots were not retained. Chronology is author-reported; the repaired tests and final outcomes were independently inspected and run."
+  },
+  "assessment": [
+    "S11 final file validation gates document derivation. One ledger transaction commits classification, chunks, links and revision guard; a separate short keyword transaction replaces all old FTS rows for the document. Fault injection verifies ledger rollback, keyword rollback, durable keyword_dirty, retry and latest-only search results.",
+    "Source-ledger accepted category and tags survive later malformed frontmatter. Classification records diagnostics for bracketed category, nested list or object tag values; valid flat inline tag lists and comma-separated strings remain usable. Tests add these cases without weakening earlier assertions.",
+    "A source-root or tokenizer mismatch stays stale and does not expose incompatible keyword rows after a save. An authoritative ledger revision replaces a derivative cache revision ahead of it. The private owner drains saved work without adding a public index_document command or starting an unconditional rebuild."
+  ],
+  "documentedLimits": [
+    "The owner derivation path is private and opt-in until a later producer transition connects product save paths.",
+    "An incompatible committed keyword cache keeps keyword_dirty set until an explicit Settings rebuild."
+  ],
+  "findings": []
+}

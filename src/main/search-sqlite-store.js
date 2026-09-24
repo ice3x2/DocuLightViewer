@@ -129,6 +129,7 @@ class SQLiteKeywordIndex {
     `);
     this._ensureColumn('keyword_documents', 'category', 'TEXT');
     this._ensureColumn('keyword_documents', 'document_tags_json', "TEXT NOT NULL DEFAULT '[]'");
+    this._ensureColumn('keyword_documents', 'source_revision', 'INTEGER NOT NULL DEFAULT 0');
 
     this.db.prepare(`
       INSERT INTO keyword_index_meta(key, value)
@@ -141,6 +142,47 @@ class SQLiteKeywordIndex {
     const rows = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
     if (rows.some((row) => row.name === columnName)) return;
     this.db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`).run();
+  }
+
+  // @req FR-DOC-019 REL-DOC-004
+  replaceDocument(item, { beforeCommit } = {}) {
+    const db = this.open();
+    const now = new Date().toISOString();
+    return db.transaction(() => {
+      const committed = this.getCommittedGeneration();
+      if (committed) {
+        const metadata = this.loadIndexMetadata();
+        const expected = this.tokenizer.getIndexMetadata();
+        if (normalizeSourceRoot(metadata.source_root) !== this.sourceRoot
+          || Object.entries(expected).some(([key, value]) => metadata[key] !== String(value || ''))) {
+          const error = new Error('Keyword cache is incompatible; Settings rebuild required');
+          error.code = 'SQLITE_KEYWORD_INDEX_INCOMPATIBLE';
+          throw error;
+        }
+      }
+      db.prepare('DELETE FROM keyword_fts WHERE file_path = ?').run(item.filePath);
+      db.prepare('DELETE FROM keyword_segments WHERE file_path = ?').run(item.filePath);
+      db.prepare('DELETE FROM keyword_documents WHERE file_path = ?').run(item.filePath);
+      if (beforeCommit) beforeCommit();
+      db.prepare(`INSERT INTO keyword_documents(file_path, title, project, doc_name, doc_type,
+        category, document_tags_json, description, date, git_branch, git_last_commit, snippet,
+        content_hash, updated_at, source_revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(item.filePath, item.meta.title, item.meta.project, item.meta.docName,
+          item.meta.docType, item.meta.category, JSON.stringify(item.meta.documentTags || []),
+          item.meta.description, item.meta.date, item.meta.gitBranch, item.meta.gitLastCommit,
+          item.meta.snippet, item.contentHash, now, item.revision);
+      const insertSegment = db.prepare(`INSERT INTO keyword_segments(file_path, ordinal, search_text, text_hash)
+        VALUES (?, ?, ?, ?)`);
+      const insertFts = db.prepare('INSERT INTO keyword_fts(rowid, search_text, file_path, segment_id) VALUES (?, ?, ?, ?)');
+      for (const segment of item.segments) {
+        const inserted = insertSegment.run(item.filePath, segment.ordinal, segment.searchText, segment.textHash);
+        insertFts.run(inserted.lastInsertRowid, segment.searchText, item.filePath, inserted.lastInsertRowid);
+      }
+      setMetaValue(db, 'source_root', this.sourceRoot || '');
+      if (!this.getCommittedGeneration()) setMetaValue(db, 'committed_generation', 'incremental');
+      for (const [key, value] of Object.entries(this.tokenizer.getIndexMetadata())) setMetaValue(db, key, value);
+      return true;
+    })();
   }
 
   rebuild(documents, options = {}) {
