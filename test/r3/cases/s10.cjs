@@ -95,16 +95,15 @@ module.exports = { async run(context) {
     const afterDb = ledger.open();
     const afterD = afterDb.prepare('SELECT * FROM documents WHERE document_id = ?').get(doc.document_id);
     context.assert(afterD.desired_content_hash === `sha256:${sha(changed)}` && afterD.dirty === 1
-      && afterD.keyword_dirty === 1 && afterD.active_requested_revision === 1,
-      'active revision stays old while D remains dirty and keyword dirty');
+      && afterD.keyword_dirty === 1 && afterD.active_requested_revision === 2,
+      'owner restart retires interrupted claim while D remains dirty and keyword dirty');
     context.assert(afterDb.prepare("SELECT COUNT(*) AS n FROM index_jobs WHERE document_id = ? AND status = 'indexing'")
-      .get(doc.document_id).n === 1,
-      'only one active indexing job exists while D waits');
-    context.assert(ledger.claimDesiredJob({ documentId: doc.document_id, desiredRevision: 2 }) === null,
-      'D cannot claim a second active job before the old job ends');
-    ledger.updateIndexJob(claimed.jobId, { status: 'cancelled', finishedAt: true });
+      .get(doc.document_id).n === 0,
+      'startup recovery leaves no interrupted indexing job active');
+    context.assert(afterDb.prepare('SELECT status FROM index_jobs WHERE job_id = ?').get(claimed.jobId).status === 'failed',
+      'interrupted old job is terminal without replacing D');
     context.assert(fs.readFileSync(path.join(storeRoot, 'same.md')).equals(changed),
-      'cancelling old indexing does not delete the saved D file');
+      'reconciling old indexing does not delete the saved D file');
     const dClaim = ledger.claimDesiredJob({ documentId: doc.document_id, desiredRevision: 2 });
     context.assert(dClaim && dClaim.jobId === afterD.current_job_id,
       'dirty D becomes claimable after the old active job is cancelled');
@@ -170,21 +169,28 @@ module.exports = { async run(context) {
   faultDb.open().exec("CREATE TRIGGER s10_transient BEFORE INSERT ON index_jobs BEGIN SELECT RAISE(ABORT, 'transient'); END");
   faultDb.close();
   const retryingOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    ingressRoot, keywordTokenizerProvider: 'basic' });
+    ingressRoot, keywordTokenizerProvider: 'basic', r3ReplayFixture: true });
   try {
-    await retryingOwner.start();
-    await new Promise(resolve => setTimeout(resolve, 100));
+    const start = retryingOwner.start();
+    const replayEvent = phase => new Promise(resolve => {
+      const listener = message => {
+        if (message.tag !== 'STATUS' || message.snapshot?.phase !== phase) return;
+        retryingOwner.worker.off('message', listener);
+        resolve();
+      };
+      retryingOwner.worker.on('message', listener);
+    });
+    const failedReplay = replayEvent('r3_replay_failed');
+    await start;
+    await failedReplay;
     context.assert(fs.existsSync(path.join(ingressRoot, `${transient.intentId}.intent.json`)),
       'transient owner commit failure keeps the private intent and published file');
+    const acceptedReplay = replayEvent('r3_replay_accepted');
     faultDb.open().exec('DROP TRIGGER s10_transient');
     faultDb.close();
-    let recovered;
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      recovered = faultDb.open().prepare("SELECT * FROM documents WHERE relative_path = 'retry-startup.md'").get();
-      faultDb.close();
-      if (recovered) break;
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
+    await acceptedReplay;
+    const recovered = faultDb.open().prepare("SELECT * FROM documents WHERE relative_path = 'retry-startup.md'").get();
+    faultDb.close();
     context.assert(recovered && recovered.desired_content_hash === `sha256:${sha(transientBytes)}`,
       'owner retries a transient startup acceptance failure without a caller re-save');
   } finally { faultDb.close(); await retryingOwner.shutdown(); }

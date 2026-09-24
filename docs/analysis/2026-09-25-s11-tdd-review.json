@@ -1,0 +1,38 @@
+{
+  "review": "S11 independent TDD and compatibility",
+  "issue": 34,
+  "requirements": ["FR-DOC-019", "REL-DOC-009"],
+  "verdict": "PASS",
+  "sourceSnapshotSha256": "b91adc9d7d5e89dcaeed6fe61acc0b3fc477f405e876c2161dc9696d500f96c3",
+  "reviewedFileSha256": {
+    "src/main/index-ingress-store.js": "f4d4f30b9d750f6212c23c4f7aeb80397566f03e3d304f354d511cf11a5582d7",
+    "src/main/search-owner-worker.js": "6b80b0af134743edafe0bc829be348d98a48116b4c4e1a26590f4d7aca281879",
+    "src/main/source-ledger-store.js": "fa8c5144e4fc57fd21ae5d1418ab548bdec267441d811f760fbed122ffe1bdae",
+    "src/main/desired-job-processor.js": "c1562e84f28571723fb18d57ebd2d8a5ede75eac1d4f0cb7f8fb125edb5a5bde",
+    "test/r3/cases/s11.cjs": "aca3f947d9bc1d6147dd05ec1c3759b5f6c0641b1f7800592fc264765c8a487c",
+    "test/r3/cases/s10.cjs": "9cf2ed9754404d8837ed14dd1f549479a6669c71aef3f57a5442591c44b174d0",
+    "test/r3/fixtures/s11-publisher.cjs": "2850727c420c6b51c2f22dcd02b26cd64aa52db8ea69870a54874bfff2d4f15f",
+    "docs/analysis/2026-09-25-s11-revision-evidence.md": "2d898b05c119b929200f8b0368eb608f7e19a807d9eef4e1b6ce8ee987048dd6"
+  },
+  "verification": {
+    "independentFocusedRuns": [
+      "s11: exit 0, PASS case=s11 assertions=24",
+      "s10: exit 0, PASS case=s10 assertions=46",
+      "s08: exit 0, PASS case=s08 assertions=53"
+    ],
+    "authorReportedAdjacentRun": "s09: exit 0, PASS case=s09 assertions=37",
+    "semanticRedEvidence": "The evidence records exit-1 ASSERTION_FAIL results for the initial revision/hash claim, wrong-hash retry discovery, cancel_requested, abrupt restart recovery, final-read publication gap, and unrelated keyword_rebuild preservation. Setup and ABI errors were excluded.",
+    "redChronologyLimit": "Original preimplementation RED transcripts and source snapshots were not retained; the chronology is author-reported and cannot be reconstructed from the final tree."
+  },
+  "assessment": [
+    "S11 uses real temporary Markdown files and SQLite. Awaited save callbacks and publisher IPC establish the A/B/C and final-read race barriers without fixed sleeps. Successful D completion asserts completed revision, current hash, and an empty pending page.",
+    "The processor reads bounded contained bytes through one handle, holds the S08 publication gate across its final read and short completion transaction, and passes validated documentId, revision, content, hash, and metadata to the S12 boundary. The CAS rejects stale revisions, wrong hashes, and cancel_requested while retaining retryable current work.",
+    "Startup recovery enumerates only interrupted index_document jobs, leaves unrelated keyword_rebuild jobs unchanged, retries the current interrupted revision, and retires an older interrupted claim without replacing the newer queued job. The publisher child disconnects in finally.",
+    "S10 changed an interrupted-job expectation to match startup recovery while preserving its 46 assertions and newer dirty/file checks. S08 is unchanged and passes after the publication-gate refactor. No public MCP or worker command was added."
+  ],
+  "documentedLimits": [
+    "S11 establishes the private owner-side processor and ledger contract; S12 owns keyword/chunk derivative publication and later issues own product producer integration.",
+    "Cross-controller owner exclusion and moving the first bounded recovery page after START ready are tracked for S20."
+  ],
+  "findings": []
+}

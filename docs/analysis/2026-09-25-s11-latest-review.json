@@ -1,0 +1,40 @@
+{
+  "review": "S11 independent latest-wins and data review",
+  "date": "2026-09-25",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/34",
+  "requirements": ["FR-DOC-019", "REL-DOC-009"],
+  "baseCommit": "2b918e6ad4bedf3f62f2802ca7151edcf962e948",
+  "frozenSourceHash": "b91adc9d7d5e89dcaeed6fe61acc0b3fc477f405e876c2161dc9696d500f96c3",
+  "focusedRun": {
+    "command": "node test/r3/run-node.cjs --case s11",
+    "environment": "Windows x64; existing Node ABI 137 snapshot",
+    "exitCode": 0,
+    "output": "PASS case=s11 assertions=24",
+    "observedByReviewer": true
+  },
+  "assessment": "PASS for S11 private single-controller completion-guard scope",
+  "criticalFindings": [],
+  "highFindings": [],
+  "verified": [
+    "Claim captures requested revision and desired hash; the contained bounded same-handle reader supplies actual Markdown bytes and hash before processing and again before completion.",
+    "The shared publication gate spans final read and SQLite completion CAS; a separate cooperative publisher waits until the old completion ends, then its save becomes a newer desired revision.",
+    "Completion compares requested/current revision, current job identity, active requested revision, desired hash, actual file hash and cancellation state. A or B cannot complete after a newer save or clear its dirty pending job.",
+    "A file mismatch assigns one owner revision and queued job for the observed hash; repeating the old observation does not keep incrementing revision.",
+    "Rejected current completion, cancellation and failure create an enumerable retry in the same source-ledger transaction without deleting the published Markdown.",
+    "Owner startup recovers an interrupted current document job into pending work, retires an older interrupted claim without replacing a newer winner, and leaves an unrelated keyword_rebuild indexing job untouched.",
+    "The S10 retry fixture now waits for explicit failed and accepted replay events and retains its SQLite and file assertions. No public MCP or worker wire type was added."
+  ],
+  "residuals": [
+    {
+      "severity": "MEDIUM",
+      "location": "src/main/search-owner-worker.js:179",
+      "description": "The first bounded 32-job recovery page runs before START-ready. Later pages yield. FR-DOC-019 AC-9 asynchronous startup timing and a ready-before-recovery barrier remain assigned to S20 issue #43 before product cutover."
+    },
+    {
+      "severity": "LOW",
+      "location": "src/main/search-owner-controller.js:43",
+      "description": "The private route assumes one live controller. Process-wide owner exclusivity and safe dead-owner recovery are explicitly assigned to S20 issue #43 before product cutover."
+    }
+  ],
+  "scopeBoundary": "S11 provides a tested private completion guard and validated handoff. S12 issue #35 attaches parser/classifier/chunk/FTS writes; later producer integration and S20 owner startup controls are separate release gates. S11 does not establish public search freshness."
+}

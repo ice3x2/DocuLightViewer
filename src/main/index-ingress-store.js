@@ -184,7 +184,11 @@ function readPendingSave({ ingressRoot, storeRoot, intentId }) {
 
 // @req REL-DOC-009 FR-DOC-028
 async function publishSave(input) {
-  const privateRoot = path.resolve(input.ingressRoot);
+  return withPublicationGate(input.ingressRoot, () => publishSaveLocked(input));
+}
+
+async function withPublicationGate(ingressRoot, action) {
+  const privateRoot = path.resolve(ingressRoot);
   if (!fs.existsSync(privateRoot) || fs.lstatSync(privateRoot).isSymbolicLink()) throw fail('path_policy_violation');
   let release;
   const deadline = Date.now() + 1000;
@@ -195,7 +199,7 @@ async function publishSave(input) {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
   }
-  try { return publishSaveLocked(input); }
+  try { return await action(); }
   finally { release(); }
 }
 
@@ -396,4 +400,4 @@ function publishSaveLocked(input) {
   }
 }
 
-module.exports = { publishSave, readPendingSave };
+module.exports = { publishSave, readPendingSave, withPublicationGate };

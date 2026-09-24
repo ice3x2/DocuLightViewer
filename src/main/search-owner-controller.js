@@ -44,7 +44,8 @@ class OwnerWorkerController {
     this.usedIds.clear();
     this.workerSequence = 0;
     const worker = new Worker(this.config.workerPath || path.join(__dirname, 'search-owner-worker.js'), {
-      workerData: { r3SchedulerFixture: this.config.r3SchedulerFixture === true }
+      workerData: { r3SchedulerFixture: this.config.r3SchedulerFixture === true,
+        r3ReplayFixture: this.config.r3ReplayFixture === true }
     });
     this.worker = worker;
     this.ready = new Promise((resolve, reject) => {

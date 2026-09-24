@@ -35,6 +35,14 @@ let sourceRoot = null;
 let ingressRoot = null;
 let replayTimer = null;
 let replayDelay = 250;
+let recoveryCursor = '';
+
+function resumeInterruptedJobs() {
+  if (closing || !ledger) return;
+  const page = ledger.reconcileInterruptedDesiredPage({ afterJobId: recoveryCursor, limit: 32 });
+  recoveryCursor = page.afterJobId;
+  if (page.hasMore) setImmediate(resumeInterruptedJobs);
+}
 
 function resumePrivateIntents() {
   if (!ingressRoot || closing) return;
@@ -49,8 +57,13 @@ function resumePrivateIntents() {
     if (cursor < names.length) {
       const reply = acceptPublishedSave({ ingressRoot, intentId: names[cursor++].slice(0, 64),
         storeRoot: sourceRoot });
-      if (reply.accepted) progressed = true;
-      else failed = true;
+      if (reply.accepted) {
+        progressed = true;
+        if (workerData?.r3ReplayFixture === true) status('stale', null, { phase: 'r3_replay_accepted' });
+      } else {
+        failed = true;
+        if (workerData?.r3ReplayFixture === true) status('stale', null, { phase: 'r3_replay_failed' });
+      }
       setImmediate(unit);
       return;
     }
@@ -165,6 +178,7 @@ async function dispatch(message) {
         tokenizer,
         loadDatabase: () => loadDatabase('keyword') });
       ledger.initialize();
+      resumeInterruptedJobs();
       keyword.open();
       if (workerData?.r3SchedulerFixture === true) {
         const db = keyword.open();

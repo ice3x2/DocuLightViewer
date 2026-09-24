@@ -362,6 +362,7 @@ class SourceLedgerStore {
     this.ensureColumn('documents', 'current_job_id', 'TEXT');
     this.ensureColumn('documents', 'desired_content_hash', 'TEXT');
     this.ensureColumn('documents', 'active_requested_revision', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'completed_revision', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'dirty', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'keyword_dirty', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'accepted_intent_id', 'TEXT');
@@ -870,8 +871,115 @@ class SourceLedgerStore {
         updated_at = ? WHERE job_id = ?`).run(now, now, now, row.current_job_id);
       db.prepare('UPDATE documents SET active_requested_revision = ?, dirty = 0 WHERE document_id = ?')
         .run(desiredRevision, documentId);
-      return { documentId, desiredRevision, jobId: row.current_job_id,
+      return { documentId, requestedRevision: desiredRevision, desiredRevision, jobId: row.current_job_id,
         desiredContentHash: row.desired_content_hash };
+    })();
+  }
+
+  // @req FR-DOC-019 REL-DOC-009
+  reconcileInterruptedDesiredPage({ afterJobId = '', limit = 32 } = {}) {
+    this.assertWritable();
+    if (!Number.isInteger(limit) || limit < 1 || limit > 256) throw new Error('Invalid page limit');
+    const db = this.open();
+    const jobs = db.prepare(`SELECT job_id AS jobId, document_id AS documentId
+      FROM index_jobs WHERE job_type = 'index_document' AND status = 'indexing' AND job_id > ?
+      ORDER BY job_id LIMIT ?`).all(afterJobId, limit);
+    db.transaction(() => {
+      for (const job of jobs) {
+        const current = db.prepare('SELECT current_job_id FROM documents WHERE document_id = ?')
+          .get(job.documentId);
+        const now = this._now();
+        db.prepare('UPDATE index_jobs SET status = ?, finished_at = ?, updated_at = ? WHERE job_id = ?')
+          .run(current?.current_job_id === job.jobId ? 'failed' : 'cancelled', now, now, job.jobId);
+        if (current?.current_job_id === job.jobId) {
+          db.prepare('UPDATE documents SET dirty = 1, keyword_dirty = 1 WHERE document_id = ?')
+            .run(job.documentId);
+          this.scheduleDesiredRetry({ documentId: job.documentId, nextEligibleAt: now });
+        }
+      }
+    })();
+    return { afterJobId: jobs.at(-1)?.jobId || afterJobId, hasMore: jobs.length === limit };
+  }
+
+  // @req FR-DOC-019 REL-DOC-009
+  observeClaimedFileMismatch({ claim, actualFileHash, contentByteLength, contentTextLength }) {
+    this.assertWritable();
+    if (!/^sha256:[a-f0-9]{64}$/.test(actualFileHash || '')) throw new Error('Invalid actual file hash');
+    const db = this.open();
+    return db.transaction(() => {
+      const row = db.prepare('SELECT * FROM documents WHERE document_id = ?').get(claim.documentId);
+      const job = db.prepare('SELECT * FROM index_jobs WHERE job_id = ?').get(claim.jobId);
+      if (!row || !job || job.document_id !== claim.documentId) return null;
+      if (job.status !== 'indexing') return { stale: true, desiredRevision: row.desired_revision };
+      const now = this._now();
+      db.prepare("UPDATE index_jobs SET status = 'cancelled', finished_at = ?, updated_at = ? WHERE job_id = ?")
+        .run(now, now, claim.jobId);
+      if (row.desired_revision !== claim.requestedRevision || row.current_job_id !== claim.jobId) {
+        return { stale: true, desiredRevision: row.desired_revision };
+      }
+      if (row.desired_content_hash === actualFileHash) {
+        db.prepare('UPDATE documents SET dirty = 1, keyword_dirty = 1 WHERE document_id = ?').run(claim.documentId);
+        return { stale: true, desiredRevision: row.desired_revision };
+      }
+      const revision = row.desired_revision + 1;
+      const jobId = `job_observed_${claim.documentId}_${revision}`;
+      const source = db.prepare('SELECT root_path_internal FROM sources WHERE source_id = ?').get(row.source_id);
+      this.enqueueIndexJob({ jobId, sourceId: row.source_id, documentId: row.document_id,
+        jobType: 'index_document', status: 'queued', requestedBy: 'file_observation',
+        currentPathInternal: path.join(source.root_path_internal, row.relative_path),
+        contentHash: actualFileHash, contentByteLength, contentTextLength });
+      db.prepare(`UPDATE documents SET desired_revision = ?, desired_content_hash = ?,
+        current_job_id = ?, dirty = 1, keyword_dirty = 1,
+        next_eligible_at = NULL WHERE document_id = ?`)
+        .run(revision, actualFileHash, jobId, claim.documentId);
+      return { stale: true, desiredRevision: revision, jobId };
+    })();
+  }
+
+  // @req FR-DOC-019 REL-DOC-009
+  completeClaimedJob({ claim, actualFileHash }) {
+    this.assertWritable();
+    const db = this.open();
+    return db.transaction(() => {
+      const row = db.prepare('SELECT * FROM documents WHERE document_id = ?').get(claim.documentId);
+      const job = db.prepare('SELECT * FROM index_jobs WHERE job_id = ?').get(claim.jobId);
+      if (!row || !job || job.document_id !== claim.documentId || job.status !== 'indexing') return false;
+      const current = job.cancel_requested === 0 && row.current_job_id === claim.jobId
+        && row.desired_revision === claim.requestedRevision
+        && row.active_requested_revision === claim.requestedRevision
+        && row.desired_content_hash === claim.desiredContentHash
+        && actualFileHash === row.desired_content_hash;
+      const now = this._now();
+      db.prepare('UPDATE index_jobs SET status = ?, finished_at = ?, updated_at = ? WHERE job_id = ?')
+        .run(current ? 'completed' : 'cancelled', now, now, claim.jobId);
+      if (current) db.prepare(`UPDATE documents SET completed_revision = ?, dirty = 0,
+        active_requested_revision = 0 WHERE document_id = ?`).run(claim.requestedRevision, claim.documentId);
+      else if (row.current_job_id === claim.jobId) {
+        db.prepare(`UPDATE documents SET dirty = 1, keyword_dirty = 1
+          WHERE document_id = ?`).run(claim.documentId);
+        this.scheduleDesiredRetry({ documentId: claim.documentId, nextEligibleAt: now });
+      }
+      return current;
+    })();
+  }
+
+  // @req FR-DOC-019 REL-DOC-009
+  failClaimedJob({ claim, cancelled = false }) {
+    this.assertWritable();
+    const db = this.open();
+    return db.transaction(() => {
+      const job = db.prepare('SELECT status FROM index_jobs WHERE job_id = ?').get(claim.jobId);
+      if (!job || job.status !== 'indexing') return false;
+      const now = this._now();
+      db.prepare('UPDATE index_jobs SET status = ?, finished_at = ?, updated_at = ? WHERE job_id = ?')
+        .run(cancelled ? 'cancelled' : 'failed', now, now, claim.jobId);
+      const current = db.prepare('SELECT current_job_id FROM documents WHERE document_id = ?').get(claim.documentId);
+      if (current?.current_job_id === claim.jobId) {
+        db.prepare('UPDATE documents SET dirty = 1, keyword_dirty = 1 WHERE document_id = ?')
+          .run(claim.documentId);
+        this.scheduleDesiredRetry({ documentId: claim.documentId, nextEligibleAt: now });
+      }
+      return true;
     })();
   }
 
