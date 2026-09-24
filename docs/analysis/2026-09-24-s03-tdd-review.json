@@ -1,0 +1,45 @@
+{
+  "issue": 26,
+  "scope": "S03 Node/Electron focused harness",
+  "requirements": ["FR-DOC-019", "DR-DOC-014", "REL-DOC-009", "IR-APP-013"],
+  "startSha": "7db991d5c76259435c80a8ce1ed2d925fcbd1e78",
+  "reviewedSourceHash": "2f8ee4ff8cd134898c0ddc9cd2cac03d38ecc5187cbb3ab2394b5ae299a00eef",
+  "reviewedFiles": [
+    "test/r3/cases/harness-self.cjs",
+    "test/r3/dispatch.cjs",
+    "test/r3/electron-main.cjs",
+    "test/r3/fixtures.cjs",
+    "test/r3/node-main.cjs",
+    "test/r3/prepare-runtime.cjs",
+    "test/r3/run-electron.cjs",
+    "test/r3/run-node.cjs",
+    "test/r3/runtime.cjs",
+    "test/r3/test-harness-contract.cjs",
+    "docs/analysis/2026-09-24-s03-harness-evidence.md",
+    "docs/plan/2026-09-11-sol-medium-execution.md"
+  ],
+  "result": "PASS",
+  "findings": [],
+  "priorHighResolution": [
+    {
+      "location": "test/r3/run-electron.cjs:29",
+      "result": "resolved",
+      "evidence": "electronExitCode requires an exact positive terminal PASS for exit 0; focused contract rejects empty, zero, wrong-name, and nonterminal markers."
+    },
+    {
+      "location": "test/r3/prepare-runtime.cjs:11",
+      "result": "resolved",
+      "evidence": "safeTempRoot resolves existing path components before writes and a focused junction/symlink case rejects a target outside OS temp."
+    }
+  ],
+  "verification": {
+    "command": "node --test test/r3/test-harness-contract.cjs",
+    "exitCode": 0,
+    "passed": 17,
+    "failed": 0,
+    "nodeElectronRuntimeRuns": "Author evidence records each harness-self scenario exiting 0 with three assertions on separate Node/Electron SQLite ABIs; runtime preparation was not repeated in this review.",
+    "nodeTimeoutReview": "A live child with setInterval was observed to time out as SETUP_ERROR/exit 2 in the focused contract; exact positive terminal PASS is required for exit 0, and an assertion marker is required for exit 1."
+  },
+  "tddEvidenceLimit": "The author evidence lists the RED commands and concrete failing assertions, including the repair REDs, but does not preserve raw preimplementation console transcripts or source snapshots. The independent review can verify current tests and GREEN behavior, not reconstruct the full initial test-first chronology from the final worktree alone. No retrospective RED evidence was invented.",
+  "controlFlow": "No routine branch was found using exceptions as its primary control flow; catches handle parse errors, setup failures, assertion classification, and cleanup failures."
+}

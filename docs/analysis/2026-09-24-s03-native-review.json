@@ -1,0 +1,25 @@
+{
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/26",
+  "reviewer": "independent native runtime/isolation review",
+  "baseCommit": "7db991d5c76259435c80a8ce1ed2d925fcbd1e78",
+  "reviewedSourceSha256": "2f8ee4ff8cd134898c0ddc9cd2cac03d38ecc5187cbb3ab2394b5ae299a00eef",
+  "reviewedDependencySha256": "1c71998b454758b789f3926236139fd51a580569428310015fec578bed15dce4",
+  "requirementIds": ["OPS-ARCH-010", "FR-DOC-019", "DR-DOC-014", "REL-DOC-009", "IR-APP-013"],
+  "result": "PASS",
+  "findings": [],
+  "checks": [
+    "Two distinct OS-temp snapshots install package-lock dependencies separately; Node and Electron rebuild commands run only inside their respective snapshots.",
+    "Source-only refresh updates snapshot source and manifest while retaining installed native modules; dependency/runtime hash changes require fresh roots.",
+    "Untracked product source under src, scripts, test, assets, and build is included; unrelated root files and private documents are excluded.",
+    "Existing junction/symlink escapes from OS temp are rejected before preparation; contract fixtures delete only uniquely owned paths.",
+    "Selected Node and Electron cases load from isolated snapshots; the Electron executable comes from the Electron snapshot and launches a real app-ready child.",
+    "Both runners require a positive terminal PASS marker and distinguish setup failures from assertion failures; each child has a 60-second deadline.",
+    "Node ABI 137 and Electron ABI 130 each loaded better-sqlite3 and completed the real SQLite/Markdown fixture with assertions=3."
+  ],
+  "focusedVerification": {
+    "contract": "node --test test/r3/test-harness-contract.cjs: 17 passed, 0 failed",
+    "node": "run-node.cjs --case harness-self: exit 0, PASS assertions=3",
+    "electron": "run-electron.cjs --scenario harness-self: exit 0, PASS assertions=3"
+  },
+  "scopeNote": "This reviews the S03 harness and native runtime isolation. IR-APP-013 remains planned/evolving and its product acceptance criteria are not claimed complete."
+}
