@@ -1,11 +1,11 @@
 {
-  "review": "S15 configured-root producer and public contract review",
+  "review": "S15 final producer, owner, and public contract review",
   "issue": "https://github.com/ice3x2/DocuLightViewer/issues/38",
-  "baseCommit": "81cfbda20ba53d87335a30ba93289d24c0739104",
+  "baseCommit": "62dc1d289735c4481cf5ad47fba8273bac147bb5",
   "sourceHashAlgorithm": "test/r3/runtime.cjs::sourceHash()",
-  "sourceHash": "014cb0aa845bbb12f6e5cdbfcb3783f4b821d094c06d17ad7cc5a763911d65bc",
+  "sourceHash": "2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131",
   "requirements": ["FR-DOC-019", "FR-DOC-035", "IR-MCP-018", "IR-MCP-019", "REL-DOC-009", "SEC-DOC-003"],
-  "verdict": "PARTIAL_PASS_SAFE_TO_COMMIT_ISSUE_OPEN",
+  "verdict": "PASS_ISSUE_38_COMPLETE",
   "findings": {
     "CRITICAL": [],
     "HIGH": [],
@@ -16,17 +16,26 @@
     "Configured-store HTTP open/update, source stdio dispatch, renderer manual save, and configured-store save-as/quick-save call the shared S08 publisher and owner accept path. No configured-store adapter retains the legacy markDirty enqueue or writes SQLite from main.",
     "The repaired owner-start failure path publishes a body-free private intent and atomic final file without legacy enqueue, returns an internal enqueue_failed outcome, and leaves the intent for replay. An unusable ingress fails before file publication.",
     "The real owner fixture records one accepted job per open/update, stable document identity, increasing owner-assigned desired revisions, latest final bytes, and matching persisted latest revision, hash, and job. The producer does not allocate desiredRevision.",
-    "The HTTP open entrypoint retains windowId and viewer behavior. documentId origin opening remains read-only; the adjacent origin contract test passed. The exact eight-tool source/HTTP/generated-bundle surface and HTTP save parity tests passed without tracked bundle drift.",
+    "An SDK MCP client launched both source stdio and generated bundle entrypoints and called open_markdown, two update_markdown requests, and documentId open. A local IPC socket executed the exact production handleIpcMessage and sendResponse function bodies extracted from index.js with injected Electron window and owner fixtures. WindowId, title, saved path signals, file bytes, and private intent survived post-publication owner failure. The documentId open created no file, intent, owner call, or saved-path signal; the adjacent origin resolver contract passed.",
+    "The production renderer mcp-manual-save registered callback was invoked with a window entry. Its existing success/filePath response, window title and saved-path metadata, final bytes, and retryable intent survived owner acceptance failure.",
+    "save_document, configured-store visible MCP, and external opened registrar producers each send exactly the seven #38 owner fields and no raw store or ingress root. The controller drops legacy root arguments before its worker command. The worker uses configured roots, verifies supplied identity against the durable intent, rejects wrong-root fingerprints, and replays a committed intent with intentId alone.",
+    "S09 crash-window coverage still runs with an explicit configured ingress and a test-only automatic replay hold; S10 exercises production startup replay. S09, S10, S14, S15, and S16 focused cases passed at this hash.",
+    "The exact eight-tool source, HTTP, and generated-bundle schemas, descriptions, and response contracts remain compatible; no tracked bundle drift or new public sourcePath field appeared.",
     "Content-only producer provenance contains no invented origin alias. Error logging on changed MCP paths does not echo filesystem error text; the existing public tool names, schemas, and response lines were not expanded.",
-    "The updated S16 issue #39 handoff keeps external save-as at the chosen path and requests a separate contained indexed copy and validated private lexical/canonical alias, while preserving the renderer response shape and keeping #38 open until shared evidence passes."
+    "The reviewed S16 checkpoint preserves the external chosen file and renderer response, publishes one distinct contained copy through the owner, records private lexical/canonical aliases, and removes the external legacy enqueue. Issue #39 is to close after #38 under the published handoff."
   ],
   "checks": [
-    { "command": "node test/r3/run-node.cjs --case s15", "result": "PASS case=s15 assertions=25", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s09", "result": "PASS case=s09 assertions=37", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s10", "result": "PASS case=s10 assertions=46", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s14", "result": "PASS case=s14 assertions=23", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s15", "result": "PASS case=s15 assertions=49", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s16", "result": "PASS case=s16 assertions=24", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
     { "command": "node test/test-mcp-tool-parity.js", "result": "exit 0" },
     { "command": "node test/test-mcp-http-save-parity.js", "result": "exit 0" },
+    { "command": "node test/test-wave2-mcp-contract.js", "result": "exit 0" },
     { "command": "node test/test-indexed-origin-open-contract.js", "result": "exit 0" },
     { "command": "node test/test-opened-markdown-registrar-contract.js", "result": "exit 0" },
     { "command": "git diff --check", "result": "exit 0" }
   ],
-  "scopeLimit": "Safe partial S15 commit only. External renderer save-as/quick-save still uses the legacy external markDirty path and has no contained indexed copy or durable owner acceptance; S16 #39 must complete that path. Actual source stdio and renderer manual IPC entrypoint execution remains to be demonstrated; this review inspected their shared dispatch and helper wiring. Issue #38 remains open and none of the six requirements is marked fully verified by this review."
+  "scopeLimit": "This final review supports closing issue #38 after committing the frozen source hash. The source and bundle client test executes production main dispatcher function bodies with injected Electron window and owner fixtures; it is not a packaged Electron smoke test. The broader REL-DOC-009 requirement remains planned/evolving and is not promoted to verified by this issue review. FR-DOC-019 AC-11 describes ephemeral bytes at the S08 publisher boundary, while the subsequent owner accept_save command follows the seven-field #38 contract."
 }

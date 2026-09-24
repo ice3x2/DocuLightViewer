@@ -21,6 +21,9 @@ module.exports = { async run(context) {
   const owner = new OwnerWorkerController({ ledgerPath,
     keywordPath: path.join(root, 'keyword.sqlite'), sourceRoot: storeRoot,
     ingressRoot, keywordTokenizerProvider: 'basic', deriveDocuments: false });
+  const acceptSave = owner.acceptPublishedSave.bind(owner);
+  const producerInputs = [];
+  owner.acceptPublishedSave = async input => { producerInputs.push(input); return acceptSave(input); };
   const store = { get(key, fallback) { return ({ mcpAutoSavePath: storeRoot,
     registerOpenedMarkdown: true, lastSaveAsDirectory: externalRoot })[key] ?? fallback; }, set() {} };
   const reader = new SourceLedgerStore({ dbPath: ledgerPath, readOnly: true });
@@ -38,6 +41,10 @@ module.exports = { async run(context) {
     const first = await registrar.register(canonical);
     context.assert(first.status === 'queued' && first.documentId,
       'external open uses durable owner and receives stable document identity');
+    context.assert(JSON.stringify(Object.keys(producerInputs[0]).sort()) === JSON.stringify([
+      'contentHash', 'intentId', 'operation', 'provenance', 'rootFingerprint',
+      'sourceId', 'sourceRelativeLocator']),
+    'external registrar sends exactly seven owner fields without raw root paths');
     const legacyOriginal = path.join(externalRoot, 'Legacy.markdown');
     const legacyBody = '# Legacy markdown\n';
     fs.writeFileSync(legacyOriginal, legacyBody);

@@ -122,8 +122,7 @@ function resumePrivateIntents() {
   const unit = () => {
     if (closing) return;
     if (cursor < names.length) {
-      const reply = acceptPublishedSave({ ingressRoot, intentId: names[cursor++].slice(0, 64),
-        storeRoot: publicationRoot });
+      const reply = acceptPublishedSave({ intentId: names[cursor++].slice(0, 64) });
       if (reply.accepted) {
         progressed = true;
         scheduleDesiredDrain();
@@ -149,8 +148,9 @@ function acceptPublishedSave(payload) {
     warnings: [{ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true }] };
   try {
     const publishedRoot = validatedPublicationRoot();
-    if (!publishedRoot || typeof payload.ingressRoot !== 'string' || typeof payload.intentId !== 'string'
-      || (payload.storeRoot && path.resolve(payload.storeRoot) !== path.resolve(publishedRoot))) return failed;
+    if (!publishedRoot || !ingressRoot || typeof payload.intentId !== 'string'
+      || (payload.rootFingerprint && payload.rootFingerprint !== crypto.createHash('sha256')
+        .update(path.resolve(publishedRoot)).digest('hex'))) return failed;
     const reply = receipt => receipt.receipt_kind === 'queued'
       ? { saved: true, accepted: true, indexingState: 'queued', indexing: { state: 'queued', jobId: receipt.job_id },
         desiredRevision: receipt.desired_revision, documentId: receipt.document_id, warnings: [] }
@@ -159,7 +159,10 @@ function acceptPublishedSave(payload) {
     const receipt = ledger.getSaveIntentReceipt(payload.intentId);
     if (receipt) {
       if (receipt.root_fingerprint !== crypto.createHash('sha256').update(path.resolve(publishedRoot)).digest('hex')) return failed;
-      const persisted = readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: publishedRoot,
+      if ((payload.sourceId && payload.sourceId !== receipt.source_id)
+        || (payload.sourceRelativeLocator && payload.sourceRelativeLocator !== receipt.relative_locator)
+        || (payload.contentHash && payload.contentHash !== receipt.content_hash)) return failed;
+      const persisted = readPendingSave({ ingressRoot, storeRoot: publishedRoot,
         intentId: payload.intentId });
       if (persisted?.retryable || persisted?.quarantined) return failed;
       if (persisted?.intentPath) {
@@ -167,14 +170,17 @@ function acceptPublishedSave(payload) {
       }
       return reply(receipt);
     }
-    const read = intentId => readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: publishedRoot, intentId });
+    const read = intentId => readPendingSave({ ingressRoot, storeRoot: publishedRoot, intentId });
     const current = read(payload.intentId);
     if (!current || current.retryable || current.quarantined) return failed;
     if (!current.published) return failed;
+    if (['operation', 'sourceId', 'rootFingerprint', 'sourceRelativeLocator', 'contentHash', 'provenance']
+      .some(key => payload[key] !== undefined
+        && JSON.stringify(payload[key]) !== JSON.stringify(current[key]))) return failed;
     const finalPath = path.resolve(publishedRoot, current.sourceRelativeLocator);
     const bytes = fs.readFileSync(finalPath);
     if (bytes.length > 10 * 1024 * 1024 || crypto.createHash('sha256').update(bytes).digest('hex') !== current.contentHash) return failed;
-    const pending = fs.readdirSync(payload.ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
+    const pending = fs.readdirSync(ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
       && name.slice(0, 64) !== current.intentId).map(name => {
       const id = name.slice(0, 64);
       return payload.r3ReadFaultIntentId === id ? { retryable: true } : read(id);
@@ -289,7 +295,7 @@ async function dispatch(message) {
       parentPort.postMessage({ tag: 'START', state: 'ready', threadId, audit: {
         ledgerOpenThreadId: ledgerOpen.threadId, keywordOpenThreadId: keywordOpen.threadId, openCount: opened.length
       } });
-      resumePrivateIntents();
+      if (workerData?.r3SkipStartupReplay !== true) resumePrivateIntents();
       scheduleDesiredDrain();
     } catch {
       status('failed');

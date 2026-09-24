@@ -349,7 +349,7 @@ async function publishMcpSave(store, destPath, { content, filePath, operation },
     const savedPath = path.join(storeRoot, sourceRelativeLocator);
     let accepted;
     if (publication?.intentId) {
-      try { accepted = await owner.acceptPublishedSave({ storeRoot, ingressRoot,
+      try { accepted = await owner.acceptPublishedSave({
         intentId: publication.intentId, operation, sourceId, rootFingerprint,
         sourceRelativeLocator, contentHash, provenance }); }
       catch { /* published file and private intent remain retryable */ }
@@ -568,7 +568,7 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
     const warnings = [];
     if (canAccept && owner && typeof owner.acceptPublishedSave === 'function') {
       try {
-        queueResult = await owner.acceptPublishedSave({ storeRoot: publishRoot, ingressRoot,
+        queueResult = await owner.acceptPublishedSave({
           intentId: publication.intentId, operation: 'save_document',
           sourceId, rootFingerprint,
           sourceRelativeLocator: sourceRelativePath, contentHash,

@@ -1,0 +1,22 @@
+{
+  "review": "S16 final cross-review after S15 owner command narrowing",
+  "baseCommit": "62dc1d289735c4481cf5ad47fba8273bac147bb5",
+  "sourceHash": "2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131",
+  "verdict": "PASS",
+  "findings": { "critical": [], "high": [], "medium": [], "low": [] },
+  "evidence": [
+    "The sourceHash() result matched the frozen hash before and after review.",
+    "S16 Node snapshot passed 24 assertions. Opened Markdown registrar and indexed-origin standalone contracts passed.",
+    "External registrar sends exactly intentId, operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, and provenance. The controller filters accept_save payloads and the worker reads publication and ingress roots from its configured state.",
+    "Renderer external save-as retains the chosen file and existing response, publishes a separate contained copy, and no longer uses external markDirty. Lexical and canonical aliases, 1:N identity, and pre-S16 .markdown copy locator/documentId remain covered by S16 and origin contracts.",
+    "Divergent contained copy and expected-prior-hash guards, postpublication intent retry, prepublication private registration diagnostic, and read-only origin fallback remain valid under the narrowed command shape.",
+    "GitHub issues #38 and #39 were both OPEN during this review; their latest checkpoint comments require #38 to close before #39."
+  ],
+  "closure": {
+    "issue39": "Technical S16 criteria pass at this source hash. Close #39 after #38 completion and closure, in the stated shared order.",
+    "issue38": "Review its separate actual source stdio and renderer manual IPC/window-failure completion evidence before closing. This cross-review confirms only that the narrowed owner command does not regress S16."
+  },
+  "limitations": [
+    "The private .registration.json marker is for a later user-triggered retry; this review does not claim automatic replay."
+  ]
+}

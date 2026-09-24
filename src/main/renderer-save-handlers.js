@@ -1,9 +1,9 @@
 'use strict';
 const path = require('node:path');
-const { saveRendererFile } = require('./mcp-save');
+const { saveRendererFile, mcpManualSave } = require('./mcp-save');
 
 // @req FR-DOC-019 REL-DOC-009
-function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, store, searchEngine }) {
+function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, windowManager, store, searchEngine }) {
   ipcMain.handle('save-as', async (event, params) => {
     try {
       const parentWindow = BrowserWindow.fromWebContents(event.sender);
@@ -29,6 +29,21 @@ function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, store, s
       await saveRendererFile(store, savePath, params, searchEngine);
       return { success: true, filePath: savePath };
     } catch (error) { return { success: false, error: error.message }; }
+  });
+
+  ipcMain.handle('mcp-manual-save', async (event, params) => {
+    const result = await mcpManualSave(store, params, searchEngine);
+    if (result.success) {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (win) {
+        const windowId = windowManager.findWindowId(win);
+        if (windowId) {
+          const entry = windowManager.getWindowEntry(windowId);
+          if (entry) entry.meta.savedFilePath = result.filePath;
+        }
+      }
+    }
+    return result;
   });
 }
 

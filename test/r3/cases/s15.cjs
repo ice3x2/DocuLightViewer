@@ -9,6 +9,7 @@ const { readPendingSave } = require('../../../src/main/index-ingress-store');
 const { registerRendererSaveHandlers } = require('../../../src/main/renderer-save-handlers');
 const { OwnerWorkerController } = require('../../../src/main/search-owner-controller');
 const { SourceLedgerStore } = require('../../../src/main/source-ledger-store');
+const { runStdioEntry } = require('./s15-stdio.cjs');
 
 // @req FR-DOC-019 FR-DOC-035 IR-MCP-018 IR-MCP-019 REL-DOC-009 SEC-DOC-003
 module.exports = { async run(context) {
@@ -47,14 +48,23 @@ module.exports = { async run(context) {
       'two updates publish latest bytes through one owner acceptance each');
     context.assert(calls.every(call => call.desiredRevision === undefined),
       'producer never allocates desiredRevision');
+    const acceptKeys = ['contentHash', 'intentId', 'operation', 'provenance', 'rootFingerprint',
+      'sourceId', 'sourceRelativeLocator'];
+    context.assert(calls.every(call => JSON.stringify(Object.keys(call).sort()) === JSON.stringify(acceptKeys)),
+      'configured-root producer sends exactly seven private owner fields and no raw root paths');
     const manual = await mcpManualSave(store, { content: '# Manual\n', title: 'Manual' }, searchEngine);
     context.assert(manual.success === true && calls.length === 4,
       'renderer manual save uses same durable ingress');
     const handlers = new Map();
+    const rendererWin = {};
+    const rendererEntry = { meta: { savedFilePath: null, title: 'Renderer title' } };
     registerRendererSaveHandlers({ ipcMain: { handle(name, handler) { handlers.set(name, handler); } },
       dialog: { async showSaveDialog() { return { canceled: false,
         filePath: path.join(storeRoot, 'chosen.md') }; } },
-      BrowserWindow: { fromWebContents() { return {}; } }, store, searchEngine });
+      BrowserWindow: { fromWebContents() { return rendererWin; } },
+      windowManager: { findWindowId(win) { return win === rendererWin ? 'renderer-1' : null; },
+        getWindowEntry(id) { return id === 'renderer-1' ? rendererEntry : null; } },
+      store, searchEngine });
     const saveAs = await handlers.get('save-as')({ sender: {} }, { content: '# Chosen\n' });
     context.assert(saveAs.success === true && calls.length === 5
       && fs.readFileSync(saveAs.filePath, 'utf8') === '# Chosen\n',
@@ -97,9 +107,27 @@ module.exports = { async run(context) {
     catch { /* persistence assertion below defines the expected behavior */ }
     context.assert(fs.readFileSync(externalPath, 'utf8') === '# After\n',
       'existing externally chosen save path remains editable pending S16 registration');
+    context.assert(typeof handlers.get('mcp-manual-save') === 'function',
+      'renderer manual-save IPC entrypoint is registered with shared save handlers');
+    const manualIpc = await handlers.get('mcp-manual-save')({ sender: {} },
+      { content: '# Manual IPC\n', title: 'Manual IPC' });
+    context.assert(manualIpc.success === true && calls.length === 10
+      && rendererEntry.meta.savedFilePath === manualIpc.filePath
+      && fs.readFileSync(manualIpc.filePath, 'utf8') === '# Manual IPC\n',
+    'registered renderer manual-save IPC keeps file path and window metadata after one durable owner call');
     ownerController.acceptPublishedSave = async input => { calls.push(input); throw new Error('owner unavailable'); };
+    const failedManualIpc = await handlers.get('mcp-manual-save')({ sender: {} },
+      { content: '# Manual retained\n', title: 'Retained' });
+    const failedManualIntent = readPendingSave({ storeRoot, ingressRoot,
+      intentId: calls.at(-1).intentId });
+    context.assert(failedManualIpc.success === true && calls.length === 11
+      && rendererEntry.meta.title === 'Renderer title'
+      && rendererEntry.meta.savedFilePath === failedManualIpc.filePath
+      && fs.readFileSync(failedManualIpc.filePath, 'utf8') === '# Manual retained\n'
+      && failedManualIntent?.published === true,
+    'manual IPC owner failure retains file, window metadata, and private retry intent');
     const failed = await saveMcpFile(store, { content: '# Failed enqueue\n', title: 'Retained' }, searchEngine);
-    context.assert(Boolean(failed) && fs.existsSync(failed) && calls.length === 10,
+    context.assert(Boolean(failed) && fs.existsSync(failed) && calls.length === 12,
       'saved file survives owner acceptance failure');
     const beforeUnavailable = fs.readdirSync(ingressRoot).filter(name => name.endsWith('.intent.json')).length;
     const unavailableSearch = { saveDocumentIngressRoot: ingressRoot,
@@ -180,5 +208,7 @@ module.exports = { async run(context) {
         && replies.at(-1).accepted === true,
       'temporary Windows reader contention retries atomic replacement without losing latest save');
     } finally { await realOwner.shutdown(); }
+    await runStdioEntry(root, path.join(__dirname, '../../../src/main/mcp-server.mjs'), context);
+    await runStdioEntry(root, path.join(__dirname, '../../../src/main/mcp-server.bundle.mjs'), context);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 } };

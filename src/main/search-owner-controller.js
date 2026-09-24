@@ -45,7 +45,8 @@ class OwnerWorkerController {
     this.workerSequence = 0;
     const worker = new Worker(this.config.workerPath || path.join(__dirname, 'search-owner-worker.js'), {
       workerData: { r3SchedulerFixture: this.config.r3SchedulerFixture === true,
-        r3ReplayFixture: this.config.r3ReplayFixture === true }
+        r3ReplayFixture: this.config.r3ReplayFixture === true,
+        r3SkipStartupReplay: this.config.r3SkipStartupReplay === true }
     });
     this.worker = worker;
     this.ready = new Promise((resolve, reject) => {
@@ -119,6 +120,14 @@ class OwnerWorkerController {
 
   command(type, payload = {}, id) {
     if (type === 'shutdown') return this.shutdown(id, true);
+    if (type === 'accept_save') {
+      const allowed = ['intentId', 'operation', 'sourceId', 'rootFingerprint',
+        'sourceRelativeLocator', 'contentHash', 'provenance',
+        'r3ReadFaultIntentId', 'r3SkipCleanup', 'r3SchedulerUnits',
+        'r3SchedulerCpuIterations', 'testTarget'];
+      payload = Object.fromEntries(allowed.filter(key => payload[key] !== undefined)
+        .map(key => [key, payload[key]]));
+    }
     return this._send('COMMAND', type, payload, id);
   }
   // @req FR-DOC-019 REL-DOC-009

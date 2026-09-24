@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S14 #37](https://github.com/ice3x2/DocuLightViewer/issues/37) · 다음 [S15 #38](https://github.com/ice3x2/DocuLightViewer/issues/38).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S16 #39](https://github.com/ice3x2/DocuLightViewer/issues/39) · 다음 [S17 #40](https://github.com/ice3x2/DocuLightViewer/issues/40).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `14/36` 완료(S01~S14)다. private owner의 최신 파일·파생 색인·링크 그래프와 공개 `save_document` 저장 경로를 검증했다. 나머지 저장 producer 연결은 [S15 #38](https://github.com/ice3x2/DocuLightViewer/issues/38)~S16, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
+실행 이슈는 `16/36` 완료(S01~S16)다. private owner의 최신 파일·파생 색인·링크 그래프와 공개/renderer 저장 producer, 외부 원본 alias·저장소 복사본 연결을 검증했다. 다음은 [S17 #40](https://github.com/ice3x2/DocuLightViewer/issues/40)의 linked import이며, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -149,16 +149,19 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] #37 완료 판정, 이슈 체크박스·댓글·close, 최종 SHA 및 [S15 #38](https://github.com/ice3x2/DocuLightViewer/issues/38) 인계.
 - 현재 S14의 공개 `save_document` 경로만 owner를 사용한다. 다른 legacy producer의 owner 전환 및 full app session은 S15/S23/S26 후속 범위이며 이 작업의 완료로 주장하지 않는다.
 
-## S15 진행 기록 — 외부 save-as 의존성으로 #38 미완료
+## S15 진행 기록 — 독립 검토 완료
 
 - 시작 SHA `81cfbda20ba53d87335a30ba93289d24c0739104`, 격리 worktree `DocuLightViewer-r3`. 관련 요구사항 `FR-DOC-019`, `FR-DOC-035`, `IR-MCP-018`, `IR-MCP-019`, `REL-DOC-009`, `SEC-DOC-003`의 Stability 차단 없음.
 - [x] [S15 RED/GREEN 및 producer 호출표](../analysis/2026-09-25-s15-producer-evidence.md): MCP HTTP/source open·update, renderer 수동 저장 및 설정 저장소 내부 save-as/quick-save를 공용 durable publisher와 owner accept 경로에 연결했다. 실제 HTTP/renderer entrypoint와 real owner의 2회 update revision·job·SQLite hash를 검증했다. Owner 시작 실패 시 private intent 보존과 Windows 임시 파일 점유 retry도 assertion RED 뒤 수정했다. Node ABI 137 S15 25 assertions, S14 20 assertions와 MCP tool/HTTP parity·origin/registrar 회귀가 통과했다.
 - [x] 작성자가 아닌 독립 검토자의 [producer·공개 계약 검토](../analysis/2026-09-25-s15-contract-review.json)와 [TDD·복구 검토](../analysis/2026-09-25-s15-tdd-review.json)를 소스 해시 `014cb0aa845bbb12f6e5cdbfcb3783f4b821d094c06d17ad7cc5a763911d65bc`에서 마쳤다. 현재 구현 부분은 커밋 가능하되 #38 전체는 미완료라는 공통 판정이다.
-- [x] [S16 #39](https://github.com/ice3x2/DocuLightViewer/issues/39)에서 외부 save-as의 선택 파일을 유지하고 설정 저장소 복사본·원본 alias를 owner로 접수한 뒤 외부 legacy markDirty를 제거했다. 실제 source stdio와 renderer 수동 저장 IPC 진입점·window continuity 증거는 아직 필요하므로 #38은 열린 상태다.
+- [x] [S16 #39](https://github.com/ice3x2/DocuLightViewer/issues/39)에서 외부 save-as의 선택 파일을 유지하고 설정 저장소 복사본·원본 alias를 owner로 접수한 뒤 외부 legacy markDirty를 제거했다.
+- [x] S16 checkpoint `62dc1d289735c4481cf5ad47fba8273bac147bb5`에서 [S15 완료 증거 추가](../analysis/2026-09-25-s15-producer-evidence.md): 실제 source와 generated bundle stdio 도구가 main `handleIpcMessage` 분기를 호출하고, renderer 수동 저장의 등록된 IPC callback과 owner 실패 후 windowId/title/file/intent 보존을 검증했다. 새 source dispatcher assertion RED는 동작 수정이 아니라 실제 진입점 증거를 추가한 coverage RED로 기록했다.
+- [x] #38의 private `accept_save` 입력을 정확히 7필드로 정렬했다. S14/S15 assertion RED 뒤 producer의 raw root 인자를 제거하고 owner가 설정된 ingress/publication root로 검증한다. S02의 `contentBytes`는 S08 파일 publisher 전용 ephemeral 입력이며 owner command에는 포함하지 않는다. S09 test-only startup replay 제어를 포함한 S09/S10/S12/S14/S15/S16 회귀와 MCP parity 통과. 최종 검토 해시 `2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131`.
+- [x] 추가 증거를 [공개 계약 검토](../analysis/2026-09-25-s15-contract-review.json)와 [TDD·복구 검토](../analysis/2026-09-25-s15-tdd-review.json)에서 최종 소스 해시 `2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131`로 재검토했다. S15 49, S14 23, S16 24, S09 37, S10 46, S12 28 assertions 및 MCP/HTTP/Wave2 parity가 통과했고 차단 결함 0건이다. #38을 먼저 닫고 #39를 이어 닫는다.
 
-## S16 진행 기록 — provenance·외부 save-as 구현, 독립 검토 완료·인계 대기
+## S16 진행 기록 — provenance·외부 save-as 구현, 독립 검토 완료
 
 - [x] [S16 RED/GREEN 증거](../analysis/2026-09-25-s16-origin-evidence.md): `FR-DOC-035`, `DR-DOC-014`, `FR-DOC-036`, `FR-DOC-019`, `REL-DOC-009`, `SEC-DOC-003` 범위에서 실제 외부 원본의 lexical/canonical alias를 body-free intent와 owner transaction에 연결했다. Renderer 외부 save-as/quick-save는 선택한 파일과 응답을 유지하고 설정 저장소 복사본을 owner로 접수한다. 외부 legacy markDirty 호출을 제거했다.
 - [x] `s16` RED exit 1, GREEN 23 assertions; S08 53, S14 20, S15 26, opened registrar·indexed origin·MCP tool/HTTP parity 통과. 기존 `.markdown` 복사본의 locator/ID 재사용, 변조된 사본 보호, 게시 전 실패의 private retry marker를 test-first로 보강했다. 시작 SHA `0bc5d11b404d0499ebd4e0daefc244c1f18dfada`, 소스 해시 `569dffbfd666b8b73b57cfa2670f75883e9c21dd652111ec30a5c60fa756f9f5`.
 - [x] [원본 provenance 검토](../analysis/2026-09-25-s16-provenance-review.json)와 [TDD·호환 검토](../analysis/2026-09-25-s16-tdd-review.json)는 최종 소스 해시에서 차단 결함 0건이다. 이전 `.markdown` copy/alias를 재열기·수정할 때 같은 문서 ID와 locator가 유지되고, 변조된 사본을 덮어쓰지 않는 것을 실제 SQLite로 확인했다.
-- [ ] #38의 실제 stdio/manual IPC/window failure 증거와 독립 검토 후 #38을 먼저 닫고, 공통 인계를 재확인한 뒤 #39를 닫는다. 완료율은 두 이슈 모두 닫힐 때까지 `14/36`이다.
+- [x] #38의 실제 stdio/manual IPC/window failure 증거를 완료했다. [S16 최종 provenance 교차검토](../analysis/2026-09-25-s16-final-review.json)와 [최종 TDD 교차검토](../analysis/2026-09-25-s16-final-tdd-review.json)는 7필드 owner 계약 변경 후에도 원본 alias·복사본·기존 `.markdown` ID·읽기 전용 조회가 유지됨을 확인했다. #38을 먼저 닫은 다음 #39를 닫는다.

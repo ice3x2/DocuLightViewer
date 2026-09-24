@@ -2863,7 +2863,7 @@ function startIpcServer() {
 // MCP Auto-Save (shared module)
 // =============================================================================
 
-const { saveMcpFile, saveMcpUpdatedContent, mcpManualSave, saveDocumentToStore, extractTitleFromContent } = require('./mcp-save');
+const { saveMcpFile, saveMcpUpdatedContent, saveDocumentToStore, extractTitleFromContent } = require('./mcp-save');
 const { buildSmartSearchToolResult } = require('./smart-search-response');
 
 /**
@@ -4407,7 +4407,7 @@ function registerIpcHandlers() {
 
   // === Save As (FR-21-002) ===
   require('./renderer-save-handlers').registerRendererSaveHandlers({
-    ipcMain, dialog, BrowserWindow, store, searchEngine
+    ipcMain, dialog, BrowserWindow, windowManager, store, searchEngine
   });
 
   // === Delete Auto-Saved File (FR-21-001) ===
@@ -4448,22 +4448,6 @@ function registerIpcHandlers() {
     } catch (err) {
       return { success: false, error: err.message };
     }
-  });
-
-  // === MCP Manual Save (FR-22-001) ===
-  ipcMain.handle('mcp-manual-save', async (event, params) => {
-    const result = await mcpManualSave(store, params, searchEngine);
-    if (result.success) {
-      const win = BrowserWindow.fromWebContents(event.sender);
-      if (win) {
-        const windowId = windowManager.findWindowId(win);
-        if (windowId) {
-          const entry = windowManager.getWindowEntry(windowId);
-          if (entry) entry.meta.savedFilePath = result.filePath;
-        }
-      }
-    }
-    return result;
   });
 
   // === Render Pasted Content (FR-22-004) ===

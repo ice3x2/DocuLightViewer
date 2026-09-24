@@ -8,24 +8,30 @@
     "REL-DOC-009",
     "SEC-DOC-003"
   ],
-  "baseCommit": "81cfbda20ba53d87335a30ba93289d24c0739104",
-  "sourceHash": "014cb0aa845bbb12f6e5cdbfcb3783f4b821d094c06d17ad7cc5a763911d65bc",
-  "verdict": "PASS_PARTIAL",
-  "safeToCommitPartial": true,
-  "issueComplete": false,
+  "baseCommit": "62dc1d289735c4481cf5ad47fba8273bac147bb5",
+  "sourceHash": "2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131",
+  "verdict": "PASS",
+  "issueComplete": true,
   "findings": [],
   "review": {
-    "tdd": "The initial open, extracted renderer IPC, external existing path, owner-start failure, and transient Windows replace cases each have a reported semantic RED assertion before their changes. The frozen S15 case passes 25 assertions. Existing parity assertions were changed from legacy dirty counts to zero legacy enqueue plus exact private intent counts; they were not removed or weakened.",
-    "durability": "Configured-store open, update, renderer manual, save-as, and quick-save use the S08 atomic publisher. The owner-absent case now retains a body-free intent and final file without markDirty; unsafe ingress fails before file publication. Owner rejection after publish retains the file. The producer never supplies desiredRevision. A real owner open followed by two updates preserves documentId and stores the final desired revision, content hash, and job ID in the owner ledger. A bounded EPERM retry preserves final update bytes.",
-    "compatibility": "HTTP open and update exercise the real handler and retain windowId and saved content. The indexed-origin regression passes for read-only documentId open. Source, HTTP, and bundle tool parity tests pass; the evidence records a rebuilt bundle without tracked drift. No product-main ledger write was added to the configured-store paths.",
-    "scope": "This is a safe incremental commit, not completion of issue 38. External renderer save-as still uses the legacy markDirty path until S16 issue 39 provides an origin-to-configured-store copy. Actual source stdio and renderer manual IPC entrypoints, plus window continuity under post-publish failure, still need end-to-end S15 evidence. Keep issue 38 open."
+    "tdd": "Prior S15 semantic REDs preceded durable producer routing, owner-unavailable fallback, and transient replace recovery. The seven-field correction has semantic RED assertions for save_document (S14 assertion 2) and configured-store producer (S15 assertion 7), then passes at the frozen hash. The manual IPC and source/bundle stdio additions are entrypoint regressions; the source-dispatch assertion-36 RED was a coverage/fixture failure because that production branch was unchanged. No existing test assertion was removed or weakened. S09 now supplies the configured ingress root and uses a test-only startup replay hold to preserve its fault windows; S10 still exercises production startup replay.",
+    "entrypoints": "The source and generated-bundle MCP servers are launched with SDK stdio clients. Their open_markdown and update_markdown calls traverse the real index.js handleIpcMessage and sendResponse functions over a local IPC socket; the fixture replaces Electron windows and owner transport, not the dispatch implementation. The registered renderer mcp-manual-save IPC callback is invoked with a window entry. Each configured-store mutation produces one owner acceptance call, and legacy markDirty is rejected by the fixture.",
+    "durability": "A post-publication owner failure leaves the final Markdown and body-free private intent, while preserving the visible window identity, title, content, saved-path signal, and existing MCP or renderer response shape. Save-document, configured-store, and external registrar producers send exactly the seven private accept_save fields without raw publication or ingress roots. The controller strips legacy root fields before the worker command; the worker uses configured roots, compares supplied identity with the private intent, and returns the committed receipt for an intentId-only replay while rejecting a wrong root fingerprint. The real owner regression verifies one documentId and the latest desired revision, content hash, and current job after two updates. The S16 checkpoint covers external renderer save-as through a separate contained copy and removes its legacy enqueue. No new product-main SQLite write appears in the final diff.",
+    "readOnlyAndCompatibility": "A documentId stdio open adds no final file, private intent, owner call, or saved-path signal in either source or bundle fixture. The adjacent indexed-origin test covers real resolver behavior. Exact eight-tool and source/HTTP/bundle schema tests pass; the final diff does not change public tool definitions, response fields, or errors.",
+    "scope": "Issue 38 completion criteria are supported by the combined S15 and S16 evidence. This review does not promote the broader REL-DOC-009 requirement to verified or claim a full packaged Electron smoke run."
   },
   "verification": {
-    "s15": "PASS assertions=25",
-    "s14": "PASS assertions=20",
-    "mcpHttpSaveParity": "PASS",
+    "s09": "PASS assertions=37",
+    "s10": "PASS assertions=46",
+    "s12": "PASS assertions=28",
+    "s15": "PASS assertions=49",
+    "s14": "PASS assertions=23",
+    "s16": "PASS assertions=24",
     "mcpToolParity": "PASS",
+    "mcpHttpSaveParity": "PASS",
+    "wave2McpContract": "PASS",
     "indexedOriginOpen": "PASS",
-    "openedMarkdownRegistrar": "PASS"
+    "openedMarkdownRegistrar": "PASS",
+    "diffCheck": "PASS"
   }
 }

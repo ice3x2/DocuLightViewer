@@ -313,7 +313,7 @@ async function publishExternalCopy({ searchEngine, sourceRoot, destinationPath,
   }
   let accepted;
   if (publication?.intentId && owner?.acceptPublishedSave) {
-    try { accepted = await owner.acceptPublishedSave({ storeRoot, ingressRoot,
+    try { accepted = await owner.acceptPublishedSave({
       intentId: publication.intentId, operation, sourceId, rootFingerprint,
       sourceRelativeLocator, contentHash, provenance }); }
     catch { /* Published copy and private intent remain retryable. */ }

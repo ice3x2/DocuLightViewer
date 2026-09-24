@@ -102,13 +102,28 @@ module.exports = { async run(context) {
     try {
       await realOwner.start();
       let realReply;
+      let realIntentId;
       const committed = await saveDocumentToStore(store, { content: '# Real owner marker\n',
         title: 'Committed' }, { ownerController: { config: realOwner.config,
-          async acceptPublishedSave(input) { realReply = await realOwner.acceptPublishedSave(input); return realReply; } } });
+          async acceptPublishedSave(input) { realIntentId = input.intentId;
+            realReply = await realOwner.acceptPublishedSave(input); return realReply; } } });
       const committedBody = JSON.parse(committed.content[0].text);
       context.assert(committedBody.saved === true && committedBody.indexing.state === 'queued'
         && Boolean(committedBody.indexing.jobId) && Boolean(committedBody.documentId),
       `real save_document adapter reaches owner transaction before public queued ACK: ${JSON.stringify(committedBody)} ${JSON.stringify(realReply)}`);
+      const validReplay = await realOwner.acceptPublishedSave({ intentId: realIntentId });
+      context.assert(validReplay.accepted === true
+        && validReplay.indexing.jobId === realReply.indexing.jobId,
+      'same owner replays a committed intent using configured private roots');
+      const wrongRootReplay = await realOwner.acceptPublishedSave({
+        intentId: realIntentId, rootFingerprint: '0'.repeat(64)
+      });
+      context.assert(wrongRootReplay.accepted === false && !wrongRootReplay.indexing.jobId,
+        'owner rejects a caller root fingerprint that differs from configured publication root');
+      context.assert(JSON.stringify(Object.keys(calls[0]).sort()) === JSON.stringify([
+        'contentHash', 'intentId', 'operation', 'provenance', 'rootFingerprint',
+        'sourceId', 'sourceRelativeLocator']),
+      'save_document sends exactly seven private owner fields');
       let lostAck;
       let lostIntentId;
       const lostResponse = await saveDocumentToStore(store, { content: '# Lost ACK marker\n',

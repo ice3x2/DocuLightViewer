@@ -68,7 +68,7 @@ module.exports = { async run(context) {
   seed.open().exec("CREATE TRIGGER s09_fail_job BEFORE INSERT ON index_jobs BEGIN SELECT RAISE(ABORT, 'constraint fault'); END");
   seed.close();
   const owner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    keywordTokenizerProvider: 'basic' });
+    ingressRoot, keywordTokenizerProvider: 'basic', r3SkipStartupReplay: true });
   const payload = { storeRoot, ingressRoot, intentId: newer.intentId };
   let first;
   try {
@@ -142,7 +142,7 @@ module.exports = { async run(context) {
       desiredRevision: doc.desired_revision, jobId: doc.current_job_id });
     ledger.close();
     const restarted = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-      keywordTokenizerProvider: 'basic' });
+      ingressRoot, keywordTokenizerProvider: 'basic', r3SkipStartupReplay: true });
     try {
       await restarted.start();
       const acknowledged = await restarted.acceptPublishedSave(payload);
@@ -160,7 +160,7 @@ module.exports = { async run(context) {
     const latest = await publishSave({ ...base, contentBytes: latestBytes, contentHash: sha(latestBytes),
       provenance: { aliases: [], metadata: {} } });
     const laterOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-      keywordTokenizerProvider: 'basic' });
+      ingressRoot, keywordTokenizerProvider: 'basic', r3SkipStartupReplay: true });
     try {
       await laterOwner.start();
       const latestAck = await laterOwner.acceptPublishedSave({ ...payload, intentId: latest.intentId });
@@ -187,7 +187,7 @@ module.exports = { async run(context) {
       provenance: { aliases: [{ lexicalOriginalPath: equalAliasB, canonicalOriginalPath: equalAliasB,
         canonicalPathHash: pathHash(equalAliasB) }], metadata: { documentTags: ['equal-b'] } } });
     const equalOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-      keywordTokenizerProvider: 'basic' });
+      ingressRoot, keywordTokenizerProvider: 'basic', r3SkipStartupReplay: true });
     try {
       await equalOwner.start();
       const olderBeforeCurrent = await equalOwner.acceptPublishedSave({ ...payload, intentId: equalA.intentId });
@@ -236,7 +236,7 @@ module.exports = { async run(context) {
     tiedA = { ...tiedA, intentId: legacyIntentId(ingressRoot, tiedA.intentId) };
     tiedB = { ...tiedB, intentId: legacyIntentId(ingressRoot, tiedB.intentId) };
     const tiedOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-      keywordTokenizerProvider: 'basic' });
+      ingressRoot, keywordTokenizerProvider: 'basic', r3SkipStartupReplay: true });
     try {
       await tiedOwner.start();
       const ambiguousA = await tiedOwner.acceptPublishedSave({ ...payload, intentId: tiedA.intentId });

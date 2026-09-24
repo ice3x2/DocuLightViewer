@@ -48,7 +48,7 @@ module.exports = { async run(context) {
   context.assert(older.createdTime === newer.createdTime,
     'distinct private intents have an actual equal-time ambiguity');
   const owner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    keywordTokenizerProvider: 'basic' });
+    ingressRoot, keywordTokenizerProvider: 'basic' });
   try {
     await owner.start();
     const ack = await owner.acceptPublishedSave({ storeRoot, ingressRoot, intentId: b.intentId });
@@ -82,7 +82,7 @@ module.exports = { async run(context) {
     const d = await publishSave({ ...base, contentBytes: changed, contentHash: sha(changed),
       provenance: { aliases: [], metadata: { documentTags: ['d'] } } });
     const later = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-      keywordTokenizerProvider: 'basic' });
+      ingressRoot, keywordTokenizerProvider: 'basic' });
     try {
       await later.start();
       const dAck = await later.acceptPublishedSave({ storeRoot, ingressRoot, intentId: d.intentId });
@@ -195,7 +195,7 @@ module.exports = { async run(context) {
       'owner retries a transient startup acceptance failure without a caller re-save');
   } finally { faultDb.close(); await retryingOwner.shutdown(); }
   const paging = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    keywordTokenizerProvider: 'basic' });
+    ingressRoot, keywordTokenizerProvider: 'basic' });
   try {
     await paging.start();
     for (let i = 0; i < 5; i += 1) {
@@ -300,7 +300,7 @@ module.exports = { async run(context) {
     clockIntents.push(intent);
   }
   const concurrentOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    keywordTokenizerProvider: 'basic' });
+    ingressRoot, keywordTokenizerProvider: 'basic' });
   try {
     await concurrentOwner.start();
     const replies = await Promise.all(clockIntents.map(intent => concurrentOwner.acceptPublishedSave({
@@ -332,8 +332,8 @@ module.exports = { async run(context) {
   context.assert(reverted && reverted.intentId !== original.intentId
     && fs.readFileSync(path.join(storeRoot, 'revert.md')).equals(originalBytes),
     'A to B to A publication gets a fresh intent identity for the final A');
-  const revertOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
-    keywordTokenizerProvider: 'basic' });
+    const revertOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
+      ingressRoot, keywordTokenizerProvider: 'basic' });
   try {
     await revertOwner.start();
     const reply = await revertOwner.acceptPublishedSave({ storeRoot, ingressRoot, intentId: reverted.intentId });

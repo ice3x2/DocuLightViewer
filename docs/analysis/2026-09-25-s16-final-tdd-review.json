@@ -1,0 +1,30 @@
+{
+  "issue": 39,
+  "requirements": ["FR-DOC-035", "DR-DOC-014", "FR-DOC-036", "FR-DOC-019", "REL-DOC-009", "SEC-DOC-003"],
+  "baseCommit": "0bc5d11b404d0499ebd4e0daefc244c1f18dfada",
+  "sourceHash": "2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131",
+  "verdict": "PASS",
+  "issueComplete": true,
+  "findings": [],
+  "review": {
+    "tdd": "The original S16 external owner route failed a semantic assertion before implementation. Follow-up semantic REDs covered .markdown publication, seeded pre-S16 .markdown identity/locator preservation, diverged indexed-copy protection, expected-prior-hash enforcement, and pre-publication private diagnostics. The S16 case now passes 24 assertions. The seven-field owner correction was also covered by S14 and S15 semantic REDs before implementation. Existing registrar and indexed-origin assertions were retained; no weakening was found.",
+    "externalSave": "The real renderer save-as and quick-save callbacks preserve the chosen external file and existing response shape, publish a separate contained copy and private intent, and receive owner-assigned identity, revision, and job without legacy external markDirty. A second lexical junction alias joins the same document without a duplicate indexing revision. Changed origin content retains the document ID. A seeded pre-S16 .markdown copy reopens and updates at its original locator and ID. Save_document remains restricted to .md publication, while .markdown is permitted only for source-backed opened_markdown/update intents with aliases.",
+    "failureAndReadOnly": "A diverged store copy is protected by registrar and publisher hash checks. Post-publication owner failure retains external file, copy, and retryable intent; pre-publication failure retains the external file and a private diagnostic marker for user-triggered retry. Existing indexed-origin tests cover read-only source selection, hash-only fallback, mismatch and redaction. The source and bundle stdio documentId open fixture adds no file, intent, owner call, or saved-path signal.",
+    "ownerContract": "S14, S15, and S16 producers send exactly {intentId, operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, provenance}. The controller strips legacy root arguments, and the worker derives roots from startup configuration, checks supplied identity against the durable intent or receipt, accepts an intentId-only committed replay, and rejects a wrong root fingerprint. S09 crash-window tests pass with configured ingress and a test-only replay hold; production startup replay remains exercised by S10 evidence.",
+    "closure": "The shared #38 entrypoint evidence is now present: SDK clients launch source and generated-bundle stdio servers through production main IPC dispatch bodies, and the registered renderer manual-save IPC callback is exercised with window metadata and post-publication owner failure. Combined S15/S16 evidence supports closing #38 first, then #39 as required by the S16 handoff. Both GitHub issues were OPEN at review time. This review does not mark broader evolving requirements verified."
+  },
+  "verification": {
+    "hashRecomputed": "2999c73c686c7b28171d46d8346011c0b6ddf671ca047aaee2517e1f866c4131",
+    "s16": "PASS assertions=24 (reviewer rerun)",
+    "s15": "PASS assertions=49 (reviewer rerun)",
+    "s14": "PASS assertions=23 (reviewer rerun)",
+    "s09": "PASS assertions=37 (reviewer rerun)",
+    "s08": "PASS assertions=53 (prior review)",
+    "s10": "PASS assertions=46 (S15 final review evidence)",
+    "openedMarkdownRegistrar": "PASS (S15 final review evidence)",
+    "indexedOriginOpen": "PASS (S15 final review evidence)",
+    "mcpToolParity": "PASS (S15 final review evidence)",
+    "mcpHttpSaveParity": "PASS (S15 final review evidence)",
+    "diffCheck": "PASS"
+  }
+}
