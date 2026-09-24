@@ -270,10 +270,13 @@ function listMarkdownFiles(root) {
     fs.symlinkSync(externalRoot, alternateOriginDir, process.platform === 'win32' ? 'junction' : 'dir');
     const alternateLexicalPath = path.join(alternateOriginDir, 'Original.md');
     const alternateReopen = await registrar.register(alternateLexicalPath);
-    assert.strictEqual(alternateReopen.status, 'existing', 'alternate lexical path to the same canonical origin reuses the existing alias');
-    const preservedAlias = queryAliasRow(ledger, documentId);
-    assert.strictEqual(path.resolve(preservedAlias.origin_lexical_path_internal), path.resolve(originalPath), 'non-null lexical origin is immutable across alternate-path reopen');
-    assert.strictEqual(path.resolve(preservedAlias.origin_path_internal), path.resolve(canonicalOriginal), 'non-null canonical origin is immutable across alternate-path reopen');
+    assert.strictEqual(alternateReopen.status, 'existing', 'alternate lexical path to the same canonical origin reuses the document');
+    const preservedAliases = ledger.open().prepare('SELECT * FROM document_source_aliases WHERE document_id = ? ORDER BY alias_id').all(documentId);
+    assert.strictEqual(preservedAliases.length, 2, 'alternate lexical reopen retains a separate alias for the same document');
+    assert.notStrictEqual(preservedAliases[0].alias_id, preservedAliases[1].alias_id, 'both lexical origins retain distinct alias identities');
+    assert.deepStrictEqual(new Set(preservedAliases.map(row => path.resolve(row.origin_lexical_path_internal))),
+      new Set([path.resolve(originalPath), path.resolve(alternateLexicalPath)]), 'both immutable lexical origins are retained');
+    assert(preservedAliases.every(row => path.resolve(row.origin_path_internal) === path.resolve(canonicalOriginal)), 'both aliases retain the canonical original');
     fs.rmSync(alternateOriginDir, { force: true });
 
     const namedPath = path.join(externalRoot, 'NamedSensitive.markdown');
@@ -405,12 +408,20 @@ function listMarkdownFiles(root) {
     assert.strictEqual(mismatched.sourceUsed, 'indexed_copy', 'origin/hash mismatch cannot select the stored origin');
     assert.strictEqual(mismatched.originStatus, 'path_mismatch', 'tampered origin path reports stable mismatch status');
 
+    // Preserve both alias identities while constructing two independent legacy hash-only rows.
+    ledger.open().prepare(`
+      UPDATE document_source_aliases
+      SET canonical_path_hash = ?, origin_lexical_path_internal = NULL, origin_path_internal = NULL
+      WHERE document_id = ? AND origin_lexical_path_internal = ?
+    `).run(sha256('alternate-legacy-hash'), documentId, path.resolve(alternateLexicalPath));
     ledger.open().prepare(`
       UPDATE document_source_aliases
       SET origin_lexical_path_internal = NULL,
           origin_path_internal = NULL
-      WHERE document_id = ?
-    `).run(documentId);
+      WHERE document_id = ? AND canonical_path_hash = ?
+    `).run(documentId, canonicalPathHash(canonicalOriginal));
+    assert.strictEqual(ledger.open().prepare('SELECT COUNT(*) AS count FROM document_source_aliases WHERE document_id = ?').get(documentId).count, 2,
+      'legacy fixture keeps both alias identities');
     const legacy = await resolveIndexedMarkdownOpen({ documentId, searchEngine });
     assert.strictEqual(legacy.sourceUsed, 'indexed_copy', 'legacy hash-only alias safely uses the indexed copy');
     assert.strictEqual(legacy.originStatus, 'not_recorded', 'legacy hash-only alias does not guess an origin path');

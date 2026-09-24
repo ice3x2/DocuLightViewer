@@ -1137,25 +1137,26 @@ class SourceLedgerStore {
         (a.origin_lexical_path_internal IS NOT NULL AND a.origin_path_internal IS NOT NULL) DESC,
         a.updated_at DESC,
         a.alias_id
-      LIMIT 1
-    `).get(resolvedDocumentId);
-    if (!row) return null;
+    `).all(resolvedDocumentId);
+    if (row.length === 0) return null;
+    const documentRow = row[0];
     return {
-      documentId: row.document_id,
-      sourceId: row.source_id,
-      sourceRelativePath: row.relative_path,
-      pathKey: row.path_key,
-      pathStatus: row.path_status,
-      sourceRootInternal: row.root_path_internal,
-      indexedPathInternal: path.join(row.root_path_internal, row.relative_path),
-      indexedCanonicalPathHash: row.indexed_canonical_path_hash || null,
-      aliasId: row.alias_id || null,
-      originCanonicalPathHash: row.origin_canonical_path_hash || null,
-      originLexicalPathInternal: row.origin_lexical_path_internal || null,
-      originPathInternal: row.origin_path_internal || null,
-      originContentHash: row.origin_content_hash || null,
-      originContentByteLength: Number.isInteger(row.origin_content_byte_length) ? row.origin_content_byte_length : null,
-      originContentTextLength: Number.isInteger(row.origin_content_text_length) ? row.origin_content_text_length : null
+      documentId: documentRow.document_id,
+      sourceId: documentRow.source_id,
+      sourceRelativePath: documentRow.relative_path,
+      pathKey: documentRow.path_key,
+      pathStatus: documentRow.path_status,
+      sourceRootInternal: documentRow.root_path_internal,
+      indexedPathInternal: path.join(documentRow.root_path_internal, documentRow.relative_path),
+      indexedCanonicalPathHash: documentRow.indexed_canonical_path_hash || null,
+      originCandidates: row.filter(alias => alias.alias_id).map(alias => ({
+        originCanonicalPathHash: alias.origin_canonical_path_hash || null,
+        originLexicalPathInternal: alias.origin_lexical_path_internal || null,
+        originPathInternal: alias.origin_path_internal || null,
+        originContentHash: alias.origin_content_hash || null,
+        originContentByteLength: Number.isInteger(alias.origin_content_byte_length) ? alias.origin_content_byte_length : null,
+        originContentTextLength: Number.isInteger(alias.origin_content_text_length) ? alias.origin_content_text_length : null
+      }))
     };
   }
 

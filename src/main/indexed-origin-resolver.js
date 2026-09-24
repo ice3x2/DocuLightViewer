@@ -20,6 +20,15 @@ const ORIGIN_STATUSES = Object.freeze([
   'unsupported_extension',
   'read_failed'
 ]);
+const ORIGIN_FAILURE_PRIORITY = Object.freeze({
+  path_mismatch: 0,
+  unreadable: 1,
+  read_failed: 2,
+  not_file: 3,
+  unsupported_extension: 4,
+  missing: 5,
+  not_recorded: 6
+});
 
 // @req FR-DOC-036
 class IndexedDocumentOpenError extends Error {
@@ -60,16 +69,21 @@ async function resolveIndexedMarkdownOpen({
   }
 
   let originStatus = 'not_recorded';
-  const hasAnyOriginPath = Boolean(target.originLexicalPathInternal || target.originPathInternal);
-  if (target.originLexicalPathInternal && target.originPathInternal && target.originCanonicalPathHash) {
+  for (const candidate of target.originCandidates || [target]) {
+    const hasAnyOriginPath = Boolean(candidate.originLexicalPathInternal || candidate.originPathInternal);
+    if (!hasAnyOriginPath) continue;
+    if (!(candidate.originLexicalPathInternal && candidate.originPathInternal && candidate.originCanonicalPathHash)) {
+      originStatus = 'path_mismatch';
+      continue;
+    }
     const origin = await readValidatedMarkdownCandidate({
-      lexicalPathInternal: target.originLexicalPathInternal,
-      expectedCanonicalPathInternal: target.originPathInternal,
-      expectedCanonicalPathHash: target.originCanonicalPathHash,
+      lexicalPathInternal: candidate.originLexicalPathInternal,
+      expectedCanonicalPathInternal: candidate.originPathInternal,
+      expectedCanonicalPathHash: candidate.originCanonicalPathHash,
       fsPromises
     });
     if (origin.ok) {
-      originStatus = matchesStoredFingerprint(origin, target) ? 'readable' : 'readable_changed';
+      originStatus = matchesStoredFingerprint(origin, candidate) ? 'readable' : 'readable_changed';
       return {
         documentId: target.documentId,
         sourceUsed: 'origin',
@@ -79,9 +93,7 @@ async function resolveIndexedMarkdownOpen({
         [VALIDATED_MARKDOWN_CONTENT]: true
       };
     }
-    originStatus = origin.status;
-  } else if (hasAnyOriginPath) {
-    originStatus = 'path_mismatch';
+    if (ORIGIN_FAILURE_PRIORITY[origin.status] < ORIGIN_FAILURE_PRIORITY[originStatus]) originStatus = origin.status;
   }
 
   const indexedCopy = await readValidatedMarkdownCandidate({

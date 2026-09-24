@@ -1,0 +1,43 @@
+{
+  "review": "S05 independent TDD and legacy-contract review",
+  "issue": 28,
+  "requirements": ["FR-DOC-036", "DR-DOC-014", "IR-MCP-019"],
+  "result": "PASS",
+  "findings": [],
+  "reviewedFilesSha256": {
+    "src/main/indexed-origin-resolver.js": "05c30e0762e4150dd8463706584049d68b6c4d022186bcf20a293e375da47b6e",
+    "src/main/source-ledger-store.js": "6674b2589f2b17672e7e3f82d76f6971dc724c7f813d8283928c7a4106b7d60f",
+    "test/r3/cases/s05.cjs": "c163e4c98a81f520dcc3115e25959ff760d60479ea8e76c04c2e61f6541ef386",
+    "test/r3/node-main.cjs": "ea9f36678aeec5d3097a1c89b5de40a78a6253a3798b8f9900a96def3eeef13c",
+    "test/r3/run-node.cjs": "81929d648c35905b752844f9b2b3226d3eb2ba3c542f99b82f72d9d0dcbf1c26",
+    "test/test-indexed-origin-open-contract.js": "b5138ae92e2703edd65037373f4950e8705975971ebc1492bb80e6bad429645b"
+  },
+  "independentCommands": [
+    {
+      "command": "node test/test-indexed-origin-open-contract.js",
+      "exitCode": 0,
+      "output": "test-indexed-origin-open-contract: all assertions passed"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "output": "No whitespace errors; Git emitted only LF-to-CRLF working-copy notices."
+    },
+    {
+      "command": "$env:DOCULIGHT_R3_NODE_ROOT=Join-Path $env:TEMP 'doculight-r3-node-20260924d'; node test/r3/run-node.cjs --case s05",
+      "exitCode": 0,
+      "output": "PASS case=s05 assertions=23"
+    }
+  ],
+  "excludedSetupRun": {
+    "command": "node test/r3/run-node.cjs --case s05",
+    "exitCode": 1,
+    "output": "SETUP_ERROR root missing",
+    "reason": "The isolated runtime root environment variable was unset. This is neither a semantic RED nor a product failure."
+  },
+  "tddEvidence": {
+    "reportedPreimplementationRed": "Author recorded ASSERTION_FAIL case=s05 assertions=1 a valid second lexical alias wins after the first alias retargets, exit 1, before product implementation.",
+    "limitation": "The preimplementation console transcript and source snapshot were not archived; the independent review cannot reconstruct the chronology from the final tree."
+  },
+  "assessment": "The S05 case uses real SQLite, files, and two lexical directory aliases sharing one canonical original. It checks valid second-alias selection, changed content, 10 MiB plus one byte fallback, permission and missing failures, stable unavailable errors, legacy hash-only fallback, and source-ledger/fixture byte invariance around resolver calls. The product change reads all aliases for the selected document and passes each to the existing bounded same-handle validator. The legacy contract change updates the obsolete single-alias oracle to assert two distinct aliases, both lexical paths, one canonical target, and retained hash-only identities; remaining identity, redaction, TOCTOU, and transport assertions still pass."
+}

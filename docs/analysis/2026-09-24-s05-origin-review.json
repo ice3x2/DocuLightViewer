@@ -1,0 +1,48 @@
+{
+  "review": "S05 indexed-origin selection security and compatibility",
+  "date": "2026-09-24",
+  "baseCommit": "f29e34fbd401806ba30bfe2deaaaa2c66f79a036",
+  "requirements": ["FR-DOC-036", "DR-DOC-014", "IR-MCP-019", "SEC-DOC-003"],
+  "result": "PASS",
+  "findings": [],
+  "reviewedFilesSha256": {
+    "src/main/source-ledger-store.js": "6674b2589f2b17672e7f82d76f6971dc724c7f813d8283928c7a4106b7d60f",
+    "src/main/indexed-origin-resolver.js": "05c30e0762e4150dd8463706584049d68b6c4d022186bcf20a293e375da47b6e",
+    "test/r3/cases/s05.cjs": "c163e4c98a81f520dcc3115e25959ff760d60479ea8e76c04c2e61f6541ef386",
+    "test/test-indexed-origin-open-contract.js": "b5138ae92e2703edd65037373f4950e8705975971ebc1492bb80e6bad429645b"
+  },
+  "checks": [
+    {
+      "result": "PASS",
+      "source": "src/main/source-ledger-store.js:1094",
+      "detail": "Document-scoped lookup returns one stable indexed-copy locator and all same-document aliases in deterministic completeness, update-time, and alias-ID order; alias rows remain private."
+    },
+    {
+      "result": "PASS",
+      "source": "src/main/indexed-origin-resolver.js:72",
+      "detail": "The resolver examines each alias, selects the first validated original, reports deterministic fallback status, and retains the exact indexed_document_unavailable error when the separately validated copy also fails."
+    },
+    {
+      "result": "PASS",
+      "source": "src/main/indexed-origin-resolver.js:120",
+      "detail": "The unchanged candidate reader enforces lexical/canonical/hash binding, same-handle identity and post-open checks, symlink-retarget rejection, strict UTF-8, and a 10 MiB bounded read."
+    },
+    {
+      "result": "PASS",
+      "source": "test/r3/cases/s05.cjs:58",
+      "detail": "The isolated fixture checks two lexical aliases, retargeting, changed content, size limit, permission denial, missing origin/copy, legacy hash-only fallback, redaction, and unchanged ledger rows and file inventory around resolver calls."
+    },
+    {
+      "result": "PASS",
+      "source": "test/test-indexed-origin-open-contract.js:274",
+      "detail": "The revised legacy oracle checks two distinct alias IDs, both immutable lexical paths, and their common canonical target; it retains both aliases in the later hash-only fixture. Existing HTTP, stdio, bundle, viewer, and eight-tool assertions remain."
+    }
+  ],
+  "verification": {
+    "existingOriginContract": "node test/test-indexed-origin-open-contract.js: exit 0, all assertions passed in reviewer shell",
+    "s05DirectIsolatedFixture": "exit 0, 23 assertions passed in reviewer shell using an OS temporary directory",
+    "s05FormalRunnerReviewerShell": "SETUP_ERROR: DOCULIGHT_R3_NODE_ROOT was unset; no formal-runner PASS is claimed from this shell",
+    "s05FormalRunnerOtherReviewer": "Separate TDD reviewer ran the prepared formal runner and reported PASS with 23 assertions"
+  },
+  "mutations": "Review created this JSON evidence file only; no product-code or GitHub mutation."
+}
