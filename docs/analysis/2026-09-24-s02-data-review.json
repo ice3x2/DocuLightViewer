@@ -1,0 +1,49 @@
+﻿{
+  "review": "S02 independent data and recovery SRS review",
+  "date": "2026-09-24",
+  "result": "PASS",
+  "severityCounts": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "findings": [],
+  "sources": {
+    "approvedDecision": "docs/plan/2026-09-11-sol-medium-handoff.md:10-11 (original worktree)",
+    "issue": "https://github.com/ice3x2/DocuLightViewer/issues/25",
+    "issueNote": "Current issue text includes bounded private ephemeral contentBytes in accept_save and excludes body bytes from durable intent.",
+    "reviewedFiles": [
+      {
+        "path": "docs/spec/60.document-persistence.srs.md",
+        "sha256": "F548622395A62D9029E1BAB8693554E38ACE94BCA452819F900DD5F76AAFC2BF"
+      },
+      {
+        "path": "docs/plan/2026-09-11-sol-medium-execution.md",
+        "sha256": "7AF18C78F527EFF5635C5A92EF590120883CE6CD01024E2A5246DD8E30CD80AF"
+      }
+    ],
+    "baseline": "DR-DOC-013, FR-DOC-028 and source-ledger-store.js in S01 worktree"
+  },
+  "checks": [
+    "FR-DOC-019 and REL-DOC-009 separate file publication from authoritative metadata/job commit and queued acknowledgement; published files survive indexing failure or cancellation.",
+    "REL-DOC-009 requires bounded body-free private intent with schema, checksum, ordering, root identity, contained locator and hash, lossless original provenance or contained private manifest reference, and metadata that cannot be restored byte-equivalently from final frontmatter.",
+    "The sole SQLite owner assigns and durably commits desired revision; accepted intent replay is idempotent; old terminal jobs cannot clear a newer desired revision; dirty and keyword_dirty retain retry state.",
+    "FR-DOC-033 preserves completed imported documents and their identity, aliases and metadata across later import failure or cancellation; FR-DOC-019 preserves the legacy journal recovery adapter.",
+    "DR-DOC-014 keeps 1:N original aliases and lexical/canonical original paths separate from documents.relative_path, while DR-DOC-013 keeps source-relative identity distinct. Generated documents do not invent origins; FR-DOC-036 keeps resolver and search read-only with verified copy fallback.",
+    "FR-DOC-028's existing index_enqueue_failed warning remains required for generic enqueue failure. indexing_ingress_capacity is additive only for private ingress capacity and does not replace index_enqueue_failed."
+  ],
+  "validation": {
+    "command": "speckiwi --root C:/Work/git/_Snoworca/DocuLightViewer-r3 validate --json",
+    "exitCode": 0,
+    "errors": 0,
+    "warnings": 6,
+    "warningCodes": {
+      "SRS-W015": 4,
+      "SRS-W073": 2
+    },
+    "executionPlanLine59": "reports exit 0, errors 0, warnings 6",
+    "priorFiveWarningComment": "withdrawn; it referred to a stale snapshot before FR-APP-012 supersession"
+  },
+  "scope": "Independent S02 data/recovery semantics and evidence only; no implementation or runtime behavior verification"
+}

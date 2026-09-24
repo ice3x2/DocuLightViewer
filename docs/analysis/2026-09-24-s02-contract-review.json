@@ -1,0 +1,38 @@
+﻿{
+    "review":  "S02 independent contract review",
+    "reviewedAtUtc":  "2026-09-24T11:25:21Z",
+    "result":  "PASS",
+    "findings":  [
+
+                 ],
+    "issue":  {
+                  "url":  "https://github.com/ice3x2/DocuLightViewer/issues/25",
+                  "updatedAtUtc":  "2026-09-24T11:22:54Z",
+                  "bodySha256":  "7dd625610a5d836fdc55f648f08f70f2323121a92b4a3232772166d4ef36877e"
+              },
+    "files":  {
+                  "docs/spec/00.index.md":  "5390dd870538b45070ac5f1d0c3c482bf234fd88f1f7bd7d1303269f297d9828",
+                  "docs/spec/20.app-shell.srs.md":  "d50998eec28ebedd68430ee7c32ef90752a3dade0fd2b59753eda8614c9db576",
+                  "docs/spec/50.mcp-integration.srs.md":  "fc05fa75ac5c6d7da12a06d9e23d71590e267d287be0389fb7daaec075d27f83",
+                  "docs/spec/60.document-persistence.srs.md":  "f548622395a62d9029e1bab8693554e38ace94bca452819f900dd5f76aafc2bf",
+                  "docs/plan/2026-09-11-sol-medium-execution.md":  "7af18c78f527eff5635c5a92ef590120883ce6cd01024e2a5246dd8e30cd80af"
+              },
+    "validation":  {
+                       "command":  "speckiwi --root C:/Work/git/_Snoworca/DocuLightViewer-r3 validate --json",
+                       "exitCode":  0,
+                       "errors":  0,
+                       "warnings":  6,
+                       "warningCodes":  {
+                                            "SRS-W015":  4,
+                                            "SRS-W073":  2
+                                        }
+                   },
+    "checks":  [
+                   "D1 preserves published Markdown and completed import documents on indexing failure or cancellation",
+                   "accept_save private contentBytes matches live issue and is excluded from durable intent",
+                   "documents.relative_path store copy is distinct from DR-DOC-013 source identity and private original alias paths",
+                   "FR-APP-012 discarded/stable superseded by FR-APP-013 planned/evolving with one trace row; IR-APP-013 planned/evolving; new AC remain unchecked",
+                   "generic enqueue_failed retains index_enqueue_failed warning; indexing_ingress_capacity is capacity-specific",
+                   "MCP exact eight-tool surface and save/search envelopes, redaction, read-only origin resolver, and ko/en/ja/es strings contract retained"
+               ]
+}
