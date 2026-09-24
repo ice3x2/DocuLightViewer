@@ -1,0 +1,27 @@
+{
+  "issue": 41,
+  "step": "S18",
+  "date": "2026-09-25",
+  "baseCommit": "eca8b2c4c285fdfa505868edbda6fb3270bc6340",
+  "sourceHash": "d0b43e7c1ae1aeb004c70f0ea1c1552ae486f99924b326df5f01c309ce4e9cb8",
+  "review": "PASS",
+  "severityCounts": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "requirements": ["FR-DOC-033", "DR-DOC-013", "CON-DOC-006", "SEC-DOC-003", "REL-DOC-009"],
+  "findings": [],
+  "evidence": {
+    "tdd": "S18 semantic RED at depth-one assertion and later one-shot lost-ACK assertion; Settings VM semantic RED selected the complete key for unconfirmedCount=1. All three have recorded assertion failures before implementation in 2026-09-25-s18-import-limits-evidence.md.",
+    "limits": "Real filesystem and SQLite assertions cover depth 0/1/2, maxFiles 2/3, exact A+B and A+B+C byte boundaries, oversized root, collision not consuming budget, cycles, mixed canonical diagnostics, 180 missing edges with 100-entry diagnostic cap, cancellation, and junction escapes.",
+    "acknowledgement": "The same seven-field intent is retried at most once. A recovered owner receipt counts C once with one document/job/receipt; persistent lost ACK is reported separately as unconfirmedCount=1 with ack_unknown and no false stale count. S17 fault/retry assertions were strengthened without removing its safety checks.",
+    "settings": "The real Settings click handler selects settings.linkedImportUnconfirmed when unconfirmedCount>0 and retains settings.linkedImportComplete for zero uncertainty. ko/en/ja/es strings contain confirmed counts, unconfirmed count, and same-file retry guidance. A VM test executes the renderer handler.",
+    "commands": [
+      { "command": "node test/r3/run-node.cjs --case s18", "result": "PASS, 19 assertions" },
+      { "command": "node test/r3/run-node.cjs --case s17", "result": "PASS, 32 assertions" },
+      { "command": "node test/test-settings-linked-import-uncertainty.js", "result": "PASS" },
+      { "command": "node test/test-settings-indexing-contract.js", "result": "PASS" },
+      { "command": "node test/test-wave2-import-adoption-contract.js", "result": "PASS" },
+      { "command": "node test/test-wave2-smart-search-contract.js", "result": "PASS" },
+      { "command": "git diff --check", "result": "PASS" }
+    ]
+  },
+  "closureRecommendation": "PASS: S18/#41 acceptance conditions are satisfied at the frozen source hash; retain the source hash and test evidence in the issue closeout."
+}

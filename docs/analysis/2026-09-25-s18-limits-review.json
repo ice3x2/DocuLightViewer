@@ -1,0 +1,39 @@
+{
+  "review": "S18 linked import limits and result accounting independent review",
+  "date": "2026-09-25",
+  "baseCommit": "eca8b2c4c285fdfa505868edbda6fb3270bc6340",
+  "sourceHashMethod": "node -p \"require('./test/r3/runtime.cjs').sourceHash()\"",
+  "sourceHash": "d0b43e7c1ae1aeb004c70f0ea1c1552ae486f99924b326df5f01c309ce4e9cb8",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/41",
+  "requirements": ["FR-DOC-033", "DR-DOC-013", "CON-DOC-006", "SEC-DOC-003", "REL-DOC-009"],
+  "result": "PASS",
+  "findings": { "critical": [], "high": [], "medium": [], "low": [] },
+  "issue41Closure": "Ready to close after the S18 completion commit and issue evidence are recorded.",
+  "checks": [
+    {
+      "name": "Deterministic limits and rejected candidates",
+      "result": "PASS: depth 0/1/2, file 2/3, exact and oversized byte budgets, collided destination, and cycles count committed root and child documents once. A rejected candidate consumes no committed file or byte slot and creates no new document row, destination copy, or job."
+    },
+    {
+      "name": "Owner commit, lost ACK, and partial cancellation",
+      "result": "PASS: one lost ACK retries the same seven-field intent and counts C once with three documents, jobs, and receipts. Persistent loss reports two confirmed imports plus one unconfirmed ack_unknown without a stale or false success count; C remains at one revision/job/receipt. Cancellation retains completed A and B and does not publish C."
+    },
+    {
+      "name": "Canonical diagnostics, containment, and retrieval boundary",
+      "result": "PASS: canonical edge statuses and reason counts are separate; 180 missing links yield full counts with the public list capped at 100. Source and destination Windows junction escapes create no escaped copy or owner row. Externally returned diagnostics use source-relative paths and redacted tokens, and the change does not add synthetic diagnostic text to indexed content."
+    },
+    {
+      "name": "Settings uncertainty and localization",
+      "result": "PASS: Settings renders a partial message for unconfirmedCount greater than zero, includes confirmed and unconfirmed counts plus same-file retry guidance, and retains the complete message for zero. The key is present in ko, en, ja, and es and flows through the existing strings payload; no raw path or href is interpolated into the status."
+    }
+  ],
+  "executed": [
+    { "command": "node test/r3/run-node.cjs --case s18", "result": "PASS case=s18 assertions=19" },
+    { "command": "node test/r3/run-node.cjs --case s17", "result": "PASS case=s17 assertions=32" },
+    { "command": "node test/test-settings-linked-import-uncertainty.js", "result": "all assertions passed" },
+    { "command": "node test/test-settings-indexing-contract.js", "result": "all assertions passed" },
+    { "command": "node test/test-wave2-import-adoption-contract.js", "result": "all assertions passed" },
+    { "command": "node test/test-wave2-smart-search-contract.js", "result": "all assertions passed" },
+    { "command": "git diff --check", "result": "exit 0" }
+  ]
+}

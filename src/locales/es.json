@@ -108,6 +108,7 @@
   "settings.indexingActionCompleted": "La acción se completó.",
   "settings.indexingActionCompletedWithBackup": "La acción se completó y se creó una copia del archivo de índice anterior.",
   "settings.linkedImportComplete": "Importación de enlaces completa: {imported} importados, {updated} actualizados, {existing} existentes, {skipped} omitidos",
+  "settings.linkedImportUnconfirmed": "Importación de enlaces parcial: {imported} importados, {updated} actualizados, {existing} existentes, {skipped} omitidos, {unconfirmed} sin confirmar. Los archivos confirmados siguen guardados. Repite la importación del mismo archivo para comprobar el resultado pendiente.",
   "settings.linkedImportFailed": "Error al importar enlaces",
   "settings.indexingClearConfirm": "¿Borrar el índice de búsqueda? Se crea una copia de seguridad cuando existe el archivo de índice.",
   "settings.indexingCompactConfirm": "¿Limpiar ahora la base del índice de búsqueda? Esto reescribe el archivo de índice guardado.",

@@ -105,6 +105,7 @@
   "settings.indexingActionCompleted": "操作が完了しました。",
   "settings.indexingActionCompletedWithBackup": "操作が完了し、以前のインデックスファイルのバックアップを作成しました。",
   "settings.linkedImportComplete": "リンクインポート完了: {imported} 件インポート, {updated} 件更新, {existing} 件既存, {skipped} 件スキップ",
+  "settings.linkedImportUnconfirmed": "リンクインポートは一部完了: インポート {imported} 件、更新 {updated} 件、既存 {existing} 件、スキップ {skipped} 件、未確認 {unconfirmed} 件。確認済みのファイルは保存されています。同じファイルを再度インポートして確認してください。",
   "settings.linkedImportFailed": "リンクインポートに失敗しました",
   "settings.indexingClearConfirm": "検索インデックスをクリアしますか？インデックスファイルがある場合はバックアップを作成します。",
   "settings.indexingCompactConfirm": "検索インデックスDBを今すぐ整理しますか？保存済みインデックスファイルを書き直します。",

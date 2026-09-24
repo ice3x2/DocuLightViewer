@@ -80,7 +80,10 @@ async function verifyCFault(context, faultAt) {
     const b = ledger.open().prepare("SELECT * FROM documents WHERE path_key = 'b.md'").get();
     const cBefore = ledger.open().prepare("SELECT * FROM documents WHERE path_key = 'c.md'").get();
     const intents = fs.readdirSync(ingressRoot).filter(name => name.endsWith('.intent.json'));
-    context.assert(partial.counts.imported === 2 && b?.desired_revision === 1
+    context.assert(partial.counts.imported === 2
+      && (faultAt === 'after_ack' ? partial.unconfirmedCount === 1 && partial.counts.stale === 0
+        : partial.unconfirmedCount === 0)
+      && b?.desired_revision === 1
       && fs.readFileSync(path.join(storeRoot, 'B.md'), 'utf8') === '# B\n[C](./C.md)\n'
       && (faultAt === 'after_ack' ? Boolean(cBefore) : !cBefore),
     `${faultAt}: C boundary retains B copy, document, and owner job with partial count`);
@@ -123,7 +126,7 @@ module.exports = { async run(context) {
   owner.acceptPublishedSave = async input => {
     calls += 1;
     ownerInputs.push(input);
-    if (calls === 3) throw new Error('C owner fault');
+    if (calls >= 3) throw new Error('C owner fault');
     return originalAccept(input);
   };
   try {
@@ -133,11 +136,12 @@ module.exports = { async run(context) {
     const partial = await importer.importMarkdownGraph(path.join(sourceRoot, 'A.md'));
     const b = ledger.open().prepare("SELECT * FROM documents WHERE path_key = 'b.md'").get();
     context.assert(partial.counts.imported === 2 && partial.counts.updated === 0
+      && partial.counts.stale === 0 && partial.unconfirmedCount === 1
       && fs.readFileSync(path.join(storeRoot, 'B.md'), 'utf8') === '# B\n\n[C](./C.md)\n'
       && b?.desired_revision === 1 && b?.current_job_id,
     'C owner failure returns partial counts and preserves B copy, identity, revision, and job');
-    context.assert(calls === 3 && fs.readdirSync(ingressRoot).some(name => name.endsWith('.intent.json')),
-      'import sends one owner acceptance per completed candidate and retains C durable intent');
+    context.assert(calls === 4 && fs.readdirSync(ingressRoot).some(name => name.endsWith('.intent.json')),
+      'import retries the exact C intent once, then retains its durable intent on unconfirmed owner acceptance');
     context.assert(ownerInputs.every(input => JSON.stringify(Object.keys(input).sort()) === JSON.stringify([
       'contentHash', 'intentId', 'operation', 'provenance', 'rootFingerprint',
       'sourceId', 'sourceRelativeLocator'])),
@@ -171,7 +175,7 @@ module.exports = { async run(context) {
     const failedUpdate = await importer.importMarkdownGraph(path.join(sourceRoot, 'FaultUpdate.md'));
     const beforeReplay = ledger.open().prepare('SELECT desired_revision FROM documents WHERE document_id = ?')
       .get(originalId).desired_revision;
-    context.assert(failedUpdate.counts.stale === 1 && beforeReplay === 1
+    context.assert(failedUpdate.unconfirmedCount === 1 && failedUpdate.counts.stale === 0 && beforeReplay === 1
       && fs.readFileSync(path.join(storeRoot, 'FaultUpdate.md'), 'utf8') === '# New\n',
     'changed-content owner fault preserves old owner revision and newly published copy');
     owner.acceptPublishedSave = originalAccept;

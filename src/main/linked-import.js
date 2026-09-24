@@ -8,6 +8,7 @@ const { publishSave, readPendingSave } = require('./index-ingress-store');
 const { createRedactor, redactToken } = require('./redaction');
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown']);
+const MAX_IMPORT_DIAGNOSTICS = 100;
 
 // @req FR-DOC-033
 // @req CON-DOC-007
@@ -50,7 +51,13 @@ class LinkedImporter {
     }, source);
     const linkIndexer = createLinkGraphIndexer({ sourceRoot: this.sourceRoot });
     const counts = createCounts();
+    const diagnosticCounts = Object.create(null);
     const diagnostics = [];
+    const unconfirmed = [];
+    const recordDiagnostic = item => {
+      diagnosticCounts[item.diagnosticCode] = (diagnosticCounts[item.diagnosticCode] || 0) + 1;
+      if (diagnostics.length < MAX_IMPORT_DIAGNOSTICS) diagnostics.push(item);
+    };
     const imported = [];
     const visited = new Set();
     const pending = [{
@@ -62,71 +69,83 @@ class LinkedImporter {
 
     while (pending.length > 0) {
       if (this.signal?.aborted) {
-        diagnostics.push(diagnostic('skipped', 'cancelled', '', this.redactor));
+        recordDiagnostic(diagnostic('skipped', 'cancelled', '', this.redactor));
         break;
       }
       const current = pending.shift();
+      const containment = containmentDiagnostic(current.filePath, this.sourceRoot);
+      if (containment) {
+        counts.path_policy_violation += 1;
+        recordDiagnostic(diagnostic('path_policy_violation', containment, current.filePath, this.redactor));
+        continue;
+      }
       const canonicalKey = canonicalIdentityKey(current.filePath);
       if (visited.has(canonicalKey)) {
         counts.skipped += 1;
-        diagnostics.push(diagnostic('skipped', 'duplicate_or_cycle', current.filePath, this.redactor));
+        recordDiagnostic(diagnostic('skipped', 'skipped_cycle', current.filePath, this.redactor));
         continue;
       }
       if (current.depth > this.maxDepth || imported.length >= this.maxFiles) {
         counts.skipped += 1;
-        diagnostics.push(diagnostic('skipped', 'limit_reached', current.filePath, this.redactor));
-        continue;
-      }
-      const containment = containmentDiagnostic(current.filePath, this.sourceRoot);
-      if (containment) {
-        counts.path_policy_violation += 1;
-        diagnostics.push(diagnostic('path_policy_violation', containment, current.filePath, this.redactor));
+        recordDiagnostic(diagnostic('skipped', current.depth > this.maxDepth
+          ? 'skipped_depth' : 'skipped_file_count', current.filePath, this.redactor));
         continue;
       }
       if (!fs.existsSync(current.filePath)) {
         counts.missing += 1;
-        diagnostics.push(diagnostic('missing', 'target_missing', current.filePath, this.redactor));
+        recordDiagnostic(diagnostic('missing', 'target_missing', current.filePath, this.redactor));
         continue;
       }
 
       let sourceRelativePath;
       let content;
+      let candidateBytes;
       let persistResult;
       try {
         const stat = fs.statSync(current.filePath);
-        totalBytes += stat.size;
-        if (totalBytes > this.maxTotalBytes) {
+        if (totalBytes + stat.size > this.maxTotalBytes) {
           counts.skipped += 1;
-          diagnostics.push(diagnostic('skipped', 'total_bytes_limit', current.filePath, this.redactor));
+          recordDiagnostic(diagnostic('skipped', 'skipped_total_bytes', current.filePath, this.redactor));
           continue;
         }
         sourceRelativePath = toSourceRelativePath(current.filePath, this.sourceRoot);
         const destinationCheck = this.resolveKnowledgeStoreDestination(sourceRelativePath);
         if (destinationCheck?.status === 'ambiguous') {
           counts.ambiguous += 1;
-          diagnostics.push(diagnostic('ambiguous', destinationCheck.diagnosticCode,
+          recordDiagnostic(diagnostic('ambiguous', destinationCheck.diagnosticCode,
             destinationCheck.targetPath, this.redactor));
           continue;
         }
         content = await fs.promises.readFile(current.filePath, 'utf-8');
+        candidateBytes = Buffer.byteLength(content, 'utf8');
+        if (totalBytes + candidateBytes > this.maxTotalBytes) {
+          counts.skipped += 1;
+          recordDiagnostic(diagnostic('skipped', 'skipped_total_bytes', current.filePath, this.redactor));
+          continue;
+        }
         visited.add(canonicalKey);
         persistResult = await this.persistCandidate({ source, filePath: current.filePath,
           lexicalPath: current.lexicalPath || current.filePath, sourceRelativePath, content });
       } catch (error) {
         counts.stale += 1;
-        diagnostics.push(diagnostic('stale', error.code || 'import_candidate_failed',
+        recordDiagnostic(diagnostic('stale', error.code || 'import_candidate_failed',
           current.filePath, this.redactor));
         break;
       }
       if (persistResult && persistResult.status === 'ambiguous') {
         counts.ambiguous += 1;
-        diagnostics.push(diagnostic('ambiguous', persistResult.diagnosticCode, persistResult.targetPath, this.redactor));
+        recordDiagnostic(diagnostic('ambiguous', persistResult.diagnosticCode, persistResult.targetPath, this.redactor));
         visited.add(canonicalKey);
         continue;
       }
+      if (persistResult?.status === 'unconfirmed') {
+        diagnosticCounts.ack_unknown = (diagnosticCounts.ack_unknown || 0) + 1;
+        unconfirmed.push({ sourceRelativePath, diagnosticCode: 'ack_unknown' });
+        break;
+      }
       if (!persistResult || persistResult.status === 'failed') {
         counts.stale += 1;
-        diagnostics.push(diagnostic('stale', persistResult?.diagnosticCode || 'index_enqueue_failed',
+        recordDiagnostic(diagnostic('stale', persistResult?.diagnosticCode || 'index_enqueue_failed',
           current.filePath, this.redactor));
         break;
       }
@@ -139,6 +158,7 @@ class LinkedImporter {
         counts.imported += 1;
       }
       imported.push({ documentId, sourceRelativePath, status: persistResult.status });
+      totalBytes += candidateBytes;
 
       const edges = linkIndexer.extractLinks(content, {
         filePath: current.filePath,
@@ -154,18 +174,21 @@ class LinkedImporter {
             pending.push({ filePath: targetPath, lexicalPath: targetPath, depth: current.depth + 1 });
           } else {
             counts.skipped += 1;
-            diagnostics.push(diagnostic('skipped', 'duplicate_or_cycle', targetPath || adjusted.normalizedHref, this.redactor));
+            recordDiagnostic(diagnostic('skipped', 'skipped_cycle', targetPath || adjusted.normalizedHref, this.redactor));
             continue;
           }
           continue;
         }
         incrementCount(counts, adjusted.status);
-        diagnostics.push(edgeDiagnostic(adjusted, sourceRelativePath, this.redactor));
+        recordDiagnostic(edgeDiagnostic(adjusted, sourceRelativePath, this.redactor));
       }
     }
     return {
       source,
       counts,
+      diagnosticCounts,
+      unconfirmedCount: unconfirmed.length,
+      unconfirmed,
       imported,
       diagnostics
     };
@@ -258,12 +281,16 @@ class LinkedImporter {
       }
       return { status: 'failed', diagnosticCode: error.code || 'index_enqueue_failed' };
     }
-    let accepted;
-    try { accepted = await this.ownerController.acceptPublishedSave({ intentId: publication.intentId,
+    const acceptance = { intentId: publication.intentId,
       operation, sourceId, rootFingerprint, sourceRelativeLocator: sourceRelativePath,
-      contentHash, provenance }); }
-    catch { return { status: 'failed', diagnosticCode: 'index_enqueue_failed' }; }
-    if (!accepted?.accepted) return { status: 'failed', diagnosticCode: 'index_enqueue_failed' };
+      contentHash, provenance };
+    let accepted;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try { accepted = await this.ownerController.acceptPublishedSave(acceptance); }
+      catch { accepted = null; }
+      if (accepted?.accepted) break;
+    }
+    if (!accepted?.accepted) return { status: 'unconfirmed', diagnosticCode: 'ack_unknown' };
     const alreadyAcknowledged = this.acknowledgedImports.has(publication.intentId);
     this.acknowledgedImports.add(publication.intentId);
     return { status: alreadyAcknowledged || accepted.indexingState === 'provenance_only'

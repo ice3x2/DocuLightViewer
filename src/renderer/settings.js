@@ -940,11 +940,13 @@
         }
         const counts = result.counts || {};
         if (linkedImportStatusEl) {
-          linkedImportStatusEl.textContent = t('settings.linkedImportComplete', {
+          linkedImportStatusEl.textContent = t(result.unconfirmedCount > 0
+            ? 'settings.linkedImportUnconfirmed' : 'settings.linkedImportComplete', {
             imported: counts.imported || 0,
             updated: counts.updated || 0,
             existing: counts.existing || 0,
-            skipped: counts.skipped || 0
+            skipped: counts.skipped || 0,
+            unconfirmed: result.unconfirmedCount || 0
           });
         }
         await refreshIndexingStatus();
