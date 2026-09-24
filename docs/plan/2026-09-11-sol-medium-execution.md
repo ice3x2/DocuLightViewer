@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S07 #30](https://github.com/ice3x2/DocuLightViewer/issues/30) · 다음 [S08 #31](https://github.com/ice3x2/DocuLightViewer/issues/31).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S08 #31](https://github.com/ice3x2/DocuLightViewer/issues/31) · 다음 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `7/36` 완료(S01~S07)다. 새 owner 경로의 단일 worker·bounded scheduler는 실제 SQLite/CPU fixture와 집중 응답 시간으로 검증했다. 저장 문서의 실제 색인 부하와 제품 앱 검증은 후속 이슈에 남아 있다. 다음 [S08 #31](https://github.com/ice3x2/DocuLightViewer/issues/31)은 이 브랜치의 S07 인계 SHA에서 최소 durable save-intent와 atomic file publish를 test-first로 진행한다.
+실행 이슈는 `8/36` 완료(S01~S08)다. private intent와 원자적 파일 게시의 실패·재시도 경계는 실제 FS fixture로 검증했다. 원장 job의 durable 수락, 최신 revision 및 제품 저장 경로 연결은 후속 이슈에 남아 있다. 다음 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32)은 이 브랜치의 S08 인계 SHA에서 metadata·job commit과 ACK를 test-first로 진행한다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -97,3 +97,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] 새 owner route의 SQLite+CPU work-unit overlap assertion RED 뒤 최소 scheduler를 구현했다. 비동기 unit 거부, cancel status progress 보존, callback 중복 방지, FIFO work-unit rotation, 590.760 ms active Electron 측정도 각각 assertion RED 뒤 수정했다. Node S07 15 assertions, Electron S07 20 assertions, S06 Node/Electron 각 42 assertions가 통과했다. [원시 측정 및 전환 범위](../analysis/2026-09-24-s07-scheduler-evidence.md)에 기록했다.
 - [x] 작성자가 아닌 독립 검토자가 원 이슈·diff·runtime 증거를 확인했다. [TDD·측정 검토](../analysis/2026-09-24-s07-tdd-review.json)와 [owner 실행 검토](../analysis/2026-09-24-s07-runtime-review.json)는 남은 지적 0건이다.
 - [x] #30 체크박스·완료 댓글·close 및 최종 SHA를 연결한다. 다음 작업은 [S08 #31](https://github.com/ice3x2/DocuLightViewer/issues/31)이다.
+
+## S08 진행 기록 — 독립 검토 완료
+
+- [x] S07 인계 SHA `1919a335bccc429f0e378e08d8c5f8cbb238e890`에서 시작했다. `REL-DOC-009`, `FR-DOC-019`, `FR-DOC-028`, `DR-DOC-014`를 확인했고 Stability 차단은 없다. #31의 최종 FILE/INTENT 경계에 따라 S09 authoritative commit은 구현하지 않았다.
+- [x] S08 Node case를 먼저 등록하고 의미 있는 `ASSERTION_FAIL` RED(exit 1) 뒤 private intent와 atomic file publisher를 구현했다. 독립 검토가 찾은 동일 문서 update, unsafe replay, 오래된 intent provenance 손실, 무제한 final-file read도 각 assertion RED 뒤 수정했다. [S08 증거](../analysis/2026-09-24-s08-intent-evidence.md)에 실제 FS fault matrix와 Windows directory flush 한계를 기록했다. Focused Node case 53 assertions 및 기존 MCP save parity가 통과했다. SpecKiwi로 `REL-DOC-009 AC-2`와 변경 이유를 갱신했고 SRS validate는 errors 0이다.
+- [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·RED/GREEN 증거와 durability, provenance, path containment, 공개 호환성을 확인했다. [durability·보안 검토](../analysis/2026-09-24-s08-durability-review.json)와 [TDD·호환성 검토](../analysis/2026-09-24-s08-tdd-review.json)는 남은 지적 0건이다.
+- [x] 검토 지적을 수정하고 focused regression을 확인한 뒤 #31 체크박스·완료 댓글·close와 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32) 인계 SHA를 연결한다.

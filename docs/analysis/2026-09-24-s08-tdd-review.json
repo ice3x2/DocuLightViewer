@@ -1,0 +1,31 @@
+{
+  "review": "S08 independent TDD and compatibility review",
+  "date": "2026-09-24",
+  "requirements": ["REL-DOC-009", "FR-DOC-019", "FR-DOC-028", "DR-DOC-014"],
+  "result": "PASS",
+  "sourceSnapshotHash": "2e6567ff996a1ec56979a1a5e9071f39608a84d49887d0e4a3732e6dc6c98aa8",
+  "reviewedFiles": {
+    "src/main/index-ingress-store.js": "f1284c78aafa20e3753220502addaa5d935cb47a78d5bde438a5fc52de783a7a",
+    "test/r3/cases/s08.cjs": "ddacc9a42f968e2cecbbe78f5553ee0d6dc1c40e409c9db31e7dc63c8bcc8735",
+    "docs/analysis/2026-09-24-s08-intent-evidence.md": "5475f42e1b07865bf09176eec74a3e31a64932fe0e70098b19095432be2bb41f"
+  },
+  "testFirstEvidence": {
+    "semanticRedAssertions": [
+      "content_hash_mismatch rejection: exit 1, assertions=0",
+      "same-locator update pre-rename fault: exit 1, assertions=28",
+      "oversized private intent quarantine: exit 1, assertions=28",
+      "older pending intent retains original alias after update: exit 1, assertions=40",
+      "oversized existing final rejected without full read: exit 1, assertions=44"
+    ],
+    "setupErrorExcluded": "An earlier module-missing SETUP_ERROR was not counted as RED.",
+    "limit": "The original preimplementation source snapshot and raw RED transcripts were not archived; exact historical chronology is author-reported. The assertion markers and final source are independently reviewable."
+  },
+  "verification": {
+    "focusedNodeCase": "node test/r3/run-node.cjs --case s08: PASS case=s08 assertions=53, exit 0",
+    "existingMcpSaveParity": "node test/test-mcp-http-save-parity.js: all assertions passed, exit 0",
+    "sourceOnlySnapshot": "Node v24.16.0 ABI 137; Electron 33.4.11 ABI 130 dependencies reused without native rebuild"
+  },
+  "assessment": "Real filesystem fixtures cover intent and file publication faults, same-locator atomic update, retained older intent provenance, retryable transient reads, bounded final hashing, containment, and capacity. Published files are retained after an injected post-publication crash. The transitional private publisher reports saved/enqueue_failed with no queued state or jobId because no authoritative owner ACK exists. The public eight-tool MCP contract is unchanged. Windows directory fsync and junction race limits are stated in the evidence.",
+  "deferred": "S09 owns authoritative metadata/job transaction, desiredRevision, ACK, and intent cleanup; #37 owns public producer wiring. This review does not claim those outcomes.",
+  "findings": []
+}

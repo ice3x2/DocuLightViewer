@@ -1,0 +1,40 @@
+{
+  "review": "S08 independent durability and security review",
+  "result": "PASS",
+  "scope": "GitHub issue #31: private body-free save intent and atomic final-file publication",
+  "requirements": ["REL-DOC-009", "FR-DOC-019", "DR-DOC-014", "FR-DOC-028"],
+  "snapshot": {
+    "sourceHash": "2e6567ff996a1ec56979a1a5e9071f39608a84d49887d0e4a3732e6dc6c98aa8",
+    "sha256": {
+      "src/main/index-ingress-store.js": "f1284c78aafa20e3753220502addaa5d935cb47a78d5bde438a5fc52de783a7a",
+      "test/r3/cases/s08.cjs": "ddacc9a42f968e2cecbbe78f5553ee0d6dc1c40e409c9db31e7dc63c8bcc8735",
+      "docs/analysis/2026-09-24-s08-intent-evidence.md": "5475f42e1b07865bf09176eec74a3e31a64932fe0e70098b19095432be2bb41f",
+      "docs/spec/60.document-persistence.srs.md": "b205ce55e66be03dd23c9fe076db437bff0dec31f5d24ba36d7a5be1e6cab067"
+    }
+  },
+  "validation": {
+    "focusedCommand": "node test/r3/run-node.cjs --case s08",
+    "focusedResult": "PASS case=s08 assertions=53",
+    "filesystem": "Real temporary filesystem with injected write, flush, publication, replay, and update faults",
+    "existingMcpSaveParity": "PASS",
+    "specKiwiValidate": "exit 0; errors 0; warnings 6",
+    "diffCheck": "exit 0"
+  },
+  "reviewedBehavior": [
+    "Intent is body-free, checksummed, bounded, and retains private lexical/canonical aliases and normalized metadata.",
+    "Intent temp write and fsync precede atomic intent rename; final Markdown temp write and fsync precede atomic no-clobber creation or guarded update rename.",
+    "An older valid intent remains readable with its original alias and metadata after a later update, marked superseded and not replayed over newer bytes.",
+    "Transient EBUSY intent reads remain retryable without quarantine; invalid and oversized intents are quarantined with stable diagnostics.",
+    "Final-file verification uses bounded fstat and chunked hashing; destination parent device is checked against the private root before intent and before final publication.",
+    "After publication and without authoritative ACK, final bytes and intent remain, and the private publisher reports enqueue_failed without queued or jobId."
+  ],
+  "deferredScope": [
+    "S09 owns authoritative source metadata and job transaction, owner-assigned desiredRevision, ACK, and intent cleanup.",
+    "Issue #37 owns public save producer wiring to this private publisher."
+  ],
+  "documentedLimits": [
+    "Node path APIs cannot fully exclude adversarial junction retargeting between containment checks and path-based publication; issue #31 records this residual bound.",
+    "Windows Node does not portably fsync directory handles; file-handle fsync and same-volume atomic publication are covered, while sudden power-loss directory-entry durability remains a release gate."
+  ],
+  "findings": []
+}
