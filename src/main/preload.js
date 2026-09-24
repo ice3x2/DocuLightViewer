@@ -144,10 +144,6 @@ contextBridge.exposeInMainWorld('doclight', {
   clearSearchIndex: () => ipcRenderer.invoke('indexing:clear'),
   openIndexDataDir: () => ipcRenderer.invoke('indexing:open-data-dir'),
   importLinkedMarkdown: () => ipcRenderer.invoke('document-import:linked-markdown'),
-  getEmbeddingModelStatus: () => ipcRenderer.invoke('embedding:get-status'),
-  validateEmbeddingModel: (settings) => ipcRenderer.invoke('embedding:validate-model', settings),
-  saveEmbeddingModelSettings: (settings) => ipcRenderer.invoke('embedding:save-model-settings', settings),
-  clearEmbeddingModelSettings: () => ipcRenderer.invoke('embedding:clear-model-settings'),
 
   // i18n
   getStrings: () => ipcRenderer.invoke('get-strings'),

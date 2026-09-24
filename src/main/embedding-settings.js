@@ -185,11 +185,20 @@ function deleteStoreKey(store, key) {
   }
 }
 
+function removeLegacyEmbeddingSettings(store) {
+  if (!store || typeof store.get !== 'function') return;
+  for (const key of ['semanticSearch', 'embeddingApiKeyCiphertext', 'embeddingApiKey', 'apiKey']) {
+    const exists = typeof store.has === 'function' ? store.has(key) : store.get(key) !== undefined;
+    if (exists) deleteStoreKey(store, key);
+  }
+}
+
 module.exports = {
   createEmbeddingActivationRecord,
   createProjectPolicyHash,
   migratePlaintextEmbeddingApiKey,
   normalizeEmbeddingActivationRecord,
   normalizeEmbeddingProjectPolicy,
-  normalizeSecretMigrationState
+  normalizeSecretMigrationState,
+  removeLegacyEmbeddingSettings
 };

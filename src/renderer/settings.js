@@ -78,7 +78,6 @@
   const mcpCopyToast = document.getElementById('mcp-copy-toast');
   const settingsMainView = document.getElementById('settings-main-view');
   const indexingManagementView = document.getElementById('indexing-management-view');
-  const embeddingRegistrationView = document.getElementById('embedding-registration-view');
   const indexingManageBtn = document.getElementById('indexing-manage-btn');
   const indexingBackBtn = document.getElementById('indexing-back-btn');
   const indexingStatusEl = document.getElementById('indexing-status');
@@ -96,41 +95,7 @@
   const registerOpenedMarkdownUnavailable = document.getElementById('registerOpenedMarkdown-unavailable');
   const linkedImportBtn = document.getElementById('linked-import-btn');
   const linkedImportStatusEl = document.getElementById('linked-import-status');
-  const embeddingStatusEl = document.getElementById('embedding-model-status');
-  const embeddingProgressEl = document.getElementById('embedding-model-progress');
-  const embeddingRegisterBtn = document.getElementById('embedding-register-btn');
-  const embeddingClearBtn = document.getElementById('embedding-clear-btn');
-  const embeddingUrlInput = document.getElementById('embedding-url-input');
-  const embeddingKeyInput = document.getElementById('embedding-key-input');
-  const embeddingModelInput = document.getElementById('embedding-model-input');
-  const embeddingChunkSizeInput = document.getElementById('embedding-chunk-size-input');
-  const embeddingChunkOverlapInput = document.getElementById('embedding-chunk-overlap-input');
-  const embeddingProjectPolicyMode = document.getElementById('embedding-project-policy-mode');
-  const embeddingProjectPolicyList = document.getElementById('embedding-project-policy-list');
-  const embeddingOfflineOnlyCheckbox = document.getElementById('embedding-offline-only-checkbox');
-  const embeddingPolicyConfirmCheckbox = document.getElementById('embedding-policy-confirm-checkbox');
-  const embeddingDialogStatus = document.getElementById('embedding-dialog-status');
-  const embeddingCancelBtn = document.getElementById('embedding-cancel-btn');
-  const embeddingConnectBtn = document.getElementById('embedding-connect-btn');
-  const EMBEDDING_RETENTION_CONFIRMATION_VERSION = 'remote-embedding-v1';
-  const EMBEDDING_VALIDATION_DEBOUNCE_MS = 600;
-  let embeddingValidationTimer = null;
-  let embeddingValidationSequence = 0;
-  let embeddingValidationReady = false;
-  let embeddingConnectionInProgress = false;
-  const embeddingValidationInputs = [
-    embeddingUrlInput,
-    embeddingKeyInput,
-    embeddingModelInput,
-    embeddingChunkSizeInput,
-    embeddingChunkOverlapInput,
-    embeddingProjectPolicyMode,
-    embeddingProjectPolicyList,
-    embeddingOfflineOnlyCheckbox,
-    embeddingPolicyConfirmCheckbox
-  ].filter(Boolean);
   let indexingStatusRequest = null;
-  let embeddingStatusRequest = null;
   let indexingActionRequest = null;
   let lastIndexingStatus = null;
   let lastLedgerAnnouncement = null;
@@ -380,7 +345,6 @@
     if (!hasSavedDocumentStorePath()) return;
     setSettingsTitle('settings.indexingManage');
     if (settingsMainView) settingsMainView.classList.add('hidden');
-    if (embeddingRegistrationView) embeddingRegistrationView.classList.add('hidden');
     if (indexingManagementView) indexingManagementView.classList.remove('hidden');
     refreshIndexingStatus();
   }
@@ -388,7 +352,6 @@
   function showMainSettingsView() {
     setSettingsTitle('settings.heading');
     if (indexingManagementView) indexingManagementView.classList.add('hidden');
-    if (embeddingRegistrationView) embeddingRegistrationView.classList.add('hidden');
     if (settingsMainView) settingsMainView.classList.remove('hidden');
   }
 
@@ -603,286 +566,6 @@
     return indexingStatusRequest;
   }
 
-  function formatEmbeddingProviderHost(status) {
-    if (status && status.activationRecord && status.activationRecord.endpointHost) {
-      return String(status.activationRecord.endpointHost).trim();
-    }
-    const value = String(status && status.baseURL ? status.baseURL : '').trim();
-    if (!value) return '';
-    try {
-      const parsed = new URL(value);
-      return parsed.host || '';
-    } catch {
-      return '';
-    }
-  }
-
-  function renderEmbeddingModelStatus(status) {
-    if (!embeddingStatusEl) return;
-    const state = status && status.status ? status.status : 'unset';
-    embeddingStatusEl.className = 'status-indicator embedding-status ' + (
-      state === 'connected' ? 'connected' : (state === 'unreachable' || state === 'failed' || state === 'degraded' ? 'unreachable' : 'unset')
-    );
-    if (state === 'connected' && status && status.model) {
-      embeddingStatusEl.textContent = t('settings.embeddingModelConnected', {
-        host: formatEmbeddingProviderHost(status),
-        model: status.model
-      });
-    } else if (state === 'unreachable' || state === 'failed' || state === 'degraded') {
-      embeddingStatusEl.textContent = t('settings.embeddingModelUnreachable', {
-        host: formatEmbeddingProviderHost(status),
-        model: status.model || '',
-        reason: status.statusReason || status.reason || 'connection-failed'
-      });
-    } else {
-      embeddingStatusEl.textContent = t('settings.embeddingModelUnset');
-    }
-    if (embeddingProgressEl) {
-      const percent = status && typeof status.indexingPercent === 'number' ? status.indexingPercent : null;
-      embeddingProgressEl.textContent = percent === null ? '' : t('settings.embeddingIndexingProgress', { percent });
-    }
-    if (embeddingClearBtn) {
-      embeddingClearBtn.disabled = !status || !status.model;
-    }
-  }
-
-  async function refreshEmbeddingModelStatus() {
-    if (!window.doclight.getEmbeddingModelStatus) return;
-    if (embeddingStatusRequest) return embeddingStatusRequest;
-    embeddingStatusRequest = (async () => {
-      try {
-        const status = await window.doclight.getEmbeddingModelStatus();
-        renderEmbeddingModelStatus(status);
-        return status;
-      } catch (err) {
-        if (embeddingStatusEl) {
-          embeddingStatusEl.className = 'status-indicator embedding-status unreachable';
-          embeddingStatusEl.textContent = t('settings.embeddingModelUnreachable', {
-            host: '',
-            model: '',
-            reason: err.message
-          });
-        }
-        return null;
-      } finally {
-        embeddingStatusRequest = null;
-      }
-    })();
-    return embeddingStatusRequest;
-  }
-
-  function showEmbeddingDialogStatus(type, message) {
-    if (!embeddingDialogStatus) return;
-    embeddingDialogStatus.className = 'status-indicator ' + type;
-    embeddingDialogStatus.textContent = message;
-    embeddingDialogStatus.classList.remove('hidden');
-  }
-
-  function collectEmbeddingPayload() {
-    return {
-      baseURL: embeddingUrlInput ? embeddingUrlInput.value.trim() : '',
-      apiKey: embeddingKeyInput ? embeddingKeyInput.value : '',
-      model: embeddingModelInput ? embeddingModelInput.value.trim() : '',
-      chunkSize: embeddingChunkSizeInput ? parseInt(embeddingChunkSizeInput.value, 10) : 900,
-      chunkOverlap: embeddingChunkOverlapInput ? parseInt(embeddingChunkOverlapInput.value, 10) : 120,
-      offlineOnly: Boolean(embeddingOfflineOnlyCheckbox && embeddingOfflineOnlyCheckbox.checked),
-      projectPolicy: {
-        mode: embeddingProjectPolicyMode ? embeddingProjectPolicyMode.value : 'allow-all',
-        projects: embeddingProjectPolicyList ? embeddingProjectPolicyList.value.split(/[\n,]/).map(value => value.trim()).filter(Boolean) : []
-      },
-      retentionCostConfirmed: Boolean(embeddingPolicyConfirmCheckbox && embeddingPolicyConfirmCheckbox.checked),
-      retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION
-    };
-  }
-
-  function setEmbeddingValidationReady(ready) {
-    embeddingValidationReady = ready === true;
-    if (embeddingConnectBtn) embeddingConnectBtn.disabled = !embeddingValidationReady;
-  }
-
-  function setEmbeddingRegistrationInputsDisabled(disabled) {
-    embeddingValidationInputs.forEach((element) => {
-      element.disabled = disabled === true;
-    });
-    if (embeddingCancelBtn) embeddingCancelBtn.disabled = disabled === true;
-  }
-
-  function isStrictNonNegativeInteger(value) {
-    const text = String(value || '').trim();
-    if (!/^\d+$/.test(text)) return false;
-    return Number.isSafeInteger(Number(text));
-  }
-
-  function isEmbeddingChunkConfigValid() {
-    const rawChunkSize = embeddingChunkSizeInput ? embeddingChunkSizeInput.value : '900';
-    const rawChunkOverlap = embeddingChunkOverlapInput ? embeddingChunkOverlapInput.value : '120';
-    if (!isStrictNonNegativeInteger(rawChunkSize) || !isStrictNonNegativeInteger(rawChunkOverlap)) {
-      return false;
-    }
-    return Number(rawChunkSize) > 0 && Number(rawChunkOverlap) >= 0;
-  }
-
-  function resetEmbeddingValidationState(options = {}) {
-    embeddingValidationSequence += 1;
-    if (embeddingValidationTimer) {
-      clearTimeout(embeddingValidationTimer);
-      embeddingValidationTimer = null;
-    }
-    setEmbeddingValidationReady(false);
-    if (options.hideStatus !== false && embeddingDialogStatus) {
-      embeddingDialogStatus.classList.add('hidden');
-    }
-  }
-
-  async function validateEmbeddingRegistration(sequence) {
-    const payload = collectEmbeddingPayload();
-    setEmbeddingValidationReady(false);
-
-    if (!isEmbeddingChunkConfigValid()) {
-      if (sequence !== embeddingValidationSequence) return;
-      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
-      return;
-    }
-
-    if (payload.offlineOnly) {
-      if (sequence !== embeddingValidationSequence) return;
-      showEmbeddingDialogStatus('error', t('settings.embeddingValidationOfflineBlocked'));
-      setEmbeddingValidationReady(false);
-      return;
-    }
-
-    if (!payload.baseURL) {
-      if (sequence !== embeddingValidationSequence) return;
-      showEmbeddingDialogStatus('info', t('settings.embeddingValidationPending'));
-      return;
-    }
-
-    if (!payload.retentionCostConfirmed) {
-      if (sequence !== embeddingValidationSequence) return;
-      showEmbeddingDialogStatus('error', t('settings.embeddingPolicyRequired'));
-      return;
-    }
-
-    if (!window.doclight.validateEmbeddingModel) return;
-
-    showEmbeddingDialogStatus('info', t('settings.embeddingValidationChecking'));
-    try {
-      const validation = await window.doclight.validateEmbeddingModel(payload);
-      if (sequence !== embeddingValidationSequence) return;
-      if (validation && validation.ok === true) {
-        showEmbeddingDialogStatus('success', t('settings.embeddingValidationReady'));
-        setEmbeddingValidationReady(true);
-        return;
-      }
-      showEmbeddingDialogStatus('error', (validation && validation.message) || t('settings.embeddingModelConnectionFailed'));
-      setEmbeddingValidationReady(false);
-    } catch (err) {
-      if (sequence !== embeddingValidationSequence) return;
-      showEmbeddingDialogStatus('error', err.message || t('settings.embeddingModelConnectionFailed'));
-      setEmbeddingValidationReady(false);
-    }
-  }
-
-  function scheduleEmbeddingValidation() {
-    if (embeddingConnectionInProgress) return;
-    const sequence = ++embeddingValidationSequence;
-    if (embeddingValidationTimer) {
-      clearTimeout(embeddingValidationTimer);
-      embeddingValidationTimer = null;
-    }
-    setEmbeddingValidationReady(false);
-
-    if (!isEmbeddingChunkConfigValid()) {
-      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
-      return;
-    }
-
-    const payload = collectEmbeddingPayload();
-    if (!payload.offlineOnly && payload.baseURL && payload.retentionCostConfirmed) {
-      showEmbeddingDialogStatus('info', t('settings.embeddingValidationChecking'));
-    }
-
-    embeddingValidationTimer = setTimeout(() => {
-      embeddingValidationTimer = null;
-      validateEmbeddingRegistration(sequence);
-    }, EMBEDDING_VALIDATION_DEBOUNCE_MS);
-  }
-
-  function showEmbeddingRegistrationView() {
-    if (!embeddingRegistrationView) return;
-    setSettingsTitle('settings.embeddingModelRegister');
-    if (settingsMainView) settingsMainView.classList.add('hidden');
-    if (indexingManagementView) indexingManagementView.classList.add('hidden');
-    if (embeddingChunkSizeInput) embeddingChunkSizeInput.value = '900';
-    if (embeddingChunkOverlapInput) embeddingChunkOverlapInput.value = '120';
-    if (embeddingKeyInput) embeddingKeyInput.value = '';
-    if (embeddingProjectPolicyMode) embeddingProjectPolicyMode.value = 'allow-all';
-    if (embeddingProjectPolicyList) embeddingProjectPolicyList.value = '';
-    if (embeddingOfflineOnlyCheckbox) embeddingOfflineOnlyCheckbox.checked = false;
-    if (embeddingPolicyConfirmCheckbox) embeddingPolicyConfirmCheckbox.checked = false;
-    resetEmbeddingValidationState();
-    embeddingRegistrationView.classList.remove('hidden');
-    if (embeddingUrlInput) embeddingUrlInput.focus();
-  }
-
-  function closeEmbeddingRegistrationView() {
-    resetEmbeddingValidationState();
-    showMainSettingsView();
-  }
-
-  async function connectEmbeddingModel() {
-    if (!window.doclight.saveEmbeddingModelSettings || embeddingConnectionInProgress) return;
-    if (!embeddingValidationReady) {
-      scheduleEmbeddingValidation();
-      return;
-    }
-    if (!isEmbeddingChunkConfigValid()) {
-      setEmbeddingValidationReady(false);
-      showEmbeddingDialogStatus('error', t('settings.embeddingValidationInvalidChunk'));
-      return;
-    }
-    const payload = collectEmbeddingPayload();
-    if (payload.offlineOnly) {
-      setEmbeddingValidationReady(false);
-      showEmbeddingDialogStatus('error', t('settings.embeddingValidationOfflineBlocked'));
-      return;
-    }
-    if (!payload.offlineOnly && !payload.retentionCostConfirmed) {
-      showEmbeddingDialogStatus('error', t('settings.embeddingPolicyRequired'));
-      return;
-    }
-    embeddingConnectionInProgress = true;
-    setEmbeddingRegistrationInputsDisabled(true);
-    if (embeddingConnectBtn) embeddingConnectBtn.disabled = true;
-    showEmbeddingDialogStatus('info', t('settings.processing'));
-    try {
-      const validation = window.doclight.validateEmbeddingModel
-        ? await window.doclight.validateEmbeddingModel(payload)
-        : { ok: true };
-      if (!validation || validation.ok !== true) {
-        showEmbeddingDialogStatus('error', (validation && validation.message) || t('settings.embeddingModelConnectionFailed'));
-        setEmbeddingValidationReady(false);
-        await refreshEmbeddingModelStatus();
-        return;
-      }
-      const result = await window.doclight.saveEmbeddingModelSettings(payload);
-      if (!result.success) {
-        showEmbeddingDialogStatus('error', result.message || t('settings.embeddingModelConnectionFailed'));
-        renderEmbeddingModelStatus(result.status);
-        return;
-      }
-      renderEmbeddingModelStatus(result.status);
-      closeEmbeddingRegistrationView();
-    } catch (err) {
-      showEmbeddingDialogStatus('error', err.message || t('settings.embeddingModelConnectionFailed'));
-      setEmbeddingValidationReady(false);
-    } finally {
-      embeddingConnectionInProgress = false;
-      setEmbeddingRegistrationInputsDisabled(false);
-      if (embeddingConnectBtn) embeddingConnectBtn.disabled = !embeddingValidationReady;
-    }
-  }
-
   async function runIndexingAction(action) {
     if (indexingActionRequest) return indexingActionRequest;
     setIndexingActionsBusy(true);
@@ -1001,27 +684,6 @@
     });
   }
 
-  if (embeddingRegisterBtn) {
-    embeddingRegisterBtn.addEventListener('click', showEmbeddingRegistrationView);
-  }
-  if (embeddingCancelBtn) {
-    embeddingCancelBtn.addEventListener('click', closeEmbeddingRegistrationView);
-  }
-  if (embeddingConnectBtn) {
-    embeddingConnectBtn.addEventListener('click', connectEmbeddingModel);
-  }
-  embeddingValidationInputs.forEach((element) => {
-    element.addEventListener('input', scheduleEmbeddingValidation);
-    element.addEventListener('change', scheduleEmbeddingValidation);
-  });
-  if (embeddingClearBtn) {
-    embeddingClearBtn.addEventListener('click', async () => {
-      if (!window.doclight.clearEmbeddingModelSettings) return;
-      if (!confirm(t('settings.embeddingModelRemoveConfirm'))) return;
-      const result = await window.doclight.clearEmbeddingModelSettings();
-      renderEmbeddingModelStatus(result.status);
-    });
-  }
   // ==========================================================================
   // File Association
   // ==========================================================================
@@ -1179,7 +841,6 @@
     await loadSettings();
     settingsStatusPoller = window.createSettingsStatusPoller({
       refreshIndexingStatus,
-      refreshEmbeddingStatus: refreshEmbeddingModelStatus,
       isActive: isSettingsStatusActive,
       activeDelayMs: ACTIVE_INDEXING_POLL_MS,
       idleDelayMs: IDLE_INDEXING_POLL_MS

@@ -1,0 +1,37 @@
+{
+  "issue": 47,
+  "baseSha": "66c5159bde338fde5fce9e21edc07b62ab3ea705",
+  "reviewedSourceHash": "114ad69597d6b7db765352000dc4bcc92ca9a05cdff5ddac27de9b72f5aa9c15",
+  "verdict": "PASS",
+  "requirements": ["FR-APP-013", "DR-APP-003", "SEC-APP-004", "IR-MCP-018", "CON-MCP-007"],
+  "findings": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": []
+  },
+  "checks": {
+    "tdd": "Recorded RED failures were semantic assertions: baseline Settings registration controls, then provider-free degradationReason. The product registerIpcHandlers VM probe also fails against the baseline embedding channels and passes the reviewed source. Setup/ABI errors were not counted as RED.",
+    "registrationSurface": "Settings HTML, JS, CSS, preload bridge, and product main registration omit embedding registration controls and channels. The IPC probe executes registerIpcHandlers and records handle/on calls; Settings and indexing handlers remain.",
+    "locales": "ko, en, ja, and es remove the same 30 settings.embedding keys and retain identical key sets.",
+    "legacyCleanup": "Startup deletes only semanticSearch, embeddingApiKeyCiphertext, embeddingApiKey, and apiKey when present; second and empty cleanup make no writes. Unrelated settings survive. The compatibility test executes the actual sanitizeSettingsPayload function on legacy secrets and activation data and confirms only unrelated settings remain visible.",
+    "searchAndData": "Product startup has no embedding provider wiring. Provider-free SearchEngine returns keyword results and embedding_disabled; the fixture preserves Markdown bytes, chunk embedding bytes, and committed ANN rows.",
+    "poller": "Indexing-only tests retain single-flight, rejection/retry, stop-during-flight, hung-cycle/no-timer-backlog, and post-stop behavior without calling an embedding callback.",
+    "mcp": "IR-MCP-018 and CON-MCP-007 remain verified/stable; source stdio, HTTP, and bundle tool/schema code is unchanged. Wave 2 MCP and exact eight-tool parity contracts pass.",
+    "srs": "Guarded SpecKiwi supersede retained DR-APP-002 and SEC-APP-003 as discarded/stable historical requirements. FR-APP-013, DR-APP-003, and SEC-APP-004 are implemented/evolving with per-AC evidence and none is falsely marked verified. DR-APP-003 VE-1 now directly covers Settings payload AC-4; VE-2 is scoped to AC-1/2/3. speckiwi validate reports zero errors, six historical SRS-W015 and two pre-existing SRS-W073 warnings; active target has zero stability blockers."
+  },
+  "verifiedCommands": [
+    "node test/r3/run-node.cjs --case s24: PASS 28",
+    "node test/r3/run-electron.cjs --scenario s24: PASS 3",
+    "node test/r3/run-electron.cjs --scenario s21: PASS 23",
+    "node test/test-embedding-removal-compat-contract.js: PASS",
+    "node test/test-settings-status-poller-contract.js: PASS",
+    "node test/test-wave2-mcp-contract.js: PASS",
+    "node test/test-mcp-tool-parity.js: PASS",
+    "speckiwi --root C:/Work/git/_Snoworca/DocuLightViewer-r3 validate --json: errors 0"
+  ],
+  "closure": {
+    "issue47": "Functional, SRS, and independent review gates pass. Issue #47 is ready to close after its completion comment and checklist are recorded.",
+    "issue44": "The pre-existing embedding UI/key dependency is resolved. Issue #44 remains open for separate owner DB-free and owner-action gates."
+  }
+}

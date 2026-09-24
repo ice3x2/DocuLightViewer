@@ -485,7 +485,7 @@ class SearchEngine {
     if (!this.options.embeddingProvider || typeof this.options.embeddingProvider.embed !== 'function') {
       return {
         status: 'disabled',
-        degradationReason: 'embedding_provider_unavailable',
+        degradationReason: 'embedding_disabled',
         backend: null,
         candidates: []
       };

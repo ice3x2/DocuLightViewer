@@ -23,7 +23,7 @@ function redactEarlyMcpStdioError(value) {
     .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|token|password|passwd|pwd|secret|credential|bearer|provider[_-]?key|embedding[_-]?key)=)([^&#\s,;]+)/gi, '$1[REDACTED]');
 }
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, nativeImage, dialog } = require('electron');
 const { spawn } = require('child_process');
 const net = require('net');
 const http = require('http');
@@ -40,7 +40,6 @@ const { OwnerWorkerController } = require('./search-owner-controller');
 const { SQLiteKeywordIndex, SQLITE_INDEX_FILENAME } = require('./search-sqlite-store');
 const { createKeywordTokenizer } = require('./search-tokenizer');
 const { loadHnswlib } = require('./hnsw-index');
-const { createOpenAICompatibleEmbeddingProvider } = require('./embedding-provider');
 const { createRedactor } = require('./redaction');
 const { createLinkedImporter } = require('./linked-import');
 const { createOpenedMarkdownRegistrar } = require('./opened-markdown-registrar');
@@ -56,13 +55,7 @@ const {
   resolveImageMimeExtension
 } = require('./media-viewer-security');
 const { resolveReadablePastedMarkdownPath } = require('./pasted-markdown-path');
-const {
-  createEmbeddingActivationRecord,
-  migratePlaintextEmbeddingApiKey,
-  normalizeEmbeddingActivationRecord,
-  normalizeEmbeddingProjectPolicy,
-  normalizeSecretMigrationState
-} = require('./embedding-settings');
+const { removeLegacyEmbeddingSettings } = require('./embedding-settings');
 const { injectFrontmatter } = require('./frontmatter');
 const { resolveRuntimeProfile } = require('./runtime-profile');
 const { isUsableLinkBase, resolveMarkdownLinkTarget } = require('./markdown-link-resolver');
@@ -109,9 +102,6 @@ const TRAY_ICON_PATH = process.platform === 'darwin'
   ? path.join(__dirname, '..', '..', 'assets', 'tray-iconTemplate.png')
   : ICON_PATH;
 const MAX_TRAY_ITEMS = 10;
-const EMBEDDING_DEFAULT_CHUNK_SIZE = 900;
-const EMBEDDING_DEFAULT_CHUNK_OVERLAP = 120;
-const EMBEDDING_RETENTION_CONFIRMATION_VERSION = 'remote-embedding-v1';
 
 // === Global State ===
 let tray = null;
@@ -230,85 +220,18 @@ const store = new Store({
     mcpSaveSubDir: { type: 'string', default: '{yyyy-mm-dd}' },
     mcpGitInfo: { type: 'boolean', default: true },
     lastSaveAsDirectory: { type: 'string', default: '' },
-    showDocNav: { type: 'boolean', default: true },
-    embeddingApiKeyCiphertext: { type: 'string', default: '' },
-    semanticSearch: {
-      type: 'object',
-      default: {
-        enabled: false,
-        provider: 'openai-compatible',
-        baseURL: '',
-        model: '',
-        dimensions: null,
-        batchSize: 16,
-        maxConcurrency: 2,
-        timeout: 30000,
-        retryPolicy: { retries: 2, backoffMs: 500 },
-        apiKeyStorage: 'none',
-        hasApiKey: false,
-        hnsw: { m: 16, efConstruction: 200, efSearch: 64 },
-        chunker: { chunkSize: EMBEDDING_DEFAULT_CHUNK_SIZE, chunkOverlap: EMBEDDING_DEFAULT_CHUNK_OVERLAP },
-        modelFingerprint: null,
-        status: 'unset',
-        statusReason: null,
-        lastValidatedAt: null,
-        offlineOnly: false,
-        retentionCostConfirmationVersion: null,
-        endpointPolicy: 'https-or-approved-local',
-        projectPolicy: { mode: 'allow-all', projects: [] },
-        activationRecord: null,
-        secretMigration: null,
-        semanticIndexing: { status: 'idle', progress_current: 0, progress_total: 0 }
-      },
-      additionalProperties: true,
-      properties: {
-        enabled: { type: 'boolean' },
-        provider: { type: 'string' },
-        baseURL: { type: 'string' },
-        model: { type: 'string' },
-        dimensions: { type: ['number', 'null'] },
-        batchSize: { type: 'number' },
-        maxConcurrency: { type: 'number' },
-        timeout: { type: 'number' },
-        retryPolicy: { type: 'object', additionalProperties: true },
-        apiKeyStorage: { type: 'string' },
-        hasApiKey: { type: 'boolean' },
-        hnsw: { type: 'object', additionalProperties: true },
-        chunker: { type: 'object', additionalProperties: true },
-        modelFingerprint: { type: ['string', 'null'] },
-        status: { type: 'string' },
-        statusReason: { type: ['string', 'null'] },
-        lastValidatedAt: { type: ['string', 'null'] },
-        offlineOnly: { type: 'boolean' },
-        retentionCostConfirmationVersion: { type: ['string', 'null'] },
-        endpointPolicy: { type: 'string' },
-        projectPolicy: { type: 'object', additionalProperties: true },
-        activationRecord: { type: ['object', 'null'], additionalProperties: true },
-        secretMigration: { type: ['object', 'null'], additionalProperties: true },
-        semanticIndexing: { type: 'object', additionalProperties: true }
-      }
-    }
+    showDocNav: { type: 'boolean', default: true }
   }
 });
 
-// Remove or migrate legacy plaintext embedding credentials before any settings payload is read.
-migratePlaintextEmbeddingApiKey({
-  store,
-  safeStorage,
-  envKey: process.env.DOCULIGHT_EMBEDDING_API_KEY
-});
+// Remove legacy embedding credentials and activation before any settings payload is read.
+removeLegacyEmbeddingSettings(store);
 
 // Initialize search engine after store is ready
 searchEngine = new SearchEngine(store, {
   indexBackend: 'sqlite',
   indexDataDir: runtimeProfile.indexDataDir,
-  ownerManaged: true,
-  embeddingConfigProvider: () => getStoredEmbeddingSettings(),
-  embeddingApiKeyProvider: () => getEmbeddingApiKey().key,
-  embeddingProvider: createOpenAICompatibleEmbeddingProvider({
-    getEmbeddingConfig: () => getStoredEmbeddingSettings(),
-    getApiKey: () => getEmbeddingApiKey().key
-  })
+  ownerManaged: true
 });
 // @req FR-DOC-028 REL-DOC-009 FR-DOC-019
 searchEngine.getSaveDocumentOwner = async (storeRoot) => {
@@ -1822,45 +1745,12 @@ function getIndexingStatusPayload() {
   };
 }
 
-function getStoredEmbeddingSettings() {
-  const semanticSearch = store.get('semanticSearch', {}) || {};
-  return {
-    enabled: semanticSearch.enabled === true,
-    provider: semanticSearch.provider || 'openai-compatible',
-    baseURL: semanticSearch.baseURL || '',
-    model: semanticSearch.model || '',
-    dimensions: semanticSearch.dimensions || null,
-    batchSize: semanticSearch.batchSize || 16,
-    maxConcurrency: semanticSearch.maxConcurrency || 2,
-    timeout: semanticSearch.timeout || 30000,
-    retryPolicy: semanticSearch.retryPolicy || { retries: 2, backoffMs: 500 },
-    apiKeyStorage: semanticSearch.apiKeyStorage || 'none',
-    hasApiKey: semanticSearch.hasApiKey === true,
-    hnsw: semanticSearch.hnsw || { m: 16, efConstruction: 200, efSearch: 64 },
-    chunker: {
-      chunkSize: Number(semanticSearch.chunker?.chunkSize) || EMBEDDING_DEFAULT_CHUNK_SIZE,
-      chunkOverlap: Number(semanticSearch.chunker?.chunkOverlap) || EMBEDDING_DEFAULT_CHUNK_OVERLAP
-    },
-    modelFingerprint: semanticSearch.modelFingerprint || null,
-    status: semanticSearch.status || 'unset',
-    statusReason: semanticSearch.statusReason || null,
-    lastValidatedAt: semanticSearch.lastValidatedAt || null,
-    offlineOnly: semanticSearch.offlineOnly === true,
-    retentionCostConfirmationVersion: semanticSearch.retentionCostConfirmationVersion || null,
-    endpointPolicy: semanticSearch.endpointPolicy || 'https-or-approved-local',
-    projectPolicy: normalizeEmbeddingProjectPolicy(semanticSearch.projectPolicy),
-    activationRecord: normalizeEmbeddingActivationRecord(semanticSearch.activationRecord),
-    secretMigration: normalizeSecretMigrationState(semanticSearch.secretMigration),
-    semanticIndexing: normalizeEmbeddingSemanticIndexing(semanticSearch.semanticIndexing)
-  };
-}
-
 function sanitizeSettingsPayload(settingsPayload) {
   const settings = { ...(settingsPayload || {}) };
   delete settings.embeddingApiKeyCiphertext;
   delete settings.embeddingApiKey;
   delete settings.apiKey;
-  settings.semanticSearch = sanitizeEmbeddingSettingsForRenderer(getStoredEmbeddingSettings());
+  delete settings.semanticSearch;
   return settings;
 }
 
@@ -2145,347 +2035,6 @@ async function downloadMediaAssetForSender(senderWindow, request) {
   const err = new Error('Unsupported media type.');
   err.code = 'unsupported_media_type';
   throw err;
-}
-
-function sanitizeEmbeddingSettingsForRenderer(settingsPayload = getStoredEmbeddingSettings()) {
-  return {
-    enabled: settingsPayload.enabled === true,
-    provider: settingsPayload.provider || 'openai-compatible',
-    baseURL: sanitizeEmbeddingBaseURLForRenderer(settingsPayload.baseURL),
-    model: settingsPayload.model || '',
-    dimensions: settingsPayload.dimensions || null,
-    apiKeyStorage: settingsPayload.apiKeyStorage || 'none',
-    hasApiKey: settingsPayload.hasApiKey === true,
-    chunker: {
-      chunkSize: Number(settingsPayload.chunker?.chunkSize) || EMBEDDING_DEFAULT_CHUNK_SIZE,
-      chunkOverlap: Number(settingsPayload.chunker?.chunkOverlap) || EMBEDDING_DEFAULT_CHUNK_OVERLAP
-    },
-    modelFingerprint: settingsPayload.modelFingerprint || null,
-    status: settingsPayload.status || 'unset',
-    statusReason: settingsPayload.statusReason || null,
-    lastValidatedAt: settingsPayload.lastValidatedAt || null,
-    offlineOnly: settingsPayload.offlineOnly === true,
-    retentionCostConfirmationVersion: settingsPayload.retentionCostConfirmationVersion || null,
-    endpointPolicy: settingsPayload.endpointPolicy || 'https-or-approved-local',
-    projectPolicy: normalizeEmbeddingProjectPolicy(settingsPayload.projectPolicy),
-    activationRecord: normalizeEmbeddingActivationRecord(settingsPayload.activationRecord),
-    secretMigration: normalizeSecretMigrationState(settingsPayload.secretMigration),
-    semanticIndexing: normalizeEmbeddingSemanticIndexing(settingsPayload.semanticIndexing)
-  };
-}
-
-function normalizeEmbeddingSemanticIndexing(rawState = {}) {
-  const state = rawState && typeof rawState === 'object' ? rawState : {};
-  return {
-    status: state.status || 'idle',
-    progress_current: normalizeNonNegativeInt(state.progress_current, 0),
-    progress_total: normalizeNonNegativeInt(state.progress_total, 0)
-  };
-}
-
-function sanitizeEmbeddingBaseURLForRenderer(rawBaseURL) {
-  const value = String(rawBaseURL || '').trim();
-  if (!value) return '';
-  try {
-    const parsed = new URL(value);
-    parsed.username = '';
-    parsed.password = '';
-    parsed.search = '';
-    parsed.hash = '';
-    return parsed.toString().replace(/\/$/, parsed.pathname === '/' ? '/' : '');
-  } catch {
-    return '';
-  }
-}
-
-function normalizeEmbeddingEndpoint(rawBaseURL) {
-  const raw = String(rawBaseURL || '').trim();
-  if (!raw) {
-    const err = new Error('Embedding endpoint URL is required');
-    err.code = 'EMBEDDING_ENDPOINT_REQUIRED';
-    throw err;
-  }
-  let parsed;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    const err = new Error('Embedding endpoint URL is invalid');
-    err.code = 'EMBEDDING_ENDPOINT_INVALID';
-    throw err;
-  }
-  if (parsed.username || parsed.password) {
-    const err = new Error('Embedding endpoint URL must not include credentials');
-    err.code = 'EMBEDDING_ENDPOINT_CREDENTIALS';
-    throw err;
-  }
-  const protocol = parsed.protocol.toLowerCase();
-  if (protocol !== 'https:' && !(protocol === 'http:' && isApprovedLocalEmbeddingHost(parsed.hostname))) {
-    const err = new Error('Embedding endpoint must use HTTPS or an approved local HTTP host');
-    err.code = 'EMBEDDING_ENDPOINT_POLICY';
-    throw err;
-  }
-  parsed.hash = '';
-  parsed.search = '';
-  let pathname = parsed.pathname.replace(/\/+$/, '');
-  if (pathname === '/') pathname = '';
-  const baseURL = `${parsed.origin}${pathname}`;
-  const modelListURL = `${baseURL || parsed.origin}/models`;
-  const embeddingsURL = `${baseURL || parsed.origin}/embeddings`;
-  return {
-    baseURL: baseURL || parsed.origin,
-    host: parsed.host,
-    modelListURL,
-    embeddingsURL
-  };
-}
-
-function isApprovedLocalEmbeddingHost(hostname) {
-  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
-  if (host === 'localhost' || host === '::1') return true;
-  if (/^127(?:\.\d{1,3}){3}$/.test(host)) return true;
-  const parts = host.split('.').map(part => Number(part));
-  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  if (parts[0] === 10) return true;
-  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-  return parts[0] === 192 && parts[1] === 168;
-}
-
-function getEmbeddingApiKey(candidateKey, options = {}) {
-  const allowStoredKeyFallback = options.allowStoredFallback !== false;
-  const trimmed = String(candidateKey || '').trim();
-  if (trimmed) return { key: trimmed, storage: 'pending' };
-  const envKey = String(process.env.DOCULIGHT_EMBEDDING_API_KEY || '').trim();
-  if (allowStoredKeyFallback && envKey) return { key: envKey, storage: 'env' };
-  const stored = store.get('embeddingApiKeyCiphertext', '');
-  if (!allowStoredKeyFallback || !stored || !safeStorage || !safeStorage.isEncryptionAvailable()) return { key: '', storage: 'none' };
-  try {
-    return { key: safeStorage.decryptString(Buffer.from(stored, 'base64')), storage: 'safeStorage' };
-  } catch {
-    return { key: '', storage: 'unavailable' };
-  }
-}
-
-function persistEmbeddingApiKey(apiKey, options = {}) {
-  const replaceExisting = options.replaceExisting === true;
-  const trimmed = String(apiKey || '').trim();
-  if (!trimmed) {
-    if (!replaceExisting && store.get('embeddingApiKeyCiphertext')) {
-      return { storage: 'safeStorage', hasApiKey: true };
-    }
-    if (!replaceExisting && process.env.DOCULIGHT_EMBEDDING_API_KEY) {
-      return { storage: 'env', hasApiKey: true };
-    }
-    store.delete('embeddingApiKeyCiphertext');
-    return { storage: 'none', hasApiKey: false };
-  }
-  if (safeStorage && safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(trimmed);
-    store.set('embeddingApiKeyCiphertext', encrypted.toString('base64'));
-    return { storage: 'safeStorage', hasApiKey: true };
-  }
-  store.delete('embeddingApiKeyCiphertext');
-  return { storage: process.env.DOCULIGHT_EMBEDDING_API_KEY ? 'env' : 'none', hasApiKey: false };
-}
-
-function createEmbeddingFingerprint({
-  baseURL,
-  model,
-  dimensions,
-  chunkSize,
-  chunkOverlap,
-  encodingFormat = 'float',
-  chunkerVersion = 'heading-aware-v1',
-  normalization = 'none',
-  hnswSpace = 'cosine',
-  distanceMetric = 'cosine'
-}) {
-  const baseURLHash = crypto
-    .createHash('sha256')
-    .update(String(baseURL || ''))
-    .digest('hex')
-    .slice(0, 16);
-  return crypto
-    .createHash('sha256')
-    .update(JSON.stringify({
-      provider: 'openai-compatible',
-      baseURLHash,
-      model,
-      dimensions: Number.isInteger(dimensions) ? dimensions : null,
-      encodingFormat,
-      chunkerVersion,
-      normalization,
-      hnswSpace,
-      distanceMetric,
-      chunkSize,
-      chunkOverlap
-    }))
-    .digest('hex')
-    .slice(0, 16);
-}
-
-function hasEmbeddingTransmissionConfirmation(input = {}) {
-  return input.retentionCostConfirmed === true
-    && String(input.retentionCostConfirmationVersion || '') === EMBEDDING_RETENTION_CONFIRMATION_VERSION;
-}
-
-async function validateEmbeddingModelConfig(input = {}) {
-  const offlineOnly = Object.prototype.hasOwnProperty.call(input, 'offlineOnly')
-    ? input.offlineOnly === true
-    : getStoredEmbeddingSettings().offlineOnly === true;
-  if (offlineOnly) {
-    return {
-      ok: false,
-      status: 'degraded',
-      reason: 'offline-only',
-      message: 'Offline-only mode blocks remote embedding validation'
-    };
-  }
-  const normalized = normalizeEmbeddingEndpoint(input.baseURL);
-  const apiKeyInfo = getEmbeddingApiKey(input.apiKey, { allowStoredFallback: false });
-  const headers = { 'Content-Type': 'application/json' };
-  if (apiKeyInfo.key) headers.Authorization = `Bearer ${apiKeyInfo.key}`;
-  const timeoutMs = Math.max(1000, Math.min(Number(input.timeout) || 30000, 120000));
-  let model = String(input.model || '').trim();
-
-  if (!model) {
-    const modelsResponse = await fetchWithTimeout(normalized.modelListURL, { method: 'GET', headers }, timeoutMs);
-    if (!modelsResponse.ok) {
-      throw createEmbeddingHttpError('models', modelsResponse.status);
-    }
-    const payload = await modelsResponse.json();
-    model = extractFirstModelId(payload);
-    if (!model) {
-      const err = new Error('Embedding model discovery returned no model id');
-      err.code = 'EMBEDDING_MODEL_DISCOVERY_EMPTY';
-      throw err;
-    }
-  }
-
-  const requestedDimensions = normalizeOptionalPositiveInt(input.dimensions);
-  const validationProvider = createOpenAICompatibleEmbeddingProvider({
-    fetchImpl: (url, options = {}) => fetchWithTimeout(url, options, timeoutMs),
-    getEmbeddingConfig: () => ({
-      baseURL: normalized.baseURL,
-      model,
-      dimensions: requestedDimensions,
-      timeout: timeoutMs
-    }),
-    getApiKey: () => apiKeyInfo.key
-  });
-  const validationResult = await validationProvider.embed({
-    baseURL: normalized.baseURL,
-    model,
-    inputs: ['DocuLight embedding validation'],
-    dimensions: requestedDimensions,
-    timeoutMs
-  });
-  const validationVector = Array.isArray(validationResult?.embeddings)
-    ? validationResult.embeddings[0]
-    : null;
-  const dimensions = requestedDimensions || (Array.isArray(validationVector) ? validationVector.length : null);
-  if (!dimensions) {
-    const err = new Error('Embedding dimensions could not be discovered from validation response');
-    err.code = 'EMBEDDING_DIMENSIONS_REQUIRED';
-    throw err;
-  }
-
-  const chunkSize = normalizePositiveInt(input.chunkSize, EMBEDDING_DEFAULT_CHUNK_SIZE);
-  const chunkOverlap = normalizeNonNegativeInt(input.chunkOverlap, EMBEDDING_DEFAULT_CHUNK_OVERLAP);
-  return {
-    ok: true,
-    status: 'connected',
-    provider: 'openai-compatible',
-    baseURL: normalized.baseURL,
-    host: normalized.host,
-    model,
-    dimensions,
-    chunkSize,
-    chunkOverlap,
-    apiKeyStorage: apiKeyInfo.storage === 'pending' ? 'safeStorage' : apiKeyInfo.storage,
-    hasApiKey: Boolean(apiKeyInfo.key),
-    modelFingerprint: createEmbeddingFingerprint({ baseURL: normalized.baseURL, model, dimensions, chunkSize, chunkOverlap })
-  };
-}
-
-function normalizeOptionalPositiveInt(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
-}
-
-function normalizePositiveInt(value, fallback) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : fallback;
-}
-
-function normalizeNonNegativeInt(value, fallback) {
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 0 ? number : fallback;
-}
-
-async function fetchWithTimeout(url, options, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function extractFirstModelId(payload) {
-  const candidates = Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload) ? payload : []);
-  const first = candidates[0];
-  if (!first) return '';
-  return String(first.id || first.name || first.model || '').trim();
-}
-
-function extractEmbeddingDimensions(payload) {
-  const data = Array.isArray(payload?.data) ? payload.data : [];
-  const firstVector = data.map((item) => item && item.embedding).find((vector) => Array.isArray(vector));
-  return firstVector ? firstVector.length : null;
-}
-
-function createEmbeddingHttpError(endpoint, status) {
-  const err = new Error(`Embedding ${endpoint} endpoint returned HTTP ${status}`);
-  err.code = 'EMBEDDING_ENDPOINT_UNREACHABLE';
-  return err;
-}
-
-function getEmbeddingModelStatusPayload() {
-  const settings = sanitizeEmbeddingSettingsForRenderer();
-  const indexingStatus = searchEngine ? searchEngine.getStatus() : null;
-  const semanticIndexingProgress = searchEngine && typeof searchEngine.getSemanticIndexingProgress === 'function'
-    ? searchEngine.getSemanticIndexingProgress()
-    : null;
-  const progressSource = semanticIndexingProgress || indexingStatus || {};
-  const current = Number(progressSource?.progress_current ?? progressSource?.progressCurrent ?? progressSource?.current ?? 0);
-  const total = Number(progressSource?.progress_total ?? progressSource?.progressTotal ?? progressSource?.total ?? 0);
-  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((current / total) * 100))) : null;
-  const indexingProgress = {
-    state: progressSource?.state || null,
-    phase: progressSource?.phase || null,
-    progress_current: current,
-    progress_total: total,
-    percent
-  };
-  if (!settings.model) {
-    const noModelStatus = (settings.status === 'degraded' || settings.status === 'unreachable' || settings.status === 'failed')
-      ? settings.status
-      : 'unset';
-    return { ...settings, status: noModelStatus, indexingProgress, semanticIndexingProgress, indexingPercent: percent };
-  }
-  return { ...settings, indexingProgress, semanticIndexingProgress, indexingPercent: percent };
-}
-
-function clearSemanticDerivedStateForFingerprint(modelFingerprint) {
-  if (!modelFingerprint || !searchEngine || typeof searchEngine.clearSemanticDerivedState !== 'function') {
-    return { cleared: false, reason: 'semantic-clear-unavailable' };
-  }
-  try {
-    return searchEngine.clearSemanticDerivedState({ modelFingerprint });
-  } catch (err) {
-    return { cleared: false, reason: err && err.message ? err.message : 'semantic-clear-failed' };
-  }
 }
 
 app.on('window-all-closed', () => {
@@ -3357,176 +2906,6 @@ function registerIpcHandlers() {
         message: redactor.redactString(err && err.message ? err.message : String(err))
       };
     }
-  });
-
-  ipcMain.handle('embedding:get-status', () => {
-    return getEmbeddingModelStatusPayload();
-  });
-
-  ipcMain.handle('embedding:validate-model', async (_event, settings) => {
-    try {
-      const result = await validateEmbeddingModelConfig(settings || {});
-      return { ...result, success: result.ok === true };
-    } catch (err) {
-      return {
-        success: false,
-        ok: false,
-        status: 'unreachable',
-        reason: err.code || 'connection-failed',
-        message: err.message
-      };
-    }
-  });
-
-  ipcMain.handle('embedding:save-model-settings', async (_event, settings) => {
-    try {
-      const previousSettings = getStoredEmbeddingSettings();
-      if (settings?.offlineOnly === true) {
-        clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
-        store.set('semanticSearch', {
-          ...previousSettings,
-          enabled: false,
-          offlineOnly: true,
-          status: 'degraded',
-          statusReason: 'offline-only',
-          projectPolicy: normalizeEmbeddingProjectPolicy(settings.projectPolicy),
-          activationRecord: null,
-          secretMigration: normalizeSecretMigrationState(previousSettings.secretMigration),
-          semanticIndexing: { status: 'disabled', progress_current: 0, progress_total: 0 }
-        });
-        return { success: true, status: getEmbeddingModelStatusPayload() };
-      }
-      if (!hasEmbeddingTransmissionConfirmation(settings || {})) {
-        return {
-          success: false,
-          status: {
-            ...getEmbeddingModelStatusPayload(),
-            status: 'unreachable',
-            statusReason: 'retention-cost-confirmation-required'
-          },
-          reason: 'retention-cost-confirmation-required',
-          message: 'Remote embedding retention and cost confirmation is required before enabling semantic indexing'
-        };
-      }
-      const validation = await validateEmbeddingModelConfig(settings || {});
-      if (!validation.ok) {
-        return {
-          success: false,
-          status: {
-            ...getEmbeddingModelStatusPayload(),
-            status: validation.status || 'degraded',
-            statusReason: validation.reason || 'validation-failed'
-          },
-          message: validation.message
-        };
-      }
-      const projectPolicy = normalizeEmbeddingProjectPolicy(settings?.projectPolicy);
-      const validatedAt = new Date().toISOString();
-      const semanticReindex = searchEngine && typeof searchEngine.queueSemanticReindexForActiveDocuments === 'function'
-        ? searchEngine.queueSemanticReindexForActiveDocuments({ requestedBy: 'embedding-registration' })
-        : { queued: 0, jobs: [] };
-      if (semanticReindex && semanticReindex.reason && semanticReindex.skipped !== true) {
-        return {
-          success: false,
-          status: {
-            ...getEmbeddingModelStatusPayload(),
-            status: 'unreachable',
-            statusReason: 'semantic-reindex-unavailable'
-          },
-          reason: 'semantic-reindex-unavailable',
-          message: `Semantic reindex enqueue failed: ${semanticReindex.reason}`
-        };
-      }
-      const secretState = persistEmbeddingApiKey(settings?.apiKey, { replaceExisting: true });
-      if (previousSettings.modelFingerprint && previousSettings.modelFingerprint !== validation.modelFingerprint) {
-        clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
-      }
-      const nextSettings = {
-        ...previousSettings,
-        enabled: true,
-        provider: 'openai-compatible',
-        baseURL: validation.baseURL,
-        model: validation.model,
-        dimensions: validation.dimensions,
-        apiKeyStorage: secretState.storage,
-        hasApiKey: secretState.hasApiKey,
-        chunker: {
-          chunkSize: validation.chunkSize,
-          chunkOverlap: validation.chunkOverlap
-        },
-        modelFingerprint: validation.modelFingerprint,
-        status: 'connected',
-        statusReason: null,
-        lastValidatedAt: validatedAt,
-        offlineOnly: false,
-        retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION,
-        endpointPolicy: 'https-or-approved-local',
-        projectPolicy,
-        activationRecord: createEmbeddingActivationRecord({
-          provider: 'openai-compatible',
-          endpointHost: validation.host,
-          model: validation.model,
-          retentionCostConfirmationVersion: EMBEDDING_RETENTION_CONFIRMATION_VERSION,
-          projectPolicy
-        }),
-        secretMigration: normalizeSecretMigrationState(previousSettings.secretMigration),
-        semanticIndexing: {
-          status: semanticReindex.skipped === true ? 'idle' : 'queued',
-          progress_current: 0,
-          progress_total: 0,
-          queuedAt: semanticReindex.skipped === true ? null : validatedAt,
-          skippedReason: semanticReindex.skipped === true ? semanticReindex.reason : null
-        }
-      };
-      store.set('semanticSearch', nextSettings);
-      return { success: true, status: getEmbeddingModelStatusPayload(), semanticReindex };
-    } catch (err) {
-      return {
-        success: false,
-        status: {
-          ...getEmbeddingModelStatusPayload(),
-          status: 'unreachable',
-          statusReason: err.code || 'connection-failed'
-        },
-        reason: err.code || 'connection-failed',
-        message: err.message
-      };
-    }
-  });
-
-  ipcMain.handle('embedding:clear-model-settings', () => {
-    const previousSettings = getStoredEmbeddingSettings();
-    clearSemanticDerivedStateForFingerprint(previousSettings.modelFingerprint);
-    store.delete('embeddingApiKeyCiphertext');
-    store.set('semanticSearch', {
-      enabled: false,
-      provider: 'openai-compatible',
-      baseURL: '',
-      model: '',
-      dimensions: null,
-      apiKeyStorage: 'none',
-      hasApiKey: false,
-      chunker: {
-        chunkSize: EMBEDDING_DEFAULT_CHUNK_SIZE,
-        chunkOverlap: EMBEDDING_DEFAULT_CHUNK_OVERLAP
-      },
-      status: 'unset',
-      statusReason: null,
-      modelFingerprint: null,
-      lastValidatedAt: null,
-      offlineOnly: false,
-      retentionCostConfirmationVersion: null,
-      endpointPolicy: 'https-or-approved-local',
-      projectPolicy: { mode: 'allow-all', projects: [] },
-      activationRecord: null,
-      secretMigration: null,
-      semanticIndexing: {
-        status: 'stale',
-        progress_current: 0,
-        progress_total: 0
-      }
-    });
-    return { success: true, status: getEmbeddingModelStatusPayload() };
   });
 
   // Resolve a clicked markdown href to an absolute file path.

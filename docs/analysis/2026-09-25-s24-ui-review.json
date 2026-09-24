@@ -1,0 +1,37 @@
+{
+  "issue": 47,
+  "requirements": ["FR-APP-013", "IR-MCP-018", "CON-MCP-007"],
+  "baseSha": "66c5159bde338fde5fce9e21edc07b62ab3ea705",
+  "reviewedSourceHash": "114ad69597d6b7db765352000dc4bcc92ca9a05cdff5ddac27de9b72f5aa9c15",
+  "verdict": "PASS",
+  "findings": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": []
+  },
+  "checks": {
+    "registrationSurface": "Settings HTML, JS, CSS, preload bridge, and product main IPC registration have no embedding registration, validation, save, remove, or status controls. The VM probe executes the actual product registerIpcHandlers body and records its handle/on calls; Settings and indexing channels remain and embedding channels are absent.",
+    "locales": "ko, en, ja, and es each have the same 268 keys and no settings.embedding keys.",
+    "legacyCleanup": "Startup deletes only semanticSearch, embeddingApiKeyCiphertext, embeddingApiKey, and apiKey when present; repeated and empty cleanup make no writes. Unrelated settings survive, get-settings strips legacy fields, and save-settings rejects their return.",
+    "searchAndData": "The product does not wire an embedding provider. Provider-free smart_search retains keyword results and the existing embedding_disabled reason. The S24 fixture preserves Markdown content, chunk embedding bytes, and committed ANN state.",
+    "mcp": "The exact eight-tool public surface and Wave 2 MCP contract remain intact; no tool, schema, or response change was introduced."
+  },
+  "srsReconciliation": "DR-APP-002 and SEC-APP-003 are discarded/stable through guarded SpecKiwi supersede; their historical July verification evidence remains. FR-APP-013, DR-APP-003, and SEC-APP-004 are implemented/evolving with per-AC evidence and none marked verified. The compatibility contract executes the product Settings payload sanitizer on a legacy secret and activation fixture, so DR-APP-003 VE-1 accurately covers AC-4; VE-2 is scoped to AC-1, AC-2, and AC-3. SpecKiwi validation reports zero errors, eight historical/pre-existing warnings, zero active stability blockers, and sync-index dry-run reports no operations. CON-ARCH-007 retains protected historical predecessor links and adds active successors as cleanup trace.",
+  "verifiedCommands": [
+    "node test/r3/run-node.cjs --case s24: PASS 28",
+    "node test/r3/run-electron.cjs --scenario s24: PASS 3",
+    "node test/r3/run-electron.cjs --scenario s21: PASS 23",
+    "node test/test-settings-status-poller-contract.js: PASS",
+    "node test/test-embedding-removal-compat-contract.js: PASS",
+    "node test/test-mcp-tool-parity.js: PASS",
+    "node test/test-wave2-mcp-contract.js: PASS",
+    "speckiwi validate --json: 0 errors, 8 historical/pre-existing warnings",
+    "speckiwi sync-index --dry-run --json: 0 operations"
+  ],
+  "tddAndRegression": "The source hash and recorded semantic RED evidence were checked. The IPC probe detects the baseline product registration; the current runtime registration body exposes no embedding channel. Indexing-only poller tests retain single-flight, rejection/retry, stop-during-flight, and hung-cycle coverage without calling embedding status.",
+  "closure": {
+    "issue47": "Ready to close after the author's normal commit and evidence-link steps. FR-APP-013, DR-APP-003, and SEC-APP-004 are implemented/evolving; no verified status is claimed.",
+    "issue44": "The pre-existing embedding registration UI/key dependency is resolved. Issue #44 remains open for its separate owner DB-free and owner-action gates."
+  }
+}

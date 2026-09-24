@@ -1,41 +1,29 @@
 'use strict';
 
-const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
-
-const modulePath = path.join(__dirname, '..', 'src', 'renderer', 'settings-status-poller.js');
-assert(fs.existsSync(modulePath), 'Settings status poller is implemented as a testable runtime module');
-const { createSettingsStatusPoller } = require(modulePath);
+const assert = require('node:assert/strict');
+const { createSettingsStatusPoller } = require('../src/renderer/settings-status-poller');
 
 function deferred() {
   let resolve;
   let reject;
-  const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
   return { promise, resolve, reject };
 }
 
-function createFakeScheduler() {
-  let nextId = 1;
+function fakeScheduler() {
   const timers = new Map();
+  let nextId = 1;
   return {
     setTimeoutFn(callback, delay) {
       const id = nextId++;
       timers.set(id, { callback, delay });
       return id;
     },
-    clearTimeoutFn(id) {
-      timers.delete(id);
-    },
-    pending() {
-      return Array.from(timers.entries()).map(([id, timer]) => ({ id, ...timer }));
-    },
+    clearTimeoutFn(id) { timers.delete(id); },
+    pending() { return [...timers.entries()].map(([id, timer]) => ({ id, ...timer })); },
     fire(id) {
       const timer = timers.get(id);
-      assert(timer, `timer ${id} exists`);
+      assert.ok(timer, 'scheduled timer exists');
       timers.delete(id);
       return timer.callback();
     }
@@ -43,140 +31,86 @@ function createFakeScheduler() {
 }
 
 (async () => {
-  const scheduler = createFakeScheduler();
-  const indexingFirst = deferred();
-  const embeddingFirst = deferred();
-  let indexingCalls = 0;
   let embeddingCalls = 0;
+  const forbiddenEmbedding = () => { embeddingCalls++; throw Error('embedding status was requested'); };
 
+  const scheduler = fakeScheduler();
+  const first = deferred();
+  let calls = 0;
   const poller = createSettingsStatusPoller({
-    refreshIndexingStatus() {
-      indexingCalls += 1;
-      return indexingFirst.promise;
-    },
-    refreshEmbeddingStatus() {
-      embeddingCalls += 1;
-      return embeddingFirst.promise;
-    },
-    isActive(status) {
-      return Boolean(status && status.active);
-    },
-    activeDelayMs: 500,
-    idleDelayMs: 3000,
-    setTimeoutFn: scheduler.setTimeoutFn,
-    clearTimeoutFn: scheduler.clearTimeoutFn
+    refreshIndexingStatus: () => { calls++; return first.promise; },
+    refreshEmbeddingStatus: forbiddenEmbedding,
+    isActive: status => Boolean(status && status.active),
+    activeDelayMs: 500, idleDelayMs: 3000, ...scheduler
   });
-
-  const firstCycle = poller.start();
-  const overlappingCycle = poller.pollNow();
-  assert.strictEqual(firstCycle, overlappingCycle, 'overlapping poll requests share the same cycle Promise');
-  assert.strictEqual(indexingCalls, 1, 'overlapping cycle calls indexing IPC exactly once');
-  assert.strictEqual(embeddingCalls, 1, 'overlapping cycle calls embedding IPC exactly once');
-  assert.strictEqual(scheduler.pending().length, 0, 'no next timer is scheduled while requests are in flight');
-
-  indexingFirst.resolve({ active: true });
-  embeddingFirst.resolve({ status: 'connected' });
-  await firstCycle;
-  assert.deepStrictEqual(scheduler.pending().map((timer) => timer.delay), [500], 'active status schedules exactly one 500ms timer');
-
+  const cycle = poller.start();
+  assert.strictEqual(poller.pollNow(), cycle, 'overlapping polls share one cycle');
+  assert.equal(calls, 1, 'indexing refresh is single flight');
+  assert.equal(embeddingCalls, 0, 'embedding status is never requested');
+  assert.equal(scheduler.pending().length, 0, 'in-flight cycle schedules no timer');
+  first.resolve({ active: true });
+  await cycle;
+  assert.deepEqual(scheduler.pending().map(timer => timer.delay), [500], 'active cycle schedules one 500ms timer');
   poller.stop();
-  assert.strictEqual(scheduler.pending().length, 0, 'stop/unload clears the pending timer');
+  assert.equal(scheduler.pending().length, 0, 'stop clears pending timer');
   await poller.pollNow();
-  assert.strictEqual(indexingCalls, 1, 'stopped poller does not call indexing IPC again');
-  assert.strictEqual(embeddingCalls, 1, 'stopped poller does not call embedding IPC again');
+  assert.equal(calls, 1, 'post-stop poll cannot call indexing again');
 
-  const recoveryScheduler = createFakeScheduler();
-  let recoveryIndexingCalls = 0;
-  let recoveryEmbeddingCalls = 0;
-  const recoveryPoller = createSettingsStatusPoller({
+  const recoveryScheduler = fakeScheduler();
+  let recoveryCalls = 0;
+  const recovery = createSettingsStatusPoller({
     refreshIndexingStatus() {
-      recoveryIndexingCalls += 1;
-      if (recoveryIndexingCalls === 1) return Promise.reject(new Error('synthetic indexing IPC failure'));
-      return Promise.resolve({ active: false });
+      recoveryCalls++;
+      return recoveryCalls === 1 ? Promise.reject(Error('synthetic indexing failure')) : Promise.resolve({ active: false });
     },
-    refreshEmbeddingStatus() {
-      recoveryEmbeddingCalls += 1;
-      return Promise.resolve({ status: 'unset' });
-    },
-    isActive(status) {
-      return Boolean(status && status.active);
-    },
-    activeDelayMs: 500,
-    idleDelayMs: 3000,
-    setTimeoutFn: recoveryScheduler.setTimeoutFn,
-    clearTimeoutFn: recoveryScheduler.clearTimeoutFn
+    refreshEmbeddingStatus: forbiddenEmbedding,
+    isActive: status => Boolean(status && status.active),
+    activeDelayMs: 500, idleDelayMs: 3000, ...recoveryScheduler
   });
+  await recovery.start();
+  assert.deepEqual(recoveryScheduler.pending().map(timer => timer.delay), [3000], 'rejection schedules one recovery timer');
+  await recoveryScheduler.fire(recoveryScheduler.pending()[0].id);
+  assert.equal(recoveryCalls, 2, 'next cycle retries rejected indexing request');
+  assert.deepEqual(recoveryScheduler.pending().map(timer => timer.delay), [3000], 'retry leaves one idle timer');
+  recovery.stop();
+  assert.equal(recoveryScheduler.pending().length, 0, 'recovery stop clears timer');
 
-  await recoveryPoller.start();
-  assert.deepStrictEqual(recoveryScheduler.pending().map((timer) => timer.delay), [3000], 'rejected indexing IPC still schedules exactly one recovery timer');
-  const recoveryTimer = recoveryScheduler.pending()[0];
-  await recoveryScheduler.fire(recoveryTimer.id);
-  assert.strictEqual(recoveryIndexingCalls, 2, 'next timer retries indexing IPC after rejection');
-  assert.strictEqual(recoveryEmbeddingCalls, 2, 'next timer refreshes embedding status with the retry');
-  assert.deepStrictEqual(recoveryScheduler.pending().map((timer) => timer.delay), [3000], 'retry cycle leaves exactly one idle timer');
-  recoveryPoller.stop();
-
-  const stopDuringFlightScheduler = createFakeScheduler();
-  const stopIndexing = deferred();
-  const stopEmbedding = deferred();
-  let stopIndexingCalls = 0;
-  let stopEmbeddingCalls = 0;
-  const stopDuringFlightPoller = createSettingsStatusPoller({
-    refreshIndexingStatus() {
-      stopIndexingCalls += 1;
-      return stopIndexing.promise;
-    },
-    refreshEmbeddingStatus() {
-      stopEmbeddingCalls += 1;
-      return stopEmbedding.promise;
-    },
+  const stopScheduler = fakeScheduler();
+  const pending = deferred();
+  let stopCalls = 0;
+  const stopped = createSettingsStatusPoller({
+    refreshIndexingStatus: () => { stopCalls++; return pending.promise; },
+    refreshEmbeddingStatus: forbiddenEmbedding,
     isActive: () => true,
-    activeDelayMs: 500,
-    idleDelayMs: 3000,
-    setTimeoutFn: stopDuringFlightScheduler.setTimeoutFn,
-    clearTimeoutFn: stopDuringFlightScheduler.clearTimeoutFn
+    activeDelayMs: 500, idleDelayMs: 3000, ...stopScheduler
   });
-  const stoppedCycle = stopDuringFlightPoller.start();
-  stopDuringFlightPoller.stop();
-  stopIndexing.resolve({ active: true });
-  stopEmbedding.resolve({ status: 'connected' });
+  const stoppedCycle = stopped.start();
+  stopped.stop();
+  pending.resolve({ active: true });
   await stoppedCycle;
-  assert.strictEqual(stopDuringFlightScheduler.pending().length, 0, 'an in-flight cycle that resolves after unload schedules no timer');
-  assert.strictEqual(stopIndexingCalls, 1, 'stop during flight does not duplicate indexing IPC');
-  assert.strictEqual(stopEmbeddingCalls, 1, 'stop during flight does not duplicate embedding IPC');
+  assert.equal(stopScheduler.pending().length, 0, 'in-flight resolution after stop schedules no timer');
+  assert.equal(stopCalls, 1, 'stop during flight does not duplicate indexing');
+  await stopped.pollNow();
+  assert.equal(stopCalls, 1, 'post-stop poll remains inert');
 
-  const hangingScheduler = createFakeScheduler();
-  const hangingIndexing = deferred();
-  let hangingIndexingCalls = 0;
-  let completedEmbeddingCalls = 0;
-  const hangingPoller = createSettingsStatusPoller({
-    refreshIndexingStatus() {
-      hangingIndexingCalls += 1;
-      return hangingIndexing.promise;
-    },
-    refreshEmbeddingStatus() {
-      completedEmbeddingCalls += 1;
-      return Promise.resolve({ status: 'connected' });
-    },
+  const hungScheduler = fakeScheduler();
+  const hung = deferred();
+  let hungCalls = 0;
+  const hungPoller = createSettingsStatusPoller({
+    refreshIndexingStatus: () => { hungCalls++; return hung.promise; },
+    refreshEmbeddingStatus: forbiddenEmbedding,
     isActive: () => true,
-    activeDelayMs: 500,
-    idleDelayMs: 3000,
-    setTimeoutFn: hangingScheduler.setTimeoutFn,
-    clearTimeoutFn: hangingScheduler.clearTimeoutFn
+    activeDelayMs: 500, idleDelayMs: 3000, ...hungScheduler
   });
-  const hangingCycle = hangingPoller.start();
-  assert.strictEqual(hangingPoller.pollNow(), hangingCycle, 'a hung IPC keeps later polls coalesced into the same cycle');
+  const hungCycle = hungPoller.start();
+  assert.strictEqual(hungPoller.pollNow(), hungCycle, 'hung refresh coalesces later polls');
   await Promise.resolve();
-  assert.strictEqual(completedEmbeddingCalls, 1, 'the non-hanging peer IPC completes once');
-  assert.strictEqual(hangingScheduler.pending().length, 0, 'a hung IPC cannot create a timer backlog');
-  hangingPoller.stop();
-  hangingIndexing.resolve({ active: true });
-  await hangingCycle;
-  assert.strictEqual(hangingScheduler.pending().length, 0, 'stopping a hung cycle prevents post-resolution scheduling');
-  assert.strictEqual(hangingIndexingCalls, 1, 'hung indexing IPC remains single-flight');
-
+  assert.equal(hungScheduler.pending().length, 0, 'hung cycle creates no timer backlog');
+  assert.equal(hungCalls, 1, 'hung refresh remains single flight');
+  hungPoller.stop();
+  hung.resolve({ active: true });
+  await hungCycle;
+  assert.equal(hungScheduler.pending().length, 0, 'stopped hung cycle cannot schedule after resolution');
+  assert.equal(embeddingCalls, 0, 'all indexing-only scenarios avoid embedding IPC');
   console.log('test-settings-status-poller-contract: all assertions passed');
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+})().catch(error => { console.error(error); process.exitCode = 1; });

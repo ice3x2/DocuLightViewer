@@ -33,7 +33,6 @@ module.exports = {
       'get-strings': () => ({ strings, locale: 'en' }),
       'get-settings': () => ({ mcpAutoSavePath: 'C:\\store' }),
       'indexing:get-status': () => snapshot,
-      'embedding:get-status': () => ({ status: 'unset' }),
       'get-file-association-status': () => ({ registered: false }),
       'check-port-available': () => true,
       'indexing:cancel-job': () => { cancelCount += 1; return SearchEngine.prototype.cancelRebuild.call(legacyEngine); },

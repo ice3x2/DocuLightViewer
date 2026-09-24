@@ -15,14 +15,13 @@
   // @req REL-DOC-008
   function createSettingsStatusPoller(options = {}) {
     const refreshIndexingStatus = options.refreshIndexingStatus;
-    const refreshEmbeddingStatus = options.refreshEmbeddingStatus;
     const isActive = typeof options.isActive === 'function' ? options.isActive : () => false;
     const activeDelayMs = Math.max(0, Number(options.activeDelayMs) || 500);
     const idleDelayMs = Math.max(activeDelayMs, Number(options.idleDelayMs) || 3000);
     const setTimeoutFn = options.setTimeoutFn || setTimeout;
     const clearTimeoutFn = options.clearTimeoutFn || clearTimeout;
-    if (typeof refreshIndexingStatus !== 'function' || typeof refreshEmbeddingStatus !== 'function') {
-      throw new TypeError('Settings status poller requires indexing and embedding refresh functions');
+    if (typeof refreshIndexingStatus !== 'function') {
+      throw new TypeError('Settings status poller requires indexing refresh function');
     }
 
     let running = false;
@@ -58,8 +57,7 @@
       if (!running) return Promise.resolve(null);
       if (cyclePromise) return cyclePromise;
       const indexingPromise = callRefresh(refreshIndexingStatus);
-      const embeddingPromise = callRefresh(refreshEmbeddingStatus);
-      cyclePromise = Promise.allSettled([indexingPromise, embeddingPromise])
+      cyclePromise = Promise.allSettled([indexingPromise])
         .then((outcomes) => {
           const indexingOutcome = outcomes[0];
           if (indexingOutcome && indexingOutcome.status === 'fulfilled' && indexingOutcome.value) {

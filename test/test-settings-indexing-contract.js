@@ -128,12 +128,11 @@ assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings render
 assert(settingsJs.includes('if (indexingStatusRequest) return indexingStatusRequest'), 'settings renderer prevents overlapping indexing status polling');
 assert(settingsJs.includes('let indexingActionRequest = null'), 'settings renderer tracks an in-flight indexing action request');
 assert(settingsJs.includes('if (indexingActionRequest) return indexingActionRequest'), 'settings renderer prevents overlapping indexing actions');
-assert(settingsJs.includes('let embeddingStatusRequest = null'), 'settings renderer tracks an in-flight embedding status request');
-assert(settingsJs.includes('if (embeddingStatusRequest) return embeddingStatusRequest'), 'settings renderer prevents overlapping embedding status polling');
+assert(!settingsJs.includes('embeddingStatusRequest'), 'settings renderer does not poll embedding status');
 assert(fs.existsSync(settingsPollerPath), 'settings renderer has a testable adaptive status poller module');
 assert(settingsHtml.includes('settings-status-poller.js'), 'settings page loads the status poller before settings.js');
 assert(settingsJs.includes('createSettingsStatusPoller'), 'settings renderer uses the testable adaptive status poller');
-assert(!settingsJs.includes('setInterval(refreshEmbeddingModelStatus'), 'settings renderer has no independent embedding status interval');
+assert(!settingsJs.includes('refreshEmbeddingModelStatus'), 'settings renderer has no embedding status refresh');
 assert(settingsJs.includes("addEventListener('beforeunload'"), 'settings renderer stops status polling before unload');
 assert(settingsJs.includes('isIndexingWorkerActive'), 'settings renderer centralizes active worker state detection');
 assert(settingsJs.includes("'compacting'") && settingsJs.includes("'clearing'"), 'settings renderer treats compacting/clearing worker states as active');
@@ -156,7 +155,7 @@ assert(
 );
 assert(settingsJs.includes('ACTIVE_INDEXING_POLL_MS'), 'settings renderer defines active indexing polling cadence');
 assert(settingsJs.includes('IDLE_INDEXING_POLL_MS'), 'settings renderer defines idle indexing polling cadence');
-assert(settingsJs.includes('createSettingsStatusPoller'), 'settings renderer schedules adaptive indexing and embedding status polling');
+assert(settingsJs.includes('createSettingsStatusPoller'), 'settings renderer schedules adaptive indexing status polling');
 assert(/const ACTIVE_INDEXING_POLL_MS\s*=\s*500/.test(settingsJs), 'active indexing status polling runs every 500ms');
 assert(/const IDLE_INDEXING_POLL_MS\s*=\s*3000/.test(settingsJs), 'idle indexing status polling remains every 3000ms');
 assert(!/setInterval\s*\(\s*function\s*\(\)\s*\{\s*refreshIndexingStatus\(\)/.test(settingsJs), 'settings renderer no longer polls indexing status through the global 3000ms interval');
@@ -165,8 +164,8 @@ assert(settingsJs.includes('rebuildSession.indexedCount'), 'settings renderer re
 assert(settingsJs.includes('rebuildSession.pendingCount'), 'settings renderer renders rebuild-session pending count');
 assert(!settingsCss.includes('background: #24292e;'), 'search index manage button no longer uses the black custom background');
 assert(/\.indexing-manage-button[\s\S]*var\(--button-secondary-bg\)/.test(settingsCss), 'search index manage button uses the normal secondary button background');
-assert(/\.indexing-manage-button[\s\S]*font-size:\s*12px;/.test(settingsCss), 'search index manage button uses the same font size as the embedding register button');
-assert(/\.indexing-manage-button[\s\S]*font-weight:\s*400;/.test(settingsCss), 'search index manage button is not visually heavier than the embedding register button');
+assert(/\.indexing-manage-button[\s\S]*font-size:\s*12px;/.test(settingsCss), 'search index manage button retains its font size');
+assert(/\.indexing-manage-button[\s\S]*font-weight:\s*400;/.test(settingsCss), 'search index manage button retains its font weight');
 assert(/\.indexing-manage-button[\s\S]*margin-top:\s*12px;/.test(settingsCss), 'search index manage button is spaced away from the opened Markdown unavailable hint');
 
 for (const locale of ['en', 'ko', 'ja', 'es']) {
