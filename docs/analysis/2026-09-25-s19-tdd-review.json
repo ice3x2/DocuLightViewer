@@ -1,0 +1,40 @@
+{
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/42",
+  "review": "S19 independent TDD and reliability review",
+  "baseCommit": "a4c78f84b9c8de6c96e7e9a02e9f971f65e8d6b3",
+  "reviewedSourceHash": "503540cf3d1b99ef69624ae6f599dc8060e1be5548fd232f12e5846a720ec901",
+  "requirements": ["REL-DOC-009", "FR-DOC-019", "DR-DOC-014", "SEC-DOC-003"],
+  "result": "PASS",
+  "severityCounts": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "publicFixture": {
+    "sourceCommit": "12d312cea07d530c7aa28ffb849575ea3d94b459",
+    "sourceFile": "src/main/source-ledger-store.js",
+    "sourceSha256": "2d2e2f1a637a59c8eecff7e5d896d9b95ffec4e2fccdf48ef9b367423667a3e6",
+    "generator": "test/r3/fixtures/generate-public-ledger.cjs",
+    "sqliteFixture": "test/r3/fixtures/public-ledger-12d312c.sqlite",
+    "sqliteSha256": "e6739aa66353f85a601e56cf62af9b42c629b11b2bc36b6c08950eef74ed3bf0",
+    "assessment": "Generator loads immutable public source-ledger-store.js and redaction.js and calls public SourceLedgerStore.initialize(). S19 checks checksum, job status CHECK and foreign keys, and nullable alias-origin columns."
+  },
+  "tdd": {
+    "s19Red": "Evidence records semantic ASSERTION_FAIL for missing migration entrypoint after fixture setup; later fresh-indexing and later-save failures were added before their fixes.",
+    "s10Baseline": "Independently reproduced clean a4c78f8 S10 failure four times at assertion 2: alias-backed update with source_fixture is classified as linked import and fails source identity validation.",
+    "s10Correction": "Fixture now uses a stable source identity and opened_markdown for initial alias-backed publications. Existing behavioral assertions remain; product identity behavior is unchanged."
+  },
+  "reliability": [
+    "Migration runs inside owner startup before START-ready and accept_save dispatch; a marker-insert fault rolls back pending job and old-row status, keeps new-write ACK closed, and restart converges.",
+    "Unknown public schema or migration marker fails closed. Root mismatch, disabled source, corrupt record, missing source, changed content, cancellation, and fresh heartbeat retain durable blocked diagnostics without executing the old job.",
+    "A fresh blocked indexing row fences legacy migration for its document. A later valid save can claim and complete a new desired job because active-job predicates exclude only durably blocked legacy rows; the old row and diagnostic remain.",
+    "Completed history never becomes the winner; hash-only aliases gain no inferred origin; source files, store copies, document IDs, aliases, and metadata are retained; no automatic full rebuild is introduced."
+  ],
+  "independentChecks": [
+    "s19 PASS 47",
+    "s10 PASS 47",
+    "s09 PASS 37",
+    "s11 PASS 24",
+    "s17 PASS 32",
+    "s18 PASS 19",
+    "test-search-engine-lifecycle PASS",
+    "test-startup-index-recovery-memory-contract PASS; retainedContentBytes=0"
+  ],
+  "closureRecommendation": "Issue #42 may close after the author records the final SHA and evidence links."
+}

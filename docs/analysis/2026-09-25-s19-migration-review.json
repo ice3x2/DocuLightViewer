@@ -1,0 +1,31 @@
+{
+  "review": "S19 public-v1 indexing job migration",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/42",
+  "reviewedSourceHash": "503540cf3d1b99ef69624ae6f599dc8060e1be5548fd232f12e5846a720ec901",
+  "baseCommit": "a4c78f84b9c8de6c96e7e9a02e9f971f65e8d6b3",
+  "publicBaselineCommit": "12d312cea07d530c7aa28ffb849575ea3d94b459",
+  "requirements": ["REL-DOC-009", "FR-DOC-019", "DR-DOC-014", "SEC-DOC-003"],
+  "result": "PASS",
+  "findings": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "evidence": {
+    "publicSourceLedgerBlob": { "bytes": 89999, "sha256": "2d2e2f1a637a59c8eecff7e5d896d9b95ffec4e2fccdf48ef9b367423667a3e6" },
+    "generatedPublicSqliteFixtureSha256": "e6739aa66353f85a601e56cf62af9b42c629b11b2bc36b6c08950eef74ed3bf0",
+    "s19CaseSha256": "630ff109168d42763dc0f0c4733a7a340c6be17a31be91e342e3d67c11f9f1ba",
+    "publicFixture": "Generated with the immutable public SourceLedgerStore and redaction dependency. Direct SQLite inspection confirmed the public primary keys, source/document foreign keys, index_jobs status CHECK, unique alias hash, nullable origin paths, and absence of desired_revision.",
+    "independentRuns": [
+      { "command": "node test/r3/run-node.cjs --case s19", "result": "PASS", "assertions": 47 },
+      { "command": "node test/r3/run-node.cjs --case s10", "result": "PASS", "assertions": 47 },
+      { "command": "git diff --check -- src/main/source-ledger-store.js src/main/search-owner-worker.js test/r3/cases/s10.cjs test/r3/node-main.cjs test/r3/run-node.cjs", "result": "PASS" }
+    ],
+    "otherReportedRuns": "S09 37, S11 24, S17 32, S18 19, search-engine lifecycle, and startup-memory passed in the S19 evidence report."
+  },
+  "assessment": [
+    "Owner START runs migration before interrupted-job replay, readiness, private-intent replay, desired drain, and new save acceptance. Unknown ledger schema, unknown migration marker, and failed migration transactions leave the new-write gate closed.",
+    "Previously upgraded public-v1 databases are detected from unmigrated rows. Disabled or root-mismatched sources, corrupt/missing/changed files, cancelled jobs, and fresh uncertain heartbeats receive durable blocked decisions; the count remains visible after restart.",
+    "The newest verifiable old job wins per document. Equal-time same-content ambiguity and a newer uncertain fresh indexing claim block promotion for that document. Completed old jobs remain history only.",
+    "Decision markers, new desired revision/job, and old-row history status commit in one SQLite transaction. Injected marker failure rolls back the new job and leaves START and write ACK closed; replay converges to one eligible new job.",
+    "A later valid save on a document with a blocked legacy indexing row creates a claimable and completable new desired job while retaining the old row and diagnostic. Active-job predicates exclude only rows carrying a blocked legacy migration marker; an unmarked live modern claim remains fenced.",
+    "Source and document identity, metadata, alias, and saved file are retained. Hash-only aliases keep null lexical and canonical origins. No journal deletion, inferred origin path, or automatic full rebuild was found."
+  ],
+  "closureRecommendation": "Issue #42 acceptance criteria are met at the reviewed source hash. Link final commit and evidence in the issue before closure."
+}

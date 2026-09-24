@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S18 #41](https://github.com/ice3x2/DocuLightViewer/issues/41) · 다음 [S19 #42](https://github.com/ice3x2/DocuLightViewer/issues/42).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S19 #42](https://github.com/ice3x2/DocuLightViewer/issues/42) · 다음 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `18/36` 완료(S01~S18)다. 문서별 linked import의 durable 복구와 depth/files/bytes 제한, 실제 완료 수·진단, ACK 미확인 Settings 표시를 검증했다. 다음은 [S19 #42](https://github.com/ice3x2/DocuLightViewer/issues/42)의 구형 journal 전환이며, 앱 시작 응답성과 owner 독점성은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)에 남아 있다.
+실행 이슈는 `19/36` 완료(S01~S19)다. 공개 baseline SQLite job의 안전 전환과 blocked 구형 행 보존·새 저장 복구를 검증했다. 다음은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)의 시작 복구·owner 독점성·기존 검색 index 보존이다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -73,6 +73,12 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S18 RED/GREEN 및 실제 FS·SQLite 행렬](../analysis/2026-09-25-s18-import-limits-evidence.md): `s18` semantic RED 뒤 depth/files/bytes exact limit, rejected candidate budget, 순환·깨진 링크·junction 탈출·취소와 owner ACK 후 부분 완료를 검증했다. ACK 1회 유실은 동일 7필드 intent 재접수로 receipt를 확인해 C를 1회만 세고, 지속 유실은 `ack_unknown`/`unconfirmedCount=1`로 별도 보고한다. Settings의 거짓 완료 문구도 renderer semantic RED 뒤 4개 언어의 일부 완료·재확인 안내로 수정했다.
 - [x] 작성자가 아닌 독립 검토자의 [한도·데이터 검토](../analysis/2026-09-25-s18-limits-review.json)와 [TDD·UX 검토](../analysis/2026-09-25-s18-tdd-review.json)를 소스 해시 `d0b43e7c1ae1aeb004c70f0ea1c1552ae486f99924b326df5f01c309ce4e9cb8`에서 마쳤다. S18 19, S17 32, Settings 두 계약, Wave 2 import-adoption/smart-search가 통과했고 차단 결함 0건이다.
 - [x] #41 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. 다음은 [S19 #42](https://github.com/ice3x2/DocuLightViewer/issues/42)이다.
+
+## S19 진행 기록 — 독립 검토 완료
+
+- [x] [S19 공개 baseline SQLite job 전환 증거](../analysis/2026-09-25-s19-legacy-migration-evidence.md): `REL-DOC-009`, `FR-DOC-019`, `DR-DOC-014`, `SEC-DOC-003`; 시작 SHA `a4c78f84b9c8de6c96e7e9a02e9f971f65e8d6b3`. Semantic RED 뒤 공개 SHA가 생성한 SQLite fixture에서 `s19` 47 assertions GREEN, S10 fixture semantic RED 뒤 47 assertions GREEN, search-engine lifecycle/startup memory 및 S09/S11/S17/S18 통과.
+- [x] [공개 DB 전환·데이터 검토](../analysis/2026-09-25-s19-migration-review.json)와 [TDD·시작 복구 검토](../analysis/2026-09-25-s19-tdd-review.json)는 소스 해시 `503540cf3d1b99ef69624ae6f599dc8060e1be5548fd232f12e5846a720ec901`에서 차단 결함 0건이다. 공개 fixture checksum, 새 쓰기 gate, 차단된 구형 job 뒤 새 저장 완료, S10 기준 fixture 교정을 독립 확인했다.
+- [x] #42 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. 다음은 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)이다.
 
 ## S03 진행 기록 — 독립 검토 완료
 

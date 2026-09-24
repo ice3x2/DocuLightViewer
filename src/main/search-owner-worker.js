@@ -259,6 +259,7 @@ async function dispatch(message) {
         tokenizer,
         loadDatabase: () => loadDatabase('keyword') });
       ledger.initialize();
+      const legacyMigration = ledger.migrateLegacyIndexJobs({ storeRoot: sourceRoot });
       resumeInterruptedJobs();
       keyword.open();
       if (workerData?.r3SchedulerFixture === true) {
@@ -289,7 +290,8 @@ async function dispatch(message) {
       }
       keywordReady = !keywordDiagnostic;
       keywordDiagnosticCode = keywordDiagnostic;
-      status(keywordDiagnostic ? 'stale' : 'ready', keywordDiagnostic);
+      status(keywordDiagnostic ? 'stale' : 'ready', keywordDiagnostic,
+        legacyMigration.blocked ? { legacyMigration: { blocked: legacyMigration.blocked } } : {});
       const ledgerOpen = opened.find(item => item.role === 'ledger');
       const keywordOpen = opened.find(item => item.role === 'keyword');
       parentPort.postMessage({ tag: 'START', state: 'ready', threadId, audit: {

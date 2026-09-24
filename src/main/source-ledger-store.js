@@ -104,6 +104,10 @@ class SourceLedgerStore {
 
   // @req DR-DOC-006
   ensureSchema() {
+    const oldDocumentColumns = this.db.prepare('PRAGMA table_info(documents)').all();
+    const oldJobColumns = this.db.prepare('PRAGMA table_info(index_jobs)').all();
+    const legacyJobsPresent = oldJobColumns.length > 0 && oldDocumentColumns.length > 0
+      && !oldDocumentColumns.some(column => column.name === 'desired_revision');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS source_ledger_meta (
         key TEXT PRIMARY KEY,
@@ -436,7 +440,125 @@ class SourceLedgerStore {
       VALUES ('schema_version', @version)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run({ version: String(SOURCE_LEDGER_SCHEMA_VERSION) });
+    if (legacyJobsPresent) this.db.prepare(`INSERT OR IGNORE INTO source_ledger_meta(key, value)
+      VALUES ('legacy_index_jobs_schema', '12d312cea07d')`).run();
+    this.db.exec(`CREATE TABLE IF NOT EXISTS legacy_index_migrations (
+      job_id TEXT PRIMARY KEY, result TEXT NOT NULL, diagnostic_code TEXT,
+      migrated_job_id TEXT, decided_at TEXT NOT NULL
+    )`);
     this.db.prepare("INSERT INTO chunk_fts(chunk_fts) VALUES ('rebuild')").run();
+  }
+
+  // @req REL-DOC-009 FR-DOC-019 DR-DOC-014 SEC-DOC-003
+  migrateLegacyIndexJobs({ storeRoot, activeHeartbeatMs = 30000 } = {}) {
+    this.assertWritable();
+    const db = this.open();
+    let schema = db.prepare("SELECT value FROM source_ledger_meta WHERE key = 'legacy_index_jobs_schema'").get();
+    if (!schema) {
+      const upgradedLegacy = db.prepare(`SELECT 1 FROM index_jobs j
+        LEFT JOIN documents d ON d.document_id = j.document_id
+        WHERE j.job_type = 'index_document' AND j.status IN ('queued','indexing')
+          AND (d.document_id IS NULL OR (d.desired_revision = 0
+            AND d.current_job_id IS NULL AND d.accepted_intent_id IS NULL))
+          AND NOT EXISTS (SELECT 1 FROM save_intent_acceptances a WHERE a.document_id = d.document_id)
+        LIMIT 1`).get();
+      if (!upgradedLegacy) return { detected: false, migrated: 0, blocked: 0 };
+      db.prepare(`INSERT OR IGNORE INTO source_ledger_meta(key,value)
+        VALUES ('legacy_index_jobs_schema','12d312cea07d')`).run();
+      schema = { value: '12d312cea07d' };
+    }
+    if (schema.value !== '12d312cea07d') throw new Error('Unsupported legacy job schema');
+    const root = path.resolve(requiredString(storeRoot, 'storeRoot'));
+    const rootReal = fs.realpathSync.native(root);
+    const rootFingerprint = stableHash(root);
+    const jobs = db.prepare(`SELECT j.*, d.source_id AS document_source_id,
+      d.relative_path, d.desired_revision, d.current_job_id,
+      d.content_hash AS document_content_hash,
+      s.root_path_internal, s.root_fingerprint, s.enabled AS source_enabled
+      FROM index_jobs j LEFT JOIN documents d ON d.document_id = j.document_id
+      LEFT JOIN sources s ON s.source_id = d.source_id
+      WHERE j.job_type = 'index_document'
+      ORDER BY j.created_at DESC, j.job_id DESC`).all();
+    const uncertainDocuments = new Set(jobs.filter(job => job.status === 'indexing'
+      && job.document_id && Number.isFinite(Date.parse(job.heartbeat_at))
+      && Date.now() - Date.parse(job.heartbeat_at) < activeHeartbeatMs)
+      .map(job => job.document_id));
+    let migrated = 0;
+    db.transaction(() => {
+      for (const job of jobs) {
+        if (db.prepare('SELECT 1 FROM legacy_index_migrations WHERE job_id = ?').get(job.job_id)) continue;
+        // New owner jobs have a desired revision; legacy terminal rows are history only.
+        if (job.desired_revision > 0 || job.current_job_id || job.status === 'completed'
+          || job.status === 'cancelled' || job.status === 'failed') continue;
+        const current = db.prepare('SELECT desired_revision FROM documents WHERE document_id = ?')
+          .get(job.document_id);
+        if (current?.desired_revision > 0) {
+          const now = this._now();
+          db.prepare(`UPDATE index_jobs SET status = 'cancelled', diagnostic_code = 'legacy_superseded',
+            finished_at = ?, updated_at = ? WHERE job_id = ?`).run(now, now, job.job_id);
+          db.prepare(`INSERT INTO legacy_index_migrations(job_id,result,diagnostic_code,decided_at)
+            VALUES (?, 'history', 'legacy_superseded', ?)`).run(job.job_id, now);
+          continue;
+        }
+        let diagnostic = null;
+        let file = null;
+        let bytes = null;
+        const tied = db.prepare(`SELECT COUNT(*) AS count FROM index_jobs
+          WHERE document_id = ? AND job_type = 'index_document' AND status IN ('queued','indexing')
+            AND created_at = ? AND content_hash = ? AND cancel_requested = 0`).get(
+          job.document_id, job.created_at, job.content_hash).count;
+        if (tied > 1) diagnostic = 'legacy_ambiguous_order';
+        else if (!['queued', 'indexing'].includes(job.status) || !job.document_id
+          || !job.source_id || job.source_id !== job.document_source_id
+          || !job.root_path_internal || !job.relative_path || !job.current_path_internal
+          || !/^sha256:[a-f0-9]{64}$/.test(job.content_hash || '')) diagnostic = 'legacy_job_corrupt';
+        else if (job.document_content_hash !== job.content_hash) diagnostic = 'legacy_document_changed';
+        else if (job.source_enabled !== 1) diagnostic = 'legacy_source_disabled';
+        else if (normalizeInternalPath(job.root_path_internal) !== normalizeInternalPath(root)
+          || job.root_fingerprint !== rootFingerprint) diagnostic = 'legacy_root_mismatch';
+        else if (job.cancel_requested) diagnostic = 'legacy_cancel_requested';
+        else if (uncertainDocuments.has(job.document_id)) diagnostic = 'legacy_active_claim_uncertain';
+        if (!diagnostic) {
+          file = path.resolve(root, job.relative_path);
+          if (!isPathWithinRoot(file, root) || normalizeInternalPath(file) !== normalizeInternalPath(job.current_path_internal)) {
+            diagnostic = 'legacy_path_mismatch';
+          } else {
+            try {
+              if (!isPathWithinRoot(fs.realpathSync.native(file), rootReal)) diagnostic = 'legacy_path_mismatch';
+              else bytes = fs.readFileSync(file);
+            } catch { diagnostic = 'legacy_source_missing'; }
+          }
+        }
+        if (!diagnostic && `sha256:${stableHash(bytes)}` !== job.content_hash) diagnostic = 'legacy_content_mismatch';
+        const now = this._now();
+        if (diagnostic) {
+          db.prepare(`INSERT INTO legacy_index_migrations(job_id,result,diagnostic_code,decided_at)
+            VALUES (?, 'blocked', ?, ?)`).run(job.job_id, diagnostic, now);
+          continue;
+        }
+        const revision = 1;
+        const newJobId = `job_legacy_${stableHash(job.job_id).slice(0, 24)}`;
+        this.enqueueIndexJob({ jobId: newJobId, sourceId: job.source_id,
+          documentId: job.document_id, jobType: 'index_document', status: 'queued',
+          requestedBy: 'legacy_migration', currentPathInternal: file,
+          contentHash: job.content_hash, contentByteLength: bytes.length,
+          contentTextLength: bytes.toString('utf8').length });
+        db.prepare(`UPDATE documents SET desired_revision = ?, desired_content_hash = ?,
+          current_job_id = ?, active_requested_revision = ?, dirty = 1,
+          keyword_dirty = 1 WHERE document_id = ? AND desired_revision = 0`)
+          .run(revision, job.content_hash, newJobId, revision, job.document_id);
+        db.prepare(`UPDATE index_jobs SET status = 'cancelled', diagnostic_code = 'legacy_migrated',
+          finished_at = ?, updated_at = ? WHERE job_id = ?`).run(now, now, job.job_id);
+        db.prepare(`INSERT INTO legacy_index_migrations(job_id,result,migrated_job_id,decided_at)
+          VALUES (?, 'migrated', ?, ?)`).run(job.job_id, newJobId, now);
+        migrated += 1;
+      }
+      db.prepare(`INSERT INTO source_ledger_meta(key,value) VALUES ('legacy_index_jobs_migration','scanned')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run();
+    })();
+    const persistedBlocked = db.prepare(`SELECT COUNT(*) AS count FROM legacy_index_migrations
+      WHERE result = 'blocked'`).get().count;
+    return { detected: true, migrated, blocked: persistedBlocked };
   }
 
   // @req DR-DOC-014
@@ -868,7 +990,9 @@ class SourceLedgerStore {
       const now = this._now();
       const desiredRevision = (existing?.desired_revision || 0) + 1;
       const jobId = `job_${current.intentId}`;
-      const active = db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+      const active = db.prepare(`SELECT 1 FROM index_jobs j WHERE document_id = ? AND status = 'indexing'
+        AND NOT EXISTS (SELECT 1 FROM legacy_index_migrations m
+          WHERE m.job_id = j.job_id AND m.result = 'blocked') LIMIT 1`)
         .get(documentId);
       db.prepare(`UPDATE documents SET metadata_json = ?, desired_revision = ?, current_job_id = ?,
         desired_content_hash = ?, active_requested_revision = ?, dirty = 1, keyword_dirty = 1,
@@ -915,7 +1039,9 @@ class SourceLedgerStore {
       WHERE d.document_id > ? AND d.dirty = 1 AND j.status = 'queued'
         AND (d.next_eligible_at IS NULL OR d.next_eligible_at <= ?)
         AND NOT EXISTS (SELECT 1 FROM index_jobs active
-          WHERE active.document_id = d.document_id AND active.status = 'indexing')
+          WHERE active.document_id = d.document_id AND active.status = 'indexing'
+            AND NOT EXISTS (SELECT 1 FROM legacy_index_migrations m
+              WHERE m.job_id = active.job_id AND m.result = 'blocked'))
       ORDER BY d.document_id LIMIT ?`).all(afterDocumentId, now, limit);
   }
 
@@ -930,7 +1056,9 @@ class SourceLedgerStore {
       if (!row || row.desired_revision !== desiredRevision || row.dirty !== 1
         || row.job_status !== 'queued' || row.desired_content_hash !== row.job_content_hash
         || (row.next_eligible_at && row.next_eligible_at > this._now())
-        || db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+        || db.prepare(`SELECT 1 FROM index_jobs j WHERE document_id = ? AND status = 'indexing'
+          AND NOT EXISTS (SELECT 1 FROM legacy_index_migrations m
+            WHERE m.job_id = j.job_id AND m.result = 'blocked') LIMIT 1`)
           .get(documentId)) return null;
       const now = this._now();
       db.prepare(`UPDATE index_jobs SET status = 'indexing', started_at = ?, heartbeat_at = ?,
@@ -949,6 +1077,10 @@ class SourceLedgerStore {
     const db = this.open();
     const jobs = db.prepare(`SELECT job_id AS jobId, document_id AS documentId
       FROM index_jobs WHERE job_type = 'index_document' AND status = 'indexing' AND job_id > ?
+        AND EXISTS (SELECT 1 FROM documents d WHERE d.document_id = index_jobs.document_id
+          AND d.desired_revision > 0)
+        AND NOT EXISTS (SELECT 1 FROM legacy_index_migrations m
+          WHERE m.job_id = index_jobs.job_id AND m.result = 'blocked')
       ORDER BY job_id LIMIT ?`).all(afterJobId, limit);
     db.transaction(() => {
       for (const job of jobs) {
@@ -1062,7 +1194,9 @@ class SourceLedgerStore {
         WHERE d.document_id = ?`).get(documentId);
       if (!row || !['failed', 'cancelled'].includes(row.job_status)
         || row.desired_content_hash !== row.job_content_hash
-        || db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+        || db.prepare(`SELECT 1 FROM index_jobs j WHERE document_id = ? AND status = 'indexing'
+          AND NOT EXISTS (SELECT 1 FROM legacy_index_migrations m
+            WHERE m.job_id = j.job_id AND m.result = 'blocked') LIMIT 1`)
           .get(documentId)) return null;
       const retryCount = row.retry_count + 1;
       const jobId = `job_${row.accepted_intent_id}_retry_${retryCount}`;

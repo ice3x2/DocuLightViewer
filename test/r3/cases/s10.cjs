@@ -27,14 +27,19 @@ module.exports = { async run(context) {
   const keywordPath = path.join(root, 'keyword.sqlite');
   fs.mkdirSync(storeRoot);
   fs.mkdirSync(ingressRoot);
+  const expectedSourceId = `src_${sha([process.platform === 'win32'
+    ? path.resolve(storeRoot).toLowerCase() : path.resolve(storeRoot), sha(storeRoot)].join('\0')).slice(0, 24)}`;
   const base = { storeRoot, ingressRoot, sourceRelativeLocator: 'same.md', operation: 'update',
-    sourceId: 'source_fixture', rootFingerprint: sha(storeRoot) };
+    sourceId: expectedSourceId, rootFingerprint: sha(storeRoot) };
+  context.assert(base.sourceId === expectedSourceId,
+    'alias-backed update uses the stable knowledge-store source identity');
   const body = Buffer.from('---\ntitle: Current\n---\n# Same body\n');
   const publish = async (suffix, metadata = {}) => {
     const origin = path.join(root, 'origin', `${suffix}.md`);
-    return publishSave({ ...base, contentBytes: body, contentHash: sha(body),
-      provenance: { aliases: [{ lexicalOriginalPath: origin, canonicalOriginalPath: origin,
-        canonicalPathHash: pathHash(origin) }], metadata } });
+    const canonical = origin;
+    return publishSave({ ...base, operation: 'opened_markdown', contentBytes: body, contentHash: sha(body),
+      provenance: { aliases: [{ lexicalOriginalPath: origin, canonicalOriginalPath: canonical,
+        canonicalPathHash: pathHash(canonical) }], metadata } });
   };
   const a = await publish('a', { category: 'first', documentTags: ['a'] });
   const b = await publish('b', { category: 'latest', documentTags: ['b'] });
@@ -58,7 +63,7 @@ module.exports = { async run(context) {
   const ledger = new SourceLedgerStore({ dbPath: ledgerPath });
   try {
     const db = ledger.open();
-    const doc = db.prepare("SELECT * FROM documents WHERE source_id = 'source_fixture' AND relative_path = 'same.md'").get();
+    const doc = db.prepare("SELECT * FROM documents WHERE source_id = ? AND relative_path = 'same.md'").get(base.sourceId);
     context.assert(doc && doc.content_hash === `sha256:${sha(body)}` && doc.desired_revision === 1,
       'real SQLite desired state points to current final body');
     context.assert(JSON.parse(doc.metadata_json).category === 'latest'
@@ -138,7 +143,7 @@ module.exports = { async run(context) {
     let recovered;
     for (let attempt = 0; attempt < 200; attempt += 1) {
       const probe = new SourceLedgerStore({ dbPath: ledgerPath });
-      try { recovered = probe.open().prepare("SELECT * FROM documents WHERE source_id = 'source_fixture' AND relative_path = 'restart.md'").get(); }
+      try { recovered = probe.open().prepare("SELECT * FROM documents WHERE source_id = ? AND relative_path = 'restart.md'").get(base.sourceId); }
       finally { probe.close(); }
       if (recovered) break;
       await new Promise(resolve => setTimeout(resolve, 10));
