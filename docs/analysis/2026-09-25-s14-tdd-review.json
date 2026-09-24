@@ -1,0 +1,33 @@
+{
+  "issue": 37,
+  "requirements": [
+    "FR-DOC-028",
+    "IR-MCP-018",
+    "FR-DOC-019",
+    "REL-DOC-009",
+    "SEC-DOC-003"
+  ],
+  "baseCommit": "d4b4eaf41b1884bf1ab3f12ad632d6b5316ab8f5",
+  "sourceHash": "217cef8640c912c70a463d3eb258fa2c23138d94f2ecf9cf35b47048c9a10939",
+  "verdict": "PASS",
+  "findings": [],
+  "review": {
+    "tdd": "S14 has a semantic RED against the prior direct-write/queue adapter; the three independent review regressions also have documented assertion failures before their fixes. The 20-assertion GREEN case exercises the adapter, real owner commit and receipt replay, file publication faults, identity, and private intent content.",
+    "durability": "The adapter returns queued and jobId only for an accepted owner receipt. Post-publication rejection, unavailable owner, and lost ACK retain the file and return enqueue_failed without jobId. The real owner replay returns the same documentId, desiredRevision, and jobId.",
+    "identity": "The guarded new-save publication separates equal-body calls in one millisecond while explicit intentId replay stays idempotent. A real junction-root owner test retains the seeded lexical ledger source identity without a duplicate source.",
+    "compatibility": "The strict eight-tool interface remains unchanged. The HTTP parity assertion changes degraded to enqueue_failed for a missing owner, consistent with the new durable-acceptance contract; no assertions were removed. S08, S09, S10, S12, and S13 still pass."
+  },
+  "verification": {
+    "s08": "PASS assertions=53",
+    "s09": "PASS assertions=37",
+    "s10": "PASS assertions=46",
+    "s12": "PASS assertions=28",
+    "s13": "PASS assertions=20",
+    "s14": "PASS assertions=20",
+    "wave2McpContract": "PASS",
+    "mcpAutosave": "PASS 17 assertions",
+    "mcpHttpSaveParity": "PASS",
+    "mcpToolParity": "PASS"
+  },
+  "limits": "This review does not claim a packaged Electron smoke run or simultaneous legacy-writer stress coverage; those are outside the S14 focused evidence and remain later migration work."
+}

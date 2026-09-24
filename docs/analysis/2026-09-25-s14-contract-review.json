@@ -1,0 +1,30 @@
+{
+  "review": "S14 MCP durable save contract and security",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/37",
+  "baseCommit": "d4b4eaf41b1884bf1ab3f12ad632d6b5316ab8f5",
+  "sourceHashAlgorithm": "test/r3/runtime.cjs::sourceHash()",
+  "sourceHash": "217cef8640c912c70a463d3eb258fa2c23138d94f2ecf9cf35b47048c9a10939",
+  "requirements": ["FR-DOC-028", "IR-MCP-018", "FR-DOC-019", "REL-DOC-009", "SEC-DOC-003"],
+  "verdict": "PASS",
+  "findings": {
+    "CRITICAL": [],
+    "HIGH": [],
+    "MEDIUM": [],
+    "LOW": []
+  },
+  "verified": [
+    "The strict save_document input and exact eight-tool public surface remain unchanged in source stdio, HTTP, and generated bundle; the existing MCP contract regression passed.",
+    "Both transports call the shared saveDocumentToStore adapter and retain canonical JSON in MCP content[0].text. The published response reports queued and an optional jobId only after an accepted owner transaction; published files with failed or lost ACK retain enqueue_failed, retryable warning, and no jobId.",
+    "New save calls require a vacant destination; two same-content saves under a fixed clock allocate distinct contained paths, while explicit same-intent replay reuses the original publication.",
+    "The configured lexical source identity and canonical publication root remain equivalent across junction roots. A real owner transaction preserves a seeded lexical source, and retry preserves document identity, desired revision, and job identity.",
+    "Private intent provenance omits metadata recoverable from saved frontmatter. gitContextPath validation, transient use, and redaction behavior are unchanged; no raw path or credential was added to the public envelope.",
+    "The S14 main-process save path publishes the file and delegates SQLite acceptance to OwnerWorkerController, without calling the legacy queueDocumentIndex path."
+  ],
+  "checks": [
+    { "command": "node test/r3/run-node.cjs --case s14", "result": "PASS case=s14 assertions=20", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/test-wave2-mcp-contract.js", "result": "exit 0" },
+    { "command": "node test/test-mcp-http-save-parity.js", "result": "exit 0" },
+    { "command": "node test/test-mcp-autosave.js", "result": "17 passed, 0 failed" }
+  ],
+  "scopeLimit": "This review covers the S14 adapter and frozen source hash. Legacy producer migration, packaged Electron smoke, and simultaneous legacy-writer stress are later work identified in the S14 evidence; this review does not mark REL-DOC-009 as fully verified."
+}

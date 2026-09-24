@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { injectFrontmatter, parseFrontmatter, buildYamlBlock, DOC_TYPE_VALUES } = require('./frontmatter');
 const { createRedactor, redactToken } = require('./redaction');
+const { publishSave } = require('./index-ingress-store');
 
 const MAX_SAVE_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const SAVE_DOCUMENT_SCHEMA_VERSION = 'save_document.v1';
@@ -409,6 +410,8 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
     if (!enabled || !basePath) {
       throw saveDocumentError('storage_not_configured', 'DocuLight document store is not configured.', true);
     }
+    await fs.promises.mkdir(basePath, { recursive: true });
+    const publishRoot = realpath(basePath);
 
     let gitInfo = {};
     if (input.gitContextPath && store.get('mcpGitInfo', true)) {
@@ -441,33 +444,67 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
       project: input.project || gitInfo.project,
       docType
     });
-    const savedPath = await writeContainedMarkdown(basePath, destDir, destPath, content);
-    const sourceRelativePath = path.relative(path.resolve(basePath), savedPath).replace(/\\/g, '/');
-    let document = null;
+    let owner = searchEngine && searchEngine.ownerController;
+    if (!owner && typeof searchEngine?.getSaveDocumentOwner === 'function') {
+      try { owner = await searchEngine.getSaveDocumentOwner(basePath); }
+      catch { owner = null; }
+    }
+    const ingressRoot = owner?.config?.ingressRoot || searchEngine?.saveDocumentIngressRoot
+      || path.join(searchEngine?.getIndexDataDir?.() || store.get('userDataPath', path.dirname(basePath)), 'save-intents');
+    await fs.promises.mkdir(ingressRoot, { recursive: true });
+    const contentBytes = Buffer.from(content, 'utf8');
+    const contentHash = stableHash(content);
+    const rootFingerprint = stableHash(path.resolve(publishRoot));
+    const lexicalRoot = path.resolve(basePath);
+    const rootKey = process.platform === 'win32' ? lexicalRoot.toLowerCase() : lexicalRoot;
+    const sourceId = `src_${stableHash(`${rootKey}\0${stableHash(lexicalRoot)}`).slice(0, 24)}`;
+    let publication;
+    let savedPath;
+    let canAccept = true;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = attempt === 0 ? destPath : withCollisionSuffix(destPath, attempt + 1);
+      const locator = path.relative(path.resolve(basePath), candidate).replace(/\\/g, '/');
+      try {
+        publication = await publishSave({ storeRoot: publishRoot, ingressRoot,
+          contentBytes, contentHash, operation: 'save_document',
+          requireVacant: true,
+          sourceId, rootFingerprint, sourceRelativeLocator: locator,
+          faultAt: searchEngine?.r3SaveFaultAt,
+          provenance: { aliases: [], metadata: {} } });
+        savedPath = path.join(publishRoot, locator);
+        break;
+      } catch (error) {
+        if (error.code === 'published_file_mismatch') continue;
+        if (error.published) {
+          publication = { saved: true };
+          savedPath = path.join(publishRoot, locator);
+          canAccept = false;
+          break;
+        }
+        throw error;
+      }
+    }
+    if (!publication) throw saveDocumentError('write_failed', 'Could not allocate a unique save_document filename.', true);
+    const sourceRelativePath = path.relative(publishRoot, savedPath).replace(/\\/g, '/');
     let queueResult = null;
     const warnings = [];
-    if (searchEngine && typeof searchEngine.queueDocumentIndex === 'function') {
+    if (canAccept && owner && typeof owner.acceptPublishedSave === 'function') {
       try {
-        queueResult = searchEngine.queueDocumentIndex({
-          filePath: savedPath,
-          content,
-          requestedBy: 'mcp.save_document',
-          metadata: { docType, category, documentTags }
-        });
-        document = queueResult.document || null;
+        queueResult = await owner.acceptPublishedSave({ storeRoot: publishRoot, ingressRoot,
+          intentId: publication.intentId, operation: 'save_document',
+          sourceId, rootFingerprint,
+          sourceRelativeLocator: sourceRelativePath, contentHash,
+          provenance: { aliases: [], metadata: {} } });
       } catch (_) {
-        queueResult = { queued: false };
+        queueResult = null;
       }
-      if (!queueResult || !queueResult.queued) {
-        warnings.push({ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true });
-      }
-    } else if (searchEngine && typeof searchEngine.markDirty === 'function') {
-      searchEngine.markDirty({ filePath: savedPath, content, requestedBy: 'mcp.save_document' });
     }
+    if (!queueResult?.accepted || queueResult.indexingState !== 'queued')
+      warnings.push({ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true });
 
-    const documentId = document && document.documentId
-      ? document.documentId
-      : `doc_${stableHash(sourceRelativePath).slice(0, 24)}`;
+    const documentId = queueResult?.documentId
+      ? queueResult.documentId
+      : `doc_${stableHash(`${sourceId}\0${sourceRelativePath.normalize('NFC').toLowerCase()}`).slice(0, 24)}`;
     const payload = {
       schemaVersion: SAVE_DOCUMENT_SCHEMA_VERSION,
       saved: true,
@@ -479,11 +516,12 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
       category,
       documentTags,
       indexing: {
-        state: queueResult && queueResult.queued ? 'queued' : (warnings.length ? 'enqueue_failed' : 'degraded')
+        state: queueResult?.accepted && queueResult.indexingState === 'queued' ? 'queued' : 'enqueue_failed'
       },
       warnings
     };
-    if (queueResult && queueResult.jobId) payload.indexing.jobId = queueResult.jobId;
+    if (queueResult?.accepted && queueResult.indexingState === 'queued' && queueResult.indexing?.jobId)
+      payload.indexing.jobId = queueResult.indexing.jobId;
     return { content: [{ type: 'text', text: canonicalJson(payload) }] };
   } catch (err) {
     const rawCode = err && err.code ? err.code : 'write_failed';

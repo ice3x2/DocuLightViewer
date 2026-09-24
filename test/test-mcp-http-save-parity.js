@@ -155,7 +155,7 @@ function listMdFiles(dir) {
     assert.strictEqual(saveDocumentPayload.schemaVersion, 'save_document.v1', 'save_document returns canonical schema version');
     assert.strictEqual(saveDocumentPayload.saved, true, 'save_document reports saved=true');
     assert(saveDocumentPayload.documentId, 'save_document returns documentId');
-    assert.strictEqual(saveDocumentPayload.indexing.state, 'degraded', 'fake search engine reports degraded enqueue state without failing save');
+    assert.strictEqual(saveDocumentPayload.indexing.state, 'enqueue_failed', 'missing owner reports retryable enqueue failure without failing save');
     assert(!JSON.stringify(saveDocumentPayload).includes(tmpDir), 'save_document response does not leak raw absolute path');
 
     const enqueueFailureResult = await saveDocumentToStore(store, {

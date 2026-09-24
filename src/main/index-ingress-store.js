@@ -295,6 +295,7 @@ function publishSaveLocked(input) {
   checkedDirectory(privateRoot, privateRoot);
   if (fs.statSync(path.dirname(destination)).dev !== fs.statSync(privateRoot).dev) throw fail('path_policy_violation');
   if (fs.existsSync(destination) && fs.lstatSync(destination).isSymbolicLink()) throw fail('path_policy_violation');
+  if (input.requireVacant === true && !input.intentId && fs.existsSync(destination)) throw fail('published_file_mismatch');
   const provenance = provenanceOf(input.provenance || { aliases: [], metadata: {} });
   const identity = { operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, provenance };
   const sameLocator = [];

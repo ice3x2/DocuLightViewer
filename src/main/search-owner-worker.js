@@ -35,6 +35,7 @@ let closing = false;
 const scheduler = createWorkUnitScheduler({ capacity: 32 });
 let fixtureWrite = null;
 let sourceRoot = null;
+let publicationRoot = null;
 let ingressRoot = null;
 let replayTimer = null;
 let replayDelay = 250;
@@ -44,6 +45,15 @@ let drainRequested = false;
 let drainTimer = null;
 let drainDelay = 250;
 let derivationEnabled = false;
+
+function validatedPublicationRoot() {
+  if (!sourceRoot || !publicationRoot) return null;
+  try {
+    const lexicalReal = fs.realpathSync.native(sourceRoot);
+    const publishedReal = fs.realpathSync.native(publicationRoot);
+    return lexicalReal === publishedReal ? publishedReal : null;
+  } catch { return null; }
+}
 
 // @req FR-DOC-019 DR-DOC-014
 function scheduleDesiredDrain(delay = 0) {
@@ -113,7 +123,7 @@ function resumePrivateIntents() {
     if (closing) return;
     if (cursor < names.length) {
       const reply = acceptPublishedSave({ ingressRoot, intentId: names[cursor++].slice(0, 64),
-        storeRoot: sourceRoot });
+        storeRoot: publicationRoot });
       if (reply.accepted) {
         progressed = true;
         scheduleDesiredDrain();
@@ -138,8 +148,9 @@ function acceptPublishedSave(payload) {
   const failed = { saved: true, accepted: false, indexingState: 'enqueue_failed', indexing: { state: 'enqueue_failed' },
     warnings: [{ code: 'index_enqueue_failed', message: 'Document was saved but indexing enqueue failed.', retryable: true }] };
   try {
-    if (!sourceRoot || typeof payload.ingressRoot !== 'string' || typeof payload.intentId !== 'string'
-      || (payload.storeRoot && path.resolve(payload.storeRoot) !== path.resolve(sourceRoot))) return failed;
+    const publishedRoot = validatedPublicationRoot();
+    if (!publishedRoot || typeof payload.ingressRoot !== 'string' || typeof payload.intentId !== 'string'
+      || (payload.storeRoot && path.resolve(payload.storeRoot) !== path.resolve(publishedRoot))) return failed;
     const reply = receipt => receipt.receipt_kind === 'queued'
       ? { saved: true, accepted: true, indexingState: 'queued', indexing: { state: 'queued', jobId: receipt.job_id },
         desiredRevision: receipt.desired_revision, documentId: receipt.document_id, warnings: [] }
@@ -147,8 +158,8 @@ function acceptPublishedSave(payload) {
         desiredRevision: null, documentId: receipt.document_id, warnings: [] };
     const receipt = ledger.getSaveIntentReceipt(payload.intentId);
     if (receipt) {
-      if (receipt.root_fingerprint !== crypto.createHash('sha256').update(path.resolve(sourceRoot)).digest('hex')) return failed;
-      const persisted = readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: sourceRoot,
+      if (receipt.root_fingerprint !== crypto.createHash('sha256').update(path.resolve(publishedRoot)).digest('hex')) return failed;
+      const persisted = readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: publishedRoot,
         intentId: payload.intentId });
       if (persisted?.retryable || persisted?.quarantined) return failed;
       if (persisted?.intentPath) {
@@ -156,11 +167,11 @@ function acceptPublishedSave(payload) {
       }
       return reply(receipt);
     }
-    const read = intentId => readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: sourceRoot, intentId });
+    const read = intentId => readPendingSave({ ingressRoot: payload.ingressRoot, storeRoot: publishedRoot, intentId });
     const current = read(payload.intentId);
     if (!current || current.retryable || current.quarantined) return failed;
     if (!current.published) return failed;
-    const finalPath = path.resolve(sourceRoot, current.sourceRelativeLocator);
+    const finalPath = path.resolve(publishedRoot, current.sourceRelativeLocator);
     const bytes = fs.readFileSync(finalPath);
     if (bytes.length > 10 * 1024 * 1024 || crypto.createHash('sha256').update(bytes).digest('hex') !== current.contentHash) return failed;
     const pending = fs.readdirSync(payload.ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
@@ -225,6 +236,8 @@ async function dispatch(message) {
     try {
       const config = message.ownerConfig || {};
       sourceRoot = config.sourceRoot || null;
+      publicationRoot = config.publicationRoot || sourceRoot;
+      if (!validatedPublicationRoot()) throw new Error('publication root mismatch');
       ingressRoot = config.ingressRoot || null;
       derivationEnabled = config.deriveDocuments === true;
       const tokenizer = createKeywordTokenizer({

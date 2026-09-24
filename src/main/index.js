@@ -36,6 +36,7 @@ const { WindowManager } = require('./window-manager');
 const Store = require('electron-store');
 const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
 const { SearchEngine } = require('./search-engine');
+const { OwnerWorkerController } = require('./search-owner-controller');
 const { SQLiteKeywordIndex, SQLITE_INDEX_FILENAME } = require('./search-sqlite-store');
 const { createKeywordTokenizer } = require('./search-tokenizer');
 const { loadHnswlib } = require('./hnsw-index');
@@ -121,6 +122,7 @@ let pendingOpenFile = null; // macOS: buffers open-file events before app.isRead
 let isExporting = false;
 const windowManager = new WindowManager();
 let searchEngine = null; // Initialized after store is created
+let saveDocumentOwner = null;
 let openedMarkdownRegistrar = null;
 let nativeRebuildManager = null;
 const mediaViewerWindowsByParent = new Map();
@@ -307,6 +309,30 @@ searchEngine = new SearchEngine(store, {
     getApiKey: () => getEmbeddingApiKey().key
   })
 });
+// @req FR-DOC-028 REL-DOC-009 FR-DOC-019
+searchEngine.getSaveDocumentOwner = async (storeRoot) => {
+  fs.mkdirSync(storeRoot, { recursive: true });
+  const sourceRoot = path.resolve(storeRoot);
+  const publicationRoot = fs.realpathSync.native(storeRoot);
+  if (saveDocumentOwner && (path.resolve(saveDocumentOwner.config.sourceRoot) !== sourceRoot
+    || saveDocumentOwner.config.publicationRoot !== publicationRoot)) {
+    await saveDocumentOwner.shutdown();
+    saveDocumentOwner = null;
+  }
+  if (!saveDocumentOwner) {
+    const ingressRoot = path.join(path.dirname(publicationRoot),
+      `.doculight-save-intents-${crypto.createHash('sha256').update(publicationRoot).digest('hex').slice(0, 16)}`);
+    searchEngine.saveDocumentIngressRoot = ingressRoot;
+    fs.mkdirSync(ingressRoot, { recursive: true, mode: 0o700 });
+    saveDocumentOwner = new OwnerWorkerController({
+      ledgerPath: path.join(runtimeProfile.indexDataDir, 'smart-search.sqlite3'),
+      keywordPath: path.join(runtimeProfile.indexDataDir, SQLITE_INDEX_FILENAME),
+      sourceRoot, publicationRoot, ingressRoot, deriveDocuments: true
+    });
+  }
+  await saveDocumentOwner.start();
+  return saveDocumentOwner;
+};
 openedMarkdownRegistrar = createOpenedMarkdownRegistrar({ store, searchEngine });
 nativeRebuildManager = createNativeRebuildManager({
   rootDir: path.resolve(__dirname, '..', '..'),
@@ -2477,6 +2503,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (saveDocumentOwner) void saveDocumentOwner.shutdown();
   // step28 Phase 2: 앱 종료 시 모든 진행 중 사이드바 트리 로드 abort
   try {
     for (const [, v] of windowManager._currentLoadIds) {
