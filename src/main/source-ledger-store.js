@@ -241,7 +241,7 @@ class SourceLedgerStore {
         alias_id TEXT PRIMARY KEY,
         document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
         alias_kind TEXT NOT NULL,
-        canonical_path_hash TEXT NOT NULL UNIQUE,
+        canonical_path_hash TEXT NOT NULL,
         origin_lexical_path_internal TEXT,
         origin_path_internal TEXT,
         content_hash TEXT,
@@ -367,6 +367,7 @@ class SourceLedgerStore {
     // @req DR-DOC-014
     this.ensureColumn('document_source_aliases', 'origin_lexical_path_internal', 'TEXT');
     this.ensureColumn('document_source_aliases', 'origin_path_internal', 'TEXT');
+    this.migrateSourceAliasUniqueness();
     this.ensureColumn('ann_indexes', 'params_json', "TEXT NOT NULL DEFAULT '{}'");
     this.ensureColumn('ann_memberships', 'deleted_at', 'TEXT');
     this.ensureColumn('chunks', 'kind', "TEXT NOT NULL DEFAULT 'markdown'");
@@ -390,6 +391,8 @@ class SourceLedgerStore {
       CREATE INDEX IF NOT EXISTS idx_document_source_aliases_fingerprint
         ON document_source_aliases(content_hash, content_byte_length, content_text_length)
         WHERE content_hash IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_document_source_aliases_canonical_lexical
+        ON document_source_aliases(canonical_path_hash, COALESCE(origin_lexical_path_internal, ''));
     `);
 
     this.db.prepare(`
@@ -398,6 +401,45 @@ class SourceLedgerStore {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run({ version: String(SOURCE_LEDGER_SCHEMA_VERSION) });
     this.db.prepare("INSERT INTO chunk_fts(chunk_fts) VALUES ('rebuild')").run();
+  }
+
+  // @req DR-DOC-014
+  migrateSourceAliasUniqueness() {
+    const canonicalOnlyUnique = this.db.pragma('index_list(document_source_aliases)').some(index => {
+      if (!index.unique) return false;
+      const columns = this.db.pragma(`index_info(${index.name})`);
+      return columns.length === 1 && columns[0].name === 'canonical_path_hash';
+    });
+    if (!canonicalOnlyUnique) return;
+    this.db.transaction(() => {
+      this.db.exec(`
+        CREATE TABLE document_source_aliases_new (
+          alias_id TEXT PRIMARY KEY,
+          document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+          alias_kind TEXT NOT NULL,
+          canonical_path_hash TEXT NOT NULL,
+          origin_lexical_path_internal TEXT,
+          origin_path_internal TEXT,
+          content_hash TEXT,
+          content_byte_length INTEGER,
+          content_text_length INTEGER,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO document_source_aliases_new
+        SELECT alias_id, document_id, alias_kind, canonical_path_hash,
+          origin_lexical_path_internal, origin_path_internal, content_hash,
+          content_byte_length, content_text_length, first_seen_at, last_seen_at,
+          created_at, updated_at
+        FROM document_source_aliases;
+        DROP TABLE document_source_aliases;
+        ALTER TABLE document_source_aliases_new RENAME TO document_source_aliases;
+        CREATE INDEX idx_document_source_aliases_document_id
+          ON document_source_aliases(document_id);
+      `);
+    })();
   }
 
   // @req DR-DOC-006
@@ -982,53 +1024,69 @@ class SourceLedgerStore {
     const originPathInternal = (input.originPathInternal || input.canonicalPathInternal)
       ? realpathOrPath(requiredString(input.originPathInternal || input.canonicalPathInternal, 'originPathInternal'))
       : null;
-    const canonicalPathHash = input.canonicalPathHash || stableHash(normalizeInternalPath(requiredString(originPathInternal, 'originPathInternal')));
+    const computedHash = originPathInternal ? stableHash(normalizeInternalPath(originPathInternal)) : null;
+    const canonicalPathHash = input.canonicalPathHash || computedHash;
+    if (!canonicalPathHash || (computedHash && canonicalPathHash !== computedHash)) {
+      throw new Error('Canonical source alias hash does not match original path');
+    }
     const aliasKind = normalizeSourceKind(input.aliasKind || 'opened_path');
     const now = this._now();
-    const existing = this.open().prepare(`
-      SELECT *
-      FROM document_source_aliases
-      WHERE canonical_path_hash = ?
-    `).get(canonicalPathHash);
-    const record = {
-      aliasId: input.aliasId || (existing && existing.alias_id) || stableId('alias', aliasKind, canonicalPathHash),
-      documentId,
-      aliasKind,
-      canonicalPathHash,
-      originLexicalPathInternal,
-      originPathInternal,
-      contentHash: input.contentHash || null,
-      contentByteLength: Number.isInteger(input.contentByteLength) ? input.contentByteLength : null,
-      contentTextLength: Number.isInteger(input.contentTextLength) ? input.contentTextLength : null,
-      firstSeenAt: existing && existing.first_seen_at ? existing.first_seen_at : now,
-      lastSeenAt: now,
-      now
-    };
-    this.open().prepare(`
-      INSERT INTO document_source_aliases(
-        alias_id, document_id, alias_kind, canonical_path_hash,
-        origin_lexical_path_internal, origin_path_internal,
-        content_hash, content_byte_length, content_text_length,
-        first_seen_at, last_seen_at, created_at, updated_at
-      )
-      VALUES (
-        @aliasId, @documentId, @aliasKind, @canonicalPathHash,
-        @originLexicalPathInternal, @originPathInternal,
-        @contentHash, @contentByteLength, @contentTextLength,
-        @firstSeenAt, @lastSeenAt, @now, @now
-      )
-      ON CONFLICT(canonical_path_hash) DO UPDATE SET
-        document_id = excluded.document_id,
-        alias_kind = excluded.alias_kind,
-        origin_lexical_path_internal = COALESCE(document_source_aliases.origin_lexical_path_internal, excluded.origin_lexical_path_internal),
-        origin_path_internal = COALESCE(document_source_aliases.origin_path_internal, excluded.origin_path_internal),
-        content_hash = excluded.content_hash,
-        content_byte_length = excluded.content_byte_length,
-        content_text_length = excluded.content_text_length,
-        last_seen_at = excluded.last_seen_at,
-        updated_at = excluded.updated_at
-    `).run(record);
-    return this.findDocumentSourceAliasByCanonicalPath({ canonicalPathHash });
+    const db = this.open();
+    const aliasId = db.transaction(() => {
+      const rows = db.prepare('SELECT * FROM document_source_aliases WHERE canonical_path_hash = ?').all(canonicalPathHash);
+      if (rows.some(row => row.document_id !== documentId)) {
+        throw new Error('Canonical source alias already belongs to another document');
+      }
+      const existing = rows.find(row => row.origin_lexical_path_internal === originLexicalPathInternal)
+        || (originLexicalPathInternal ? rows.find(row => row.origin_lexical_path_internal === null) : null);
+      if (!existing && input.aliasId && db.prepare('SELECT 1 FROM document_source_aliases WHERE alias_id = ?').get(input.aliasId)) {
+        throw new Error('Source alias ID already belongs to another alias');
+      }
+      const record = {
+        aliasId: (existing && existing.alias_id) || input.aliasId || stableId('alias', aliasKind, canonicalPathHash, originLexicalPathInternal || ''),
+        documentId,
+        aliasKind,
+        canonicalPathHash,
+        originLexicalPathInternal,
+        originPathInternal,
+        contentHash: input.contentHash || null,
+        contentByteLength: Number.isInteger(input.contentByteLength) ? input.contentByteLength : null,
+        contentTextLength: Number.isInteger(input.contentTextLength) ? input.contentTextLength : null,
+        firstSeenAt: existing && existing.first_seen_at ? existing.first_seen_at : now,
+        now
+      };
+      db.prepare(`
+        INSERT INTO document_source_aliases(
+          alias_id, document_id, alias_kind, canonical_path_hash,
+          origin_lexical_path_internal, origin_path_internal,
+          content_hash, content_byte_length, content_text_length,
+          first_seen_at, last_seen_at, created_at, updated_at
+        ) VALUES (
+          @aliasId, @documentId, @aliasKind, @canonicalPathHash,
+          @originLexicalPathInternal, @originPathInternal,
+          @contentHash, @contentByteLength, @contentTextLength,
+          @firstSeenAt, @now, @now, @now
+        )
+        ON CONFLICT(alias_id) DO UPDATE SET
+          origin_lexical_path_internal = COALESCE(document_source_aliases.origin_lexical_path_internal, excluded.origin_lexical_path_internal),
+          origin_path_internal = COALESCE(document_source_aliases.origin_path_internal, excluded.origin_path_internal),
+          content_hash = excluded.content_hash,
+          content_byte_length = excluded.content_byte_length,
+          content_text_length = excluded.content_text_length,
+          last_seen_at = excluded.last_seen_at,
+          updated_at = excluded.updated_at
+      `).run(record);
+      return record.aliasId;
+    })();
+    const row = db.prepare(`
+      SELECT a.*, d.document_id AS linked_document_id, d.source_id AS linked_source_id,
+        d.relative_path AS linked_relative_path, d.path_key AS linked_path_key,
+        d.content_hash AS linked_content_hash
+      FROM document_source_aliases a
+      JOIN documents d ON d.document_id = a.document_id
+      WHERE a.alias_id = ?
+    `).get(aliasId);
+    return documentSourceAliasRowToPublic(row);
   }
 
   // @req DR-DOC-014

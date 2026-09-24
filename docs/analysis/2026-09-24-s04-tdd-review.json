@@ -1,0 +1,24 @@
+{
+  "review": "S04 independent TDD and compatibility review",
+  "reviewer": "s04_tdd_review",
+  "issue": 27,
+  "requirements": ["DR-DOC-014", "FR-DOC-035"],
+  "result": "PASS",
+  "findings": [],
+  "sourceHashSha256": "f58f87072418368655e1c3219114c78cb424231eae9ac4c9d0acc30062ffdf8b",
+  "sourceHashMatchesIsolatedNodeManifest": true,
+  "isolatedNodeAbi": "137",
+  "reviewedFiles": {
+    "test/r3/cases/s04.cjs": "0167ddfe6b0b84fe4dbfb4d8e8099abd8be3c5555261e30f5dfddd23d28d1245",
+    "docs/analysis/2026-09-24-s04-alias-evidence.md": "20f078fb119d6b2cd33d6d190c28726d713d132389d65368060f4b1bfe7f8ed0"
+  },
+  "checks": [
+    "The s04 case is explicitly registered in both Node runner registries and uses the isolated real better-sqlite3 fixture.",
+    "Two lexical directory-junction paths resolve to one canonical Markdown original; the pre-change canonical-hash UNIQUE schema causes the meaningful rows.length === 2 assertion to fail after setup.",
+    "The recorded initial RED is exit 1, ASSERTION_FAIL case=s04 assertions=1; the later alias-ID collision RED is exit 1, ASSERTION_FAIL case=s04 assertions=7. Junction cleanup and stale-manifest setup errors are explicitly excluded as RED evidence.",
+    "Final assertions cover separate alias identities, repeat registration, canonical owner and alias-ID collision rejection, legacy nullable origins, store-copy separation, preservation of source/document/job/chunk/embedding/ANN rows and embedding bytes, foreign keys, and public raw-path redaction.",
+    "Existing Wave 2 ledger contract test was not weakened. The author records focused S04 GREEN with 24 assertions and the existing ledger contract passing; this reviewer checked the final diff, evidence, source-to-snapshot hash equality, and git diff --check, without rerunning the test suites.",
+    "The implementation changes only the alias schema migration and alias upsert behavior; no shared native rebuild or MCP/public contract expansion appears in the diff."
+  ],
+  "evidenceLimit": "Original preimplementation RED stdout and source snapshot were not archived. The precise test-first chronology rests on the author's explicit record and the old-code failure mechanism, and cannot be independently reconstructed from the final tree."
+}

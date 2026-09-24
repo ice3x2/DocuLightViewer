@@ -1,6 +1,6 @@
 # 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S03 #26](https://github.com/ice3x2/DocuLightViewer/issues/26) · 다음 [S04 #27](https://github.com/ice3x2/DocuLightViewer/issues/27).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S04 #27](https://github.com/ice3x2/DocuLightViewer/issues/27) · 다음 [S05 #28](https://github.com/ice3x2/DocuLightViewer/issues/28).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `3/36` 완료(S01·S02·S03)이고 제품 기능 구현 완료는 `0/36`이다. 문서 작성과 테스트 기반 준비는 제품 기능 구현 완료로 세지 않는다. 다음 이슈 [S04 #27](https://github.com/ice3x2/DocuLightViewer/issues/27)은 이 브랜치의 S03 인계 SHA에서 원본 경로와 1:N alias 원장 마이그레이션을 test-first로 시작한다.
+실행 이슈는 `4/36` 완료(S01~S04)다. S04의 alias 원장 변경은 구현·집중 테스트가 끝났고, 원본 우선 열기와 저장 경로 전체 흐름의 통합 검증은 후속 이슈에 남아 있다. 다음 [S05 #28](https://github.com/ice3x2/DocuLightViewer/issues/28)은 이 브랜치의 S04 인계 SHA에서 읽기 전용 원본 resolver를 검증한다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -67,4 +67,12 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] Node ABI 137과 Electron ABI 130을 분리한 source-hash snapshot을 만들고 각 root에서 실제 `better-sqlite3`를 열었다. `run-node.cjs --case harness-self`와 `run-electron.cjs --scenario harness-self`는 각각 exit 0, assertions=3, terminal PASS였다. 선택된 case 모듈은 해당 snapshot의 60초 제한 Node child 또는 Electron child에서 로드한다.
 - [x] 소스만 바뀌면 기존 dependency root를 재사용해 snapshot/manifest를 갱신한다. `npm ci`/native rebuild 없이 1.1초에 갱신했고 Node native 파일 mtime이 유지되었다. 전체 명령과 환경은 [S03 증거](../analysis/2026-09-24-s03-harness-evidence.md)에 있다.
 - [x] 작성자가 아닌 독립 검토자의 요구사항·diff·RED/GREEN 증거 검토와 수정 루프. [TDD 검토](../analysis/2026-09-24-s03-tdd-review.json)와 [native 격리 검토](../analysis/2026-09-24-s03-native-review.json)는 현재 구현에서 남은 지적 0건이다. 최초 RED의 원본 transcript가 보존되지 않은 한계는 증거 문서에 명시한다.
-- [x] 이슈 체크박스, 완료 댓글, close 및 최종 SHA를 이 브랜치의 S03 완료 SHA로 연결한다. 다음은 [S04 #27](https://github.com/ice3x2/DocuLightViewer/issues/27)이며 `s04`는 아직 registry에 없다.
+- [x] 이슈 체크박스, 완료 댓글, close 및 최종 SHA를 이 브랜치의 S03 완료 SHA로 연결했다. 다음 [S04 #27](https://github.com/ice3x2/DocuLightViewer/issues/27)은 별도 case로 registry에 등록됐다.
+
+## S04 진행 기록 — 독립 검토 완료
+
+- [x] S03 인계 SHA `0bfb5d803ced0e451cd105bed9034b89ed466798`에서 시작했다. 관련 SRS `DR-DOC-014`, `FR-DOC-035`, `DR-DOC-013`을 읽고 Stability 차단이 없음을 확인했다.
+- [x] 실제 구형 SQLite alias 스키마, 원본 경로 두 개, 기존 document/job/chunk/embedding/ANN 데이터에 대한 `test/r3/cases/s04.cjs`를 먼저 등록했다. [RED/GREEN 증거](../analysis/2026-09-24-s04-alias-evidence.md)의 assertion RED 뒤 최소 alias migration/upsert를 구현했다.
+- [x] Node ABI 137 런타임에서 focused S04 GREEN과 기존 Wave 2 ledger contract PASS를 확인했다. 최종 보존 assertion 추가 뒤 focused case 재실행 결과는 증거 문서를 따른다.
+- [x] 작성자가 아닌 독립 검토자가 요구사항·diff·RED/GREEN 증거와 migration 안전성을 검토했다. [마이그레이션 검토](../analysis/2026-09-24-s04-data-review.json)와 [TDD 검토](../analysis/2026-09-24-s04-tdd-review.json)는 남은 지적 0건이다.
+- [x] 최종 SHA, 이슈 체크박스·완료 댓글·close를 연결하고 [S05 #28](https://github.com/ice3x2/DocuLightViewer/issues/28)에 alias 조회 계약을 인계한다.

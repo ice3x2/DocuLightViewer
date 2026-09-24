@@ -1,0 +1,38 @@
+{
+  "issue": 27,
+  "scope": "S04 source alias ledger migration and data integrity",
+  "requirements": ["DR-DOC-013", "DR-DOC-014", "FR-DOC-035"],
+  "startSha": "0bfb5d803ced0e451cd105bed9034b89ed466798",
+  "reviewedSourceHash": "f58f87072418368655e1c3219114c78cb424231eae9ac4c9d0acc30062ffdf8b",
+  "reviewedFileSha256": {
+    "src/main/source-ledger-store.js": "b03611240867c1715a102409cd3f997004fe1f0c2a6aeae325325ac1530011f7",
+    "test/r3/cases/s04.cjs": "0167ddfe6b0b84fe4dbfb4d8e8099abd8be3c5555261e30f5dfddd23d28d1245",
+    "docs/analysis/2026-09-24-s04-alias-evidence.md": "20f078fb119d6b2cd33d6d190c28726d713d132389d65368060f4b1bfe7f8ed0"
+  },
+  "result": "PASS",
+  "findings": [],
+  "verification": [
+    {
+      "command": "node test/r3/run-node.cjs --case s04",
+      "environment": "DOCULIGHT_R3_NODE_ROOT=%TEMP%/doculight-r3-node-20260924d; refreshed Node ABI 137 snapshot",
+      "exitCode": 0,
+      "output": "PASS case=s04 assertions=24",
+      "observedByReviewer": true
+    },
+    {
+      "command": "node test/test-wave2-ledger-contract.js",
+      "environment": "refreshed Node snapshot working directory",
+      "exitCode": 0,
+      "output": "test-wave2-ledger-contract: all assertions passed",
+      "observedByReviewer": true
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "output": "No whitespace errors; Git emitted LF-to-CRLF working-copy notices.",
+      "observedByReviewer": true
+    }
+  ],
+  "assessment": "The legacy canonical-hash-only UNIQUE constraint is removed by a single SQLite transaction that copies alias IDs, paths, fingerprints, and timestamps; repeat initialization skips the rebuild. The new canonical-hash-plus-lexical unique index allows two junction aliases to share one canonical target and document ID. Upsert rejects a canonical hash already assigned to another document and a caller alias ID assigned to another alias. The fixture verifies stable store-copy relative path, source/document metadata, old hash-only null origins and first_seen_at, chunks, embedding bytes, ANN membership, queued job, foreign keys, idempotent reopen, and no raw origin paths in the public alias mapping.",
+  "tddEvidenceLimit": "The author evidence records semantic RED assertions 1 and 7 before the corresponding fixes, but does not preserve raw preimplementation console transcripts or a source snapshot for independent chronology reconstruction. A stale-manifest SETUP_ERROR observed during review was excluded from RED evidence."
+}
