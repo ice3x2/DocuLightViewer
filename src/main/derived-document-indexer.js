@@ -44,8 +44,10 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
   const sourceId = before.source_id;
   const links = createLinkGraphIndexer({ sourceRoot: storeRoot }).extractLinks(validated.content, {
     filePath, documentId: claim.documentId,
-    resolveDocument: ({ pathKey, sourceRelativePath }) => ledger.findDocumentBySourcePath({
-      sourceId, pathKey, sourceRelativePath })
+    resolveDocument: ({ pathKey, sourceRelativePath }) => {
+      const target = ledger.findDocumentBySourcePath({ sourceId, pathKey, sourceRelativePath });
+      return target?.pathStatus === 'active' ? target : null;
+    }
   });
   if (faults.beforeLedgerCommit) faults.beforeLedgerCommit();
   const committed = ledger.runWriteTransaction(() => {

@@ -79,7 +79,8 @@ async function drainDesiredPage() {
         status(keywordReady ? 'ready' : 'stale', keywordDiagnosticCode);
       }
     }
-    more = pending.length === 16;
+    const links = ledger.reconcilePendingLinkTargets({ limit: 32 });
+    more = pending.length === 16 || links.hasMore;
   } catch {
     retry = true;
   } finally {

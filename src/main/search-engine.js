@@ -490,7 +490,7 @@ class SearchEngine {
         candidates: []
       };
     }
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger || typeof ledger.searchChunkEmbeddings !== 'function') {
       return {
         status: 'disabled',
@@ -531,6 +531,8 @@ class SearchEngine {
         backend: 'hnsw',
         candidates: []
       };
+    } finally {
+      ledger.close();
     }
   }
 
@@ -1202,10 +1204,13 @@ class SearchEngine {
 
   // @req REL-DOC-008
   getInterruptedKeywordRebuildJobs() {
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger || typeof ledger.getRecoverableIndexJobs !== 'function') return [];
-    return ledger.getRecoverableIndexJobs({ statuses: ['queued', 'indexing'] })
-      .filter((job) => job && job.jobType === 'keyword_rebuild' && job.cancelRequested !== true);
+    try {
+      return ledger.getRecoverableIndexJobs({ statuses: ['queued', 'indexing'] })
+        .filter((job) => job && job.jobType === 'keyword_rebuild' && job.cancelRequested !== true);
+    } catch { return []; }
+    finally { ledger.close(); }
   }
 
   // @req REL-DOC-008
@@ -1267,30 +1272,39 @@ class SearchEngine {
     if (!sourceRoot || !this.indexDataDir || !filePath) return null;
     const absolutePath = path.resolve(filePath);
     if (!isWithinRoot(absolutePath, sourceRoot)) return null;
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger) return null;
-    if (typeof ledger.findDocumentByCanonicalPath === 'function') {
-      const byCanonicalPath = ledger.findDocumentByCanonicalPath({ canonicalPathInternal: absolutePath });
-      if (byCanonicalPath) return byCanonicalPath;
+    try {
+      if (typeof ledger.findDocumentByCanonicalPath === 'function') {
+        const byCanonicalPath = ledger.findDocumentByCanonicalPath({ canonicalPathInternal: absolutePath });
+        if (byCanonicalPath) return byCanonicalPath;
+      }
+      const service = this._indexingService;
+      if (!service || !service.sourceId) return null;
+      const sourceRelativePath = path.relative(sourceRoot, absolutePath).replace(/\\/g, '/');
+      return ledger.findDocumentBySourcePath({ sourceId: service.sourceId, sourceRelativePath });
+    } catch {
+      return null;
+    } finally {
+      ledger.close();
     }
-    const service = this._indexingService;
-    if (!service || !service.sourceId) return null;
-    const sourceRelativePath = path.relative(sourceRoot, absolutePath).replace(/\\/g, '/');
-    return ledger.findDocumentBySourcePath({
-      sourceId: service.sourceId,
-      sourceRelativePath
-    });
   }
 
   // @req FR-DOC-025
   getSmartSearchDocumentIdentityForCandidate(candidate = {}) {
     const sourceRoot = this._getSourceRoot();
     if (!sourceRoot || !this.indexDataDir) return null;
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger) return null;
-    if (candidate.documentId && typeof ledger.getDocument === 'function') {
-      const byDocumentId = ledger.getDocument(candidate.documentId);
-      if (byDocumentId) return byDocumentId;
+    try {
+      if (candidate.documentId && typeof ledger.getDocument === 'function') {
+        const byDocumentId = ledger.getDocument(candidate.documentId);
+        if (byDocumentId) return byDocumentId;
+      }
+    } catch {
+      return null;
+    } finally {
+      ledger.close();
     }
     if (candidate.filePath) {
       const byFilePath = this.getSmartSearchDocumentIdentity(candidate.filePath);
@@ -1311,9 +1325,11 @@ class SearchEngine {
 
   // @req CON-DOC-006
   getSmartSearchResolvedLinkFilter(filters = {}) {
-    if (!this.indexDataDir || (!filters.linkedTo && !filters.linkedFrom)) return null;
-    const ledger = this._getAvailableSourceLedger();
-    if (!ledger) return null;
+    if (!filters.linkedTo && !filters.linkedFrom) return null;
+    const empty = { documentIds: new Set(), filePaths: [] };
+    if (!this.indexDataDir) return empty;
+    const ledger = this._openReadOnlySourceLedger();
+    if (!ledger) return empty;
     try {
       const documents = typeof ledger.getResolvedLinkFilterDocuments === 'function'
         ? ledger.getResolvedLinkFilterDocuments(filters)
@@ -1323,19 +1339,23 @@ class SearchEngine {
         filePaths: documents.map((document) => document.filePathInternal).filter(Boolean)
       };
     } catch {
-      return null;
+      return empty;
+    } finally {
+      ledger.close();
     }
   }
 
   // @req CON-DOC-006
   getSmartSearchLinkStatusCounts() {
     if (!this.indexDataDir) return null;
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger) return null;
     try {
       return ledger.getLinkStatusCounts();
     } catch {
       return null;
+    } finally {
+      ledger.close();
     }
   }
 
@@ -1609,6 +1629,15 @@ class SearchEngine {
     });
     this._sourceLedger.initialize();
     return this._sourceLedger;
+  }
+
+  _openReadOnlySourceLedger() {
+    if (!this.indexDataDir) return null;
+    const dbPath = path.join(this.indexDataDir, 'smart-search.sqlite3');
+    if (!fs.existsSync(dbPath)) return null;
+    const ledger = createSourceLedgerStore({ dbPath, readOnly: true });
+    try { ledger.open(); return ledger; }
+    catch { ledger.close(); return null; }
   }
 
   _hasSourceLedgerDb() {
@@ -1886,13 +1915,15 @@ class SearchEngine {
 
   // @req FR-DOC-024
   getSemanticIndexingProgress() {
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger || typeof ledger.getSemanticIndexingProgress !== 'function') return null;
     let aggregate = null;
     try {
       aggregate = ledger.getSemanticIndexingProgress();
     } catch {
       return null;
+    } finally {
+      ledger.close();
     }
     if (!aggregate) return null;
     return {
@@ -2154,17 +2185,20 @@ class SearchEngine {
 
   // @req FR-DOC-022
   getHnswCompactionStatus() {
-    const ledger = this._getAvailableSourceLedger();
+    const ledger = this._openReadOnlySourceLedger();
     if (!ledger || typeof ledger.getCommittedAnnIndex !== 'function' || typeof ledger.getAnnCompactionStatus !== 'function') return null;
-    const semanticConfig = this._getSemanticSearchConfig();
-    if (!semanticConfig || !semanticConfig.modelFingerprint) return null;
-    const annIndex = ledger.getCommittedAnnIndex({ modelFingerprint: semanticConfig.modelFingerprint });
-    if (!annIndex) return null;
-    const threshold = Number(semanticConfig.hnsw && semanticConfig.hnsw.compactionThreshold);
-    return ledger.getAnnCompactionStatus({
-      annIndexId: annIndex.annIndexId,
-      threshold: Number.isFinite(threshold) ? threshold : 0.20
-    });
+    try {
+      const semanticConfig = this._getSemanticSearchConfig();
+      if (!semanticConfig || !semanticConfig.modelFingerprint) return null;
+      const annIndex = ledger.getCommittedAnnIndex({ modelFingerprint: semanticConfig.modelFingerprint });
+      if (!annIndex) return null;
+      const threshold = Number(semanticConfig.hnsw && semanticConfig.hnsw.compactionThreshold);
+      return ledger.getAnnCompactionStatus({
+        annIndexId: annIndex.annIndexId,
+        threshold: Number.isFinite(threshold) ? threshold : 0.20
+      });
+    } catch { return null; }
+    finally { ledger.close(); }
   }
 
   // @req REL-DOC-008

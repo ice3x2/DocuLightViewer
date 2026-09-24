@@ -1,0 +1,26 @@
+﻿{
+  "issue": 36,
+  "review": "S13 independent link graph and read-path review",
+  "baselineCommit": "d7e4e9ea204916b7746b193a88d225bee9c11a32",
+  "sourceHash": "0658e8283eac04abba97e2204d479a77a0e339f08419f72631e97b399b1133ea",
+  "requirements": ["DR-DOC-013", "CON-DOC-006", "FR-TREE-009", "FR-DOC-025", "FR-DOC-019"],
+  "result": "PASS",
+  "findings": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "checks": [
+    "The source revision and content hash guard the whole edge-set replacement inside the ledger transaction; stale completion cannot overwrite a newer revision, including a zero-link revision.",
+    "Target upsert and tombstone durably queue reconciliation; the owner drains it in bounded pages. A 301-edge SQLite reproduction updated at most 32 edges per transaction, survived a ledger close/reopen after two pages, and converged all 301 edges.",
+    "An ambiguous edge retained status ambiguous and NULL to_document_id after target upsert; resolved-only filters require active source and target documents and current completed source revision.",
+    "The canonical seven-status counts, nonblocking broken-link diagnostics, and redacted public outputs matched the SRS contract; the sidebar/link tree tests passed.",
+    "Linked-filter, candidate-identity, semantic/status and interrupted-rebuild read paths use a read-only existing-ledger connection and close it. First reads against a pre-S13 schema created no queue table or index, no new files, and no cached writable ledger. Missing ledger fails closed."
+  ],
+  "focusedEvidence": [
+    { "command": "node test/r3/run-node.cjs --case s13", "result": "PASS case=s13 assertions=20", "environment": "DOCULIGHT_R3_NODE_ROOT=C:/Users/beom/AppData/Local/Temp/doculight-r3-node-20260924d" },
+    { "command": "node test/r3/run-node.cjs --case s12", "result": "PASS case=s12 assertions=28", "environment": "same prepared Node snapshot" },
+    { "command": "node test/test-wave2-ledger-contract.js", "result": "all assertions passed" },
+    { "command": "node test/test-wave2-smart-search-contract.js", "result": "all assertions passed" },
+    { "command": "direct real-SQLite 301-edge cursor/restart and ambiguous-edge reproduction", "result": "301 resolved; max 32 per page; 11 pages; no pending work; ambiguous target remains NULL" },
+    { "command": "direct pre-S13 schema first-read matrix", "result": "candidate identity, linked filter, status counts, semantic progress, interrupted rebuild jobs, and HNSW status created 0 schema objects and cached no writable ledger" },
+    { "command": "git diff --check", "result": "exit 0" }
+  ],
+  "scopeNote": "This review covers the new private owner graph path. Legacy producer cutover remains assigned to S14-S16, as documented in the S13 evidence."
+}

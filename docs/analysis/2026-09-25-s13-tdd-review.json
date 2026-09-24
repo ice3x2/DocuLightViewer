@@ -1,0 +1,36 @@
+{
+  "review": "S13 independent TDD and compatibility",
+  "issue": 36,
+  "requirements": ["DR-DOC-013", "CON-DOC-006", "FR-TREE-009", "FR-DOC-025", "FR-DOC-019"],
+  "verdict": "PASS",
+  "severity": "none",
+  "sourceSnapshotSha256": "0658e8283eac04abba97e2204d479a77a0e339f08419f72631e97b399b1133ea",
+  "baselineCommit": "d7e4e9ea204916b7746b193a88d225bee9c11a32",
+  "verification": {
+    "independentRuns": [
+      "node test/r3/run-node.cjs --case s13: exit 0, PASS assertions=20",
+      "node test/r3/run-node.cjs --case s12: exit 0, PASS assertions=28",
+      "node test/test-wave2-ledger-contract.js: exit 0",
+      "node test/test-wave2-smart-search-contract.js: exit 0",
+      "node test/test-link-extraction.js: exit 0",
+      "node test/test-link-tree.js: exit 0",
+      "node test/test-link-tree-build.js: exit 0",
+      "node test/test-sidebar-tree.js: exit 0",
+      "git diff --check: exit 0"
+    ],
+    "semanticRedEvidence": "The author evidence records real SQLite ASSERTION_FAIL exits for target-addition reconciliation after three assertions, popular-target batch bound at assertion 16, first linked-filter read migrating an older schema at assertion 19, and then candidate identity plus filter read migrating the older schema at assertion 19. These were behavioral failures after fixture setup, not setup or ABI errors.",
+    "redChronologyLimit": "The preimplementation RED transcript and source snapshot were not retained independently; chronology is author-reported."
+  },
+  "assessment": [
+    "The owner drains one queued target in pages of at most 32 edges after desired-document work and at startup. The target queue has a durable edge cursor, and cursor advance or dequeue occurs in the same SQLite transaction as each edge batch. Target upsert resets the cursor for a new target state. Source derivation retains its revision and job guard around whole-set edge replacement, including a zero-link revision; the S13 fixture rejects an old claim after a newer save.",
+    "Resolved filters require active source and target paths and the source's completed revision to equal its desired revision. A requested filter with an unavailable ledger returns an empty set. The added test checks that ledger link lookup leaves SQLite total_changes unchanged.",
+    "The seven canonical edge statuses and diagnostic_code remain separate. The 130-edge popular-target fixture proves bounded convergence and confirms ambiguous edges are not auto-promoted. Non-resolved target identity is null; the reconciliation result contains only processed count, canonical counts, and hasMore. Public diagnostics contain redacted href tokens and no raw href or absolute store root in the S13 fixture. Existing smart-search and sidebar contracts pass.",
+    "First-use linked-filter and candidate-identity reads on a pre-S13 SQLite schema leave the new queue table and target index absent. An independent reproduction of the earlier candidate-identity write now reports zero schema objects created. Query-facing identity, semantic candidate, progress, HNSW status, and linked-filter/count readers use file-must-exist read-only ledger handles; startup reconciliation and Settings mutation retain the writable path.",
+    "No existing test assertion was removed or weakened; runner changes only register S13. The S13 case uses a real SQLite file through the prepared Node runtime."
+  ],
+  "documentedLimits": [
+    "S13 directly invokes the ledger reconciliation method in its fixture; owner drain integration is inspected in code and adjacent owner regression S12 passes, but the new queue drain is not exercised through an end-to-end owner process in S13. The fixture does not reopen SQLite between cursor pages; restart persistence follows from the stored cursor and transactional page update rather than a direct restart test.",
+    "The legacy IndexingService producer still clears and writes links directly; its transition is assigned to later issues and is outside this S13 private owner path."
+  ],
+  "findings": []
+}

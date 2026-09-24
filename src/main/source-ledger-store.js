@@ -22,7 +22,7 @@ const JOB_STATUSES = Object.freeze(['queued', 'indexing', 'failed', 'cancelled',
 // @req DR-DOC-006
 // @req DR-DOC-013
 class SourceLedgerStore {
-  constructor({ dbPath, userDataDir, loadDatabase, now } = {}) {
+  constructor({ dbPath, userDataDir, loadDatabase, now, readOnly = false } = {}) {
     if (!dbPath) throw new Error('Source ledger requires dbPath');
     this.dbPath = dbPath;
     this.userDataDir = userDataDir || null;
@@ -30,6 +30,7 @@ class SourceLedgerStore {
     this._loadDatabase = loadDatabase || (() => require('better-sqlite3'));
     this._now = typeof now === 'function' ? now : () => new Date().toISOString();
     this.db = null;
+    this.readOnly = readOnly === true;
     this.writeSuspended = false;
     this.redactor = createRedactor({
       dbPath: this.dbPath,
@@ -71,15 +72,19 @@ class SourceLedgerStore {
   // @req DR-DOC-006
   open() {
     if (this.db) return this.db;
-    fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
+    if (!this.readOnly) fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
     const Database = this._loadDatabase();
-    this.db = new Database(this.dbPath, { timeout: 5000 });
+    this.db = new Database(this.dbPath, { timeout: 5000,
+      readonly: this.readOnly, fileMustExist: this.readOnly });
     try {
-      this.applyPragmas();
-      this.ensureSchema();
+      if (!this.readOnly) {
+        this.applyPragmas();
+        this.ensureSchema();
+      }
     } catch (err) {
       try {
-        closeDatabaseHandle(this.db);
+        if (this.readOnly) this.db.close();
+        else closeDatabaseHandle(this.db);
       } finally {
         this.db = null;
       }
@@ -233,6 +238,14 @@ class SourceLedgerStore {
       CREATE INDEX IF NOT EXISTS idx_links_from_document ON links(from_document_id);
       CREATE INDEX IF NOT EXISTS idx_links_to_document ON links(to_document_id) WHERE to_document_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
+      CREATE TABLE IF NOT EXISTS link_reconcile_queue (
+        source_id TEXT NOT NULL,
+        path_key TEXT NOT NULL,
+        after_edge_id TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY(source_id, path_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_links_reconcile_target
+        ON links(normalized_href_internal, edge_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_canonical_path_hash
         ON documents(canonical_path_hash)
         WHERE canonical_path_hash IS NOT NULL;
@@ -661,6 +674,14 @@ class SourceLedgerStore {
       tombstoned: pathStatus !== 'active',
       deletedAt: pathStatus !== 'active' ? now : null
     });
+    this.open().prepare(`INSERT INTO link_reconcile_queue(source_id, path_key)
+      VALUES (?, ?) ON CONFLICT(source_id, path_key) DO UPDATE SET after_edge_id = ''`)
+      .run(sourceId, pathKey);
+    if (existingByDocument && existingByDocument.path_key !== pathKey) {
+      this.open().prepare(`INSERT INTO link_reconcile_queue(source_id, path_key)
+        VALUES (?, ?) ON CONFLICT(source_id, path_key) DO UPDATE SET after_edge_id = ''`)
+        .run(existingByDocument.source_id, existingByDocument.path_key);
+    }
 
     const row = this.open().prepare('SELECT * FROM documents WHERE document_id = ?').get(documentId);
     return documentRowToPublic(row);
@@ -1386,6 +1407,51 @@ class SourceLedgerStore {
     return documentSourceAliasRowToPublic(row);
   }
 
+  // @req DR-DOC-013 CON-DOC-006 FR-TREE-009 FR-DOC-019
+  reconcilePendingLinkTargets({ limit = 32 } = {}) {
+    this.assertWritable();
+    if (!Number.isInteger(limit) || limit < 1 || limit > 256) throw new Error('Invalid page limit');
+    const db = this.open();
+    return db.transaction(() => {
+      const pending = db.prepare(`SELECT source_id, path_key, after_edge_id FROM link_reconcile_queue
+        ORDER BY source_id, path_key LIMIT 1`).all();
+      const counts = Object.fromEntries(CANONICAL_LINK_STATUSES.map(status => [status, 0]));
+      for (const target of pending) {
+        const active = db.prepare(`SELECT document_id FROM documents
+          WHERE source_id = ? AND path_key = ? AND path_status = 'active'`)
+          .all(target.source_id, target.path_key);
+        const edges = db.prepare(`SELECT l.edge_id, l.status FROM links l
+          JOIN documents source ON source.document_id = l.from_document_id
+          WHERE source.source_id = ? AND l.normalized_href_internal = ?
+            AND l.edge_id > ? AND l.status IN ('resolved', 'missing', 'stale')
+          ORDER BY l.edge_id LIMIT ?`)
+          .all(target.source_id, target.path_key, target.after_edge_id, limit);
+        for (const edge of edges) {
+          const status = active.length === 1 ? 'resolved'
+            : active.length > 1 ? 'ambiguous'
+              : edge.status === 'resolved' || edge.status === 'stale' ? 'stale' : 'missing';
+          const toDocumentId = status === 'resolved' ? active[0].document_id : null;
+          db.prepare(`UPDATE links SET status = ?, diagnostic_code = ?, to_document_id = ?,
+            updated_at = ? WHERE edge_id = ?`).run(status,
+            status === 'resolved' ? null : status === 'stale' ? 'target_inactive'
+              : status === 'ambiguous' ? 'multiple_active_targets' : 'target_missing',
+            toDocumentId, this._now(), edge.edge_id);
+          counts[status] += 1;
+        }
+        if (edges.length === limit) {
+          db.prepare(`UPDATE link_reconcile_queue SET after_edge_id = ?
+            WHERE source_id = ? AND path_key = ?`)
+            .run(edges.at(-1).edge_id, target.source_id, target.path_key);
+        } else {
+          db.prepare('DELETE FROM link_reconcile_queue WHERE source_id = ? AND path_key = ?')
+            .run(target.source_id, target.path_key);
+        }
+      }
+      return { processed: pending.length, counts,
+        hasMore: Boolean(db.prepare('SELECT 1 FROM link_reconcile_queue LIMIT 1').get()) };
+    })();
+  }
+
   // @req DR-DOC-014
   // @req FR-DOC-036
   getIndexedDocumentOpenTargetInternal({ documentId, filePath } = {}) {
@@ -1597,17 +1663,25 @@ class SourceLedgerStore {
     const sets = [];
     if (linkedTo) {
       const rows = this.open().prepare(`
-        SELECT DISTINCT from_document_id AS document_id
-        FROM links
-        WHERE status = 'resolved' AND to_document_id = ?
+        SELECT DISTINCT l.from_document_id AS document_id
+        FROM links l
+        JOIN documents source ON source.document_id = l.from_document_id
+        JOIN documents target ON target.document_id = l.to_document_id
+        WHERE l.status = 'resolved' AND l.to_document_id = ?
+          AND source.path_status = 'active' AND target.path_status = 'active'
+          AND source.completed_revision = source.desired_revision
       `).all(String(linkedTo));
       sets.push(new Set(rows.map((row) => row.document_id)));
     }
     if (linkedFrom) {
       const rows = this.open().prepare(`
-        SELECT DISTINCT to_document_id AS document_id
-        FROM links
-        WHERE status = 'resolved' AND from_document_id = ? AND to_document_id IS NOT NULL
+        SELECT DISTINCT l.to_document_id AS document_id
+        FROM links l
+        JOIN documents source ON source.document_id = l.from_document_id
+        JOIN documents target ON target.document_id = l.to_document_id
+        WHERE l.status = 'resolved' AND l.from_document_id = ?
+          AND source.path_status = 'active' AND target.path_status = 'active'
+          AND source.completed_revision = source.desired_revision
       `).all(String(linkedFrom));
       sets.push(new Set(rows.map((row) => row.document_id)));
     }
@@ -2267,7 +2341,8 @@ class SourceLedgerStore {
   // @req DR-DOC-006
   close() {
     if (!this.db) return;
-    closeDatabaseHandle(this.db);
+    if (this.readOnly) this.db.close();
+    else closeDatabaseHandle(this.db);
     this.db = null;
   }
 
@@ -2281,7 +2356,7 @@ class SourceLedgerStore {
   }
 
   assertWritable() {
-    if (this.writeSuspended) {
+    if (this.writeSuspended || this.readOnly) {
       const err = new Error('SQLite source ledger writes are suspended until recovery completes');
       err.code = 'SOURCE_LEDGER_WRITE_SUSPENDED';
       err.diagnostic = this.getRecoveryDiagnostics(err);
