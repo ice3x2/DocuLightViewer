@@ -32,6 +32,35 @@ let closing = false;
 const scheduler = createWorkUnitScheduler({ capacity: 32 });
 let fixtureWrite = null;
 let sourceRoot = null;
+let ingressRoot = null;
+let replayTimer = null;
+let replayDelay = 250;
+
+function resumePrivateIntents() {
+  if (!ingressRoot || closing) return;
+  let names;
+  try { names = fs.readdirSync(ingressRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)).sort(); }
+  catch { return; }
+  let cursor = 0;
+  let failed = false;
+  let progressed = false;
+  const unit = () => {
+    if (closing) return;
+    if (cursor < names.length) {
+      const reply = acceptPublishedSave({ ingressRoot, intentId: names[cursor++].slice(0, 64),
+        storeRoot: sourceRoot });
+      if (reply.accepted) progressed = true;
+      else failed = true;
+      setImmediate(unit);
+      return;
+    }
+    if (failed) {
+      replayDelay = progressed ? 250 : Math.min(replayDelay * 2, 30000);
+      replayTimer = setTimeout(() => { replayTimer = null; resumePrivateIntents(); }, replayDelay);
+    } else replayDelay = 250;
+  };
+  setImmediate(unit);
+}
 
 // @req FR-DOC-019 REL-DOC-009 DR-DOC-014
 function acceptPublishedSave(payload) {
@@ -69,14 +98,24 @@ function acceptPublishedSave(payload) {
       return payload.r3ReadFaultIntentId === id ? { retryable: true } : read(id);
     });
     if (pending.some(intent => intent?.retryable)) return failed;
+    const orderOf = intent => Number.isSafeInteger(intent.publicationOrder) ? intent.publicationOrder : null;
+    const notOlder = intent => {
+      const left = orderOf(intent);
+      const right = orderOf(current);
+      if (left !== null && right !== null) return left >= right;
+      return intent.createdTime >= current.createdTime;
+    };
     if (pending.some(intent => intent && !intent.quarantined
       && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
       && !ledger.getSaveIntentReceipt(intent.intentId)
-      && intent.createdTime >= current.createdTime)) return failed;
+      && notOlder(intent))) return failed;
     const historical = pending.filter(intent => intent && !intent.quarantined
       && intent.sourceId === current.sourceId && intent.sourceRelativeLocator === current.sourceRelativeLocator
       && !ledger.getSaveIntentReceipt(intent.intentId))
-      .sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.intentId.localeCompare(b.intentId));
+      .sort((a, b) => {
+        if (orderOf(a) !== null && orderOf(b) !== null) return orderOf(a) - orderOf(b);
+        return a.createdTime.localeCompare(b.createdTime) || a.intentId.localeCompare(b.intentId);
+      });
     const accepted = ledger.acceptSaveIntent({ current, historical, storeRoot: sourceRoot,
       finalMetadata: parseFrontmatter(bytes.toString('utf8')).data,
       contentByteLength: bytes.length, contentTextLength: bytes.toString('utf8').length });
@@ -115,6 +154,7 @@ async function dispatch(message) {
     try {
       const config = message.ownerConfig || {};
       sourceRoot = config.sourceRoot || null;
+      ingressRoot = config.ingressRoot || null;
       const tokenizer = createKeywordTokenizer({
         provider: config.keywordTokenizerProvider || 'garu',
         maxAnalysisChars: config.keywordTokenizerMaxAnalysisChars
@@ -159,6 +199,7 @@ async function dispatch(message) {
       parentPort.postMessage({ tag: 'START', state: 'ready', threadId, audit: {
         ledgerOpenThreadId: ledgerOpen.threadId, keywordOpenThreadId: keywordOpen.threadId, openCount: opened.length
       } });
+      resumePrivateIntents();
     } catch {
       status('failed');
       parentPort.postMessage({ tag: 'START', state: 'failed', error: { code: 'owner_start_failed' } });
@@ -170,6 +211,7 @@ async function dispatch(message) {
   }
   if (tag === 'SHUTDOWN') {
     closing = true;
+    if (replayTimer) clearTimeout(replayTimer);
     status('shutdown');
     if (ledger) ledger.close();
     if (keyword) keyword.close();

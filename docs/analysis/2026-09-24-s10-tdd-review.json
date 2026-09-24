@@ -1,0 +1,42 @@
+{
+  "review": "S10 independent TDD and reliability",
+  "issue": 33,
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014"],
+  "verdict": "PASS",
+  "sourceSnapshotSha256": "1dead2018c26bdbe82700e9c1c21b13a380ec854f838a7a0810050d0f0c7f5a8",
+  "reviewedFileSha256": {
+    "src/main/index-ingress-store.js": "22e310bb3620840f9974e733f6aa55763578392150684a5d4c4b0c0ca1286e48",
+    "src/main/search-owner-worker.js": "ff39289a9de0f347473dbd0e715cb3287d8ee388da1216ae0e99e6ae161db336",
+    "src/main/source-ledger-store.js": "0fa82e2dd65ead966827a2c5d67598b1f277fb0c0cd02b33af40a19a3e7e1d01",
+    "src/main/search-owner-controller.js": "3f165882c81065b046f726ce2f2c9292199f12475e0df5b4c3f2475487c2d7f6",
+    "test/r3/cases/s10.cjs": "794527993e73fac53a7decf416d88b5334a621df38e7ea17f1f8899c852352e6",
+    "test/r3/cases/s10-publisher-child.cjs": "aca1160b6c96fe4f0ab2d267aa89a323ec8e8693db09f4dc8fcdba11ddf5bf94",
+    "docs/analysis/2026-09-24-s10-revision-evidence.md": "93b48f69ab2b40b2e062ca04c353d7a0cf62749956394859eda1d2c9dfa59562"
+  },
+  "verification": {
+    "independentFocusedRun": {
+      "command": "node test/r3/run-node.cjs --case s10",
+      "runtime": "Windows x64, Node v24.16.0, ABI 137, reused source-only snapshot",
+      "exitCode": 0,
+      "result": "PASS case=s10 assertions=46"
+    },
+    "authorReportedAdjacentRegressions": [
+      "S06 PASS 42 assertions",
+      "S08 PASS 53 assertions",
+      "S09 PASS 37 assertions"
+    ],
+    "semanticRedEvidence": "The S10 evidence records exit-1 assertion failures before the corresponding behavior changes for equal-time latest acceptance, durable enumeration, restart convergence, failed-job retry, dead and partial lock recovery, stale replay, concurrent publisher wait, repeated-content publication, and transient startup acceptance retry. Setup or native ABI failures were not counted as RED.",
+    "redChronologyLimit": "Original preimplementation RED transcripts and source snapshots were not retained. The assertion names and chronology are author-reported and cannot be independently reconstructed from the final tree."
+  },
+  "assessment": [
+    "The final S10 case uses real temporary filesystem and SQLite state, plus a separate publisher process. Existing S08 and S09 assertions were adapted for publication-order identities without removing their safety expectations.",
+    "A durable private publication order selects the actual latest new-schema intent across equal millisecond timestamps, clock rollback, concurrent publication and concurrent owner acceptance. An atomic, flushed lock owner file avoids half-written owner records; a stale partial legacy directory is recovered after an age guard. A live owner is not stolen.",
+    "The owner resumes private intents on startup one per event-loop turn and retries transient failures with bounded backoff. The test observes automatic recovery after a real SQLite trigger abort without a caller re-save.",
+    "The ledger persists desired revisions and hashes, keeps a save during active indexing dirty, rejects a second active claim, creates a fresh retry job after terminal failure, and traverses more than one keyset page without omissions or duplicates. The public MCP schema is unchanged; S11 completion races and S12 keyword cache writes are not claimed complete."
+  ],
+  "documentedLimits": [
+    "A witness-free legacy pair with the same body and timestamp cannot reveal its true publication order; it remains fail-closed with file and provenance preserved.",
+    "A dead lock owner's PID reused by another process cannot be distinguished portably with the Node process probe; recovery fails closed and requires later inspection or recovery work."
+  ],
+  "findings": []
+}

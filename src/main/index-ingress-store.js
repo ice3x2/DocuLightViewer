@@ -125,16 +125,19 @@ function readRecord(intentPath) {
   try { record = JSON.parse(raw.toString('utf8')); } catch { throw fail('invalid_intent'); }
   if (!record || typeof record !== 'object' || Array.isArray(record)
     || Object.keys(record).some(key => !['schemaVersion', 'intentId', 'operation', 'sourceId', 'rootFingerprint',
-      'rootIdentity', 'sourceRelativeLocator', 'contentHash', 'provenance', 'createdTime', 'checksum'].includes(key))) throw fail('invalid_intent');
+      'rootIdentity', 'sourceRelativeLocator', 'contentHash', 'provenance', 'createdTime', 'publicationOrder', 'checksum'].includes(key))) throw fail('invalid_intent');
   const { checksum, ...fields } = record;
   if (record.schemaVersion !== 1 || !/^[a-f0-9]{64}$/.test(checksum || '') || digest(fields) !== checksum) throw fail('invalid_intent');
   const identity = { operation: record.operation, sourceId: record.sourceId, rootFingerprint: record.rootFingerprint,
     sourceRelativeLocator: record.sourceRelativeLocator, contentHash: record.contentHash, provenance: record.provenance };
-  if (record.intentId !== digest(identity) || !['save_document', 'opened_markdown', 'linked_import', 'update'].includes(record.operation)
+  if (![digest(identity), digest({ ...identity, publicationOrder: record.publicationOrder })].includes(record.intentId)
+    || !['save_document', 'opened_markdown', 'linked_import', 'update'].includes(record.operation)
     || typeof record.sourceId !== 'string' || !/^[a-zA-Z0-9_.-]{1,128}$/.test(record.sourceId)
     || !validLocator(record.sourceRelativeLocator) || !/^[a-f0-9]{64}$/.test(record.contentHash || '')
     || !record.rootIdentity || typeof record.rootIdentity !== 'object'
-    || !Number.isFinite(Date.parse(record.createdTime))) throw fail('invalid_intent');
+    || !Number.isFinite(Date.parse(record.createdTime))
+    || (record.publicationOrder !== undefined && (!Number.isSafeInteger(record.publicationOrder)
+      || record.publicationOrder < 1))) throw fail('invalid_intent');
   try { provenanceOf(record.provenance); } catch { throw fail('invalid_intent'); }
   return record;
 }
@@ -181,6 +184,95 @@ function readPendingSave({ ingressRoot, storeRoot, intentId }) {
 
 // @req REL-DOC-009 FR-DOC-028
 async function publishSave(input) {
+  const privateRoot = path.resolve(input.ingressRoot);
+  if (!fs.existsSync(privateRoot) || fs.lstatSync(privateRoot).isSymbolicLink()) throw fail('path_policy_violation');
+  let release;
+  const deadline = Date.now() + 1000;
+  while (!release) {
+    try { release = acquirePublicationGate(privateRoot); }
+    catch (error) {
+      if (error.code !== 'publication_busy' || Date.now() >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  }
+  try { return publishSaveLocked(input); }
+  finally { release(); }
+}
+
+function acquirePublicationGate(privateRoot) {
+  const lock = path.join(privateRoot, '.publication.lock');
+  const token = crypto.randomUUID();
+  const temp = path.join(privateRoot, `.publication-owner-${token}.tmp`);
+  const owner = { pid: process.pid, token };
+  writeFlushed(temp, Buffer.from(JSON.stringify(owner)), 'gate_owner_write', 'gate_owner_flush', undefined);
+  const recover = () => {
+    const stat = fs.lstatSync(lock);
+    if (stat.isSymbolicLink()) throw fail('publication_busy');
+    let prior;
+    let malformed = false;
+    if (stat.isDirectory()) {
+      const names = fs.readdirSync(lock);
+      if (names.some(name => name !== 'owner.json')) throw fail('publication_busy');
+      try { prior = JSON.parse(fs.readFileSync(path.join(lock, 'owner.json'), 'utf8')); }
+      catch { malformed = true; }
+    } else if (stat.isFile()) {
+      try { prior = JSON.parse(fs.readFileSync(lock, 'utf8')); }
+      catch { malformed = true; }
+    } else throw fail('publication_busy');
+    let dead = false;
+    if (malformed) dead = stat.isDirectory() && Date.now() - stat.mtimeMs > 5000;
+    else if (Number.isSafeInteger(prior?.pid) && prior.pid > 0 && typeof prior.token === 'string') {
+      try { process.kill(prior.pid, 0); }
+      catch (probe) { dead = probe.code === 'ESRCH'; }
+    }
+    if (!dead) throw fail('publication_busy');
+    const abandoned = path.join(privateRoot, `.publication-abandoned-${token}`);
+    try { fs.renameSync(lock, abandoned); }
+    catch { throw fail('publication_busy'); }
+    if (stat.isDirectory()) {
+      const oldOwner = path.join(abandoned, 'owner.json');
+      if (fs.existsSync(oldOwner)) fs.unlinkSync(oldOwner);
+      fs.rmdirSync(abandoned);
+    } else fs.unlinkSync(abandoned);
+  };
+  try {
+    try { fs.linkSync(temp, lock); }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      recover();
+      try { fs.linkSync(temp, lock); } catch { throw fail('publication_busy'); }
+    }
+    directoryFlush(privateRoot);
+  } finally {
+    if (fs.existsSync(temp)) fs.unlinkSync(temp);
+  }
+  return () => {
+    const current = JSON.parse(fs.readFileSync(lock, 'utf8'));
+    if (current.pid !== process.pid || current.token !== token) throw fail('publication_gate_lost');
+    fs.unlinkSync(lock);
+  };
+}
+
+function nextPublicationOrder(privateRoot) {
+  const counterPath = path.join(privateRoot, '.publication-order.json');
+  let previous = 0;
+  if (fs.existsSync(counterPath)) {
+    const record = JSON.parse(fs.readFileSync(counterPath, 'utf8'));
+    if (!Number.isSafeInteger(record.last) || record.last < 0) throw fail('invalid_publication_order');
+    previous = record.last;
+  }
+  if (previous >= Number.MAX_SAFE_INTEGER) throw fail('publication_order_exhausted');
+  const next = previous + 1;
+  const temp = path.join(privateRoot, `.publication-order.${crypto.randomUUID()}.tmp`);
+  try {
+    writeFlushed(temp, Buffer.from(JSON.stringify({ last: next })), 'counter_write', 'counter_flush', undefined);
+    fs.renameSync(temp, counterPath);
+    directoryFlush(privateRoot);
+  } finally { if (fs.existsSync(temp)) fs.unlinkSync(temp); }
+  return next;
+}
+
+function publishSaveLocked(input) {
   const { storeRoot, ingressRoot, sourceRelativeLocator, contentBytes, contentHash, operation,
     sourceId, rootFingerprint, faultAt } = input;
   if (!Buffer.isBuffer(contentBytes) || contentBytes.length > MAX_BODY_BYTES) throw fail('content_too_large');
@@ -201,9 +293,30 @@ async function publishSave(input) {
   if (fs.existsSync(destination) && fs.lstatSync(destination).isSymbolicLink()) throw fail('path_policy_violation');
   const provenance = provenanceOf(input.provenance || { aliases: [], metadata: {} });
   const identity = { operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, provenance };
-  const intentId = digest(identity);
+  const sameLocator = [];
+  const sameIdentity = [];
+  for (const name of fs.readdirSync(privateRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name))) {
+    let pending;
+    try { pending = readRecord(path.join(privateRoot, name)); } catch { continue; }
+    if (pending.rootFingerprint !== rootFingerprint || pending.sourceId !== sourceId
+      || pending.sourceRelativeLocator !== sourceRelativeLocator) continue;
+    sameLocator.push(pending);
+    if (digest({ operation: pending.operation, sourceId: pending.sourceId,
+      rootFingerprint: pending.rootFingerprint, sourceRelativeLocator: pending.sourceRelativeLocator,
+      contentHash: pending.contentHash, provenance: pending.provenance }) === digest(identity)) sameIdentity.push(pending);
+  }
+  const highest = Math.max(0, ...sameLocator.map(item => item.publicationOrder || 0));
+  const candidate = sameIdentity.sort((a, b) => (b.publicationOrder || 0) - (a.publicationOrder || 0))[0];
+  const replay = input.intentId
+    ? sameIdentity.find(item => item.intentId === input.intentId)
+    : candidate && (candidate.publicationOrder || 0) === highest ? candidate : null;
+  if (input.intentId && !replay) throw fail('invalid_intent');
+  const publicationOrder = replay ? replay.publicationOrder : nextPublicationOrder(privateRoot);
+  const intentId = replay ? replay.intentId : digest({ ...identity, publicationOrder });
   const intentPath = path.join(privateRoot, `${intentId}.intent.json`);
-  const fields = { schemaVersion: 1, intentId, ...identity, rootIdentity: rootIdentity(documentRoot), createdTime: new Date().toISOString() };
+  const fields = { schemaVersion: 1, intentId, ...identity, rootIdentity: rootIdentity(documentRoot),
+    createdTime: replay?.createdTime || new Date().toISOString(), publicationOrder };
+  if (faultAt === 'r3_hold_after_order') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
   const record = { ...fields, checksum: digest(fields) };
   const bytes = Buffer.from(JSON.stringify(record), 'utf8');
   if (bytes.length > MAX_INTENT_BYTES) throw fail('intent_too_large');
@@ -214,6 +327,16 @@ async function publishSave(input) {
       rootFingerprint: old.rootFingerprint, sourceRelativeLocator: old.sourceRelativeLocator,
       contentHash: old.contentHash, provenance: old.provenance })
       || JSON.stringify(old.rootIdentity) !== JSON.stringify(rootIdentity(documentRoot))) throw fail('invalid_intent');
+    if (Number.isSafeInteger(old.publicationOrder)) {
+      for (const name of fs.readdirSync(privateRoot).filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name)
+        && name !== `${intentId}.intent.json`)) {
+        const other = readRecord(path.join(privateRoot, name));
+        if (other.rootFingerprint === rootFingerprint && other.sourceId === sourceId
+          && other.sourceRelativeLocator === sourceRelativeLocator
+          && Number.isSafeInteger(other.publicationOrder)
+          && other.publicationOrder > old.publicationOrder) throw fail('stale_intent');
+      }
+    }
   } else {
     const files = fs.readdirSync(privateRoot).filter(name => name.endsWith('.intent.json'));
     if (files.length >= MAX_INTENTS || files.reduce((total, name) => total + fs.statSync(path.join(privateRoot, name)).size, 0) + bytes.length > MAX_INGRESS_BYTES) throw fail('ingress_capacity');

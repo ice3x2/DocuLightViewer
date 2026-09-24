@@ -13,9 +13,23 @@ function forceIntentTime(ingressRoot, intentId, createdTime) {
   const file = path.join(ingressRoot, `${intentId}.intent.json`);
   const record = JSON.parse(fs.readFileSync(file, 'utf8'));
   record.createdTime = createdTime;
+  delete record.publicationOrder;
   const { checksum, ...fields } = record;
   record.checksum = sha(Buffer.from(JSON.stringify(fields), 'utf8'));
   fs.writeFileSync(file, JSON.stringify(record));
+}
+function legacyIntentId(ingressRoot, intentId) {
+  const oldPath = path.join(ingressRoot, `${intentId}.intent.json`);
+  const record = JSON.parse(fs.readFileSync(oldPath, 'utf8'));
+  const identity = { operation: record.operation, sourceId: record.sourceId,
+    rootFingerprint: record.rootFingerprint, sourceRelativeLocator: record.sourceRelativeLocator,
+    contentHash: record.contentHash, provenance: record.provenance };
+  record.intentId = sha(Buffer.from(JSON.stringify(identity), 'utf8'));
+  const { checksum, ...fields } = record;
+  record.checksum = sha(Buffer.from(JSON.stringify(fields), 'utf8'));
+  fs.renameSync(oldPath, path.join(ingressRoot, `${record.intentId}.intent.json`));
+  fs.writeFileSync(path.join(ingressRoot, `${record.intentId}.intent.json`), JSON.stringify(record));
+  return record.intentId;
 }
 
 // @req FR-DOC-019 REL-DOC-009 DR-DOC-014 IR-APP-013
@@ -210,14 +224,17 @@ module.exports = { async run(context) {
     const tiedBase = { ...base, sourceRelativeLocator: 'tied.md' };
     const tiedAliasA = path.join(root, 'origin', 'tied-a.md');
     const tiedAliasB = path.join(root, 'origin', 'tied-b.md');
-    const tiedA = await publishSave({ ...tiedBase, contentBytes: equalBody, contentHash: sha(equalBody),
+    let tiedA = await publishSave({ ...tiedBase, contentBytes: equalBody, contentHash: sha(equalBody),
       provenance: { aliases: [{ lexicalOriginalPath: tiedAliasA, canonicalOriginalPath: tiedAliasA,
         canonicalPathHash: pathHash(tiedAliasA) }], metadata: { documentTags: ['tied-a'] } } });
-    const tiedB = await publishSave({ ...tiedBase, contentBytes: equalBody, contentHash: sha(equalBody),
+    let tiedB = await publishSave({ ...tiedBase, contentBytes: equalBody, contentHash: sha(equalBody),
       provenance: { aliases: [{ lexicalOriginalPath: tiedAliasB, canonicalOriginalPath: tiedAliasB,
         canonicalPathHash: pathHash(tiedAliasB) }], metadata: { documentTags: ['tied-b'] } } });
     const time = JSON.parse(fs.readFileSync(path.join(ingressRoot, `${tiedA.intentId}.intent.json`), 'utf8')).createdTime;
+    forceIntentTime(ingressRoot, tiedA.intentId, time);
     forceIntentTime(ingressRoot, tiedB.intentId, time);
+    tiedA = { ...tiedA, intentId: legacyIntentId(ingressRoot, tiedA.intentId) };
+    tiedB = { ...tiedB, intentId: legacyIntentId(ingressRoot, tiedB.intentId) };
     const tiedOwner = new OwnerWorkerController({ ledgerPath, keywordPath, sourceRoot: storeRoot,
       keywordTokenizerProvider: 'basic' });
     try {

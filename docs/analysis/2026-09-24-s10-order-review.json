@@ -1,0 +1,48 @@
+{
+  "review": "S10 independent ordering and data review",
+  "date": "2026-09-24",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/33",
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014"],
+  "baseCommit": "780e623a5b46717f74e931952fff86e6bbb98b66",
+  "frozenSourceHash": "1dead2018c26bdbe82700e9c1c21b13a380ec854f838a7a0810050d0f0c7f5a8",
+  "fileSha256": {
+    "src/main/index-ingress-store.js": "22e310bb3620840f9974e733f6aa55763578392150684a5d4c4b0c0ca1286e48",
+    "src/main/search-owner-worker.js": "ff39289a9de0f347473dbd0e715cb3287d8ee388da1216ae0e99e6ae161db336",
+    "src/main/source-ledger-store.js": "0fa82e2dd65ead966827a2c5d67598b1f277fb0c0cd02b33af40a19a3e7e1d01",
+    "src/main/search-owner-controller.js": "3f165882c81065b046f726ce2f2c9292199f12475e0df5b4c3f2475487c2d7f6",
+    "test/r3/cases/s10.cjs": "794527993e73fac53a7decf416d88b5334a621df38e7ea17f1f8899c852352e6",
+    "docs/analysis/2026-09-24-s10-revision-evidence.md": "93b48f69ab2b40b2e062ca04c353d7a0cf62749956394859eda1d2c9dfa59562",
+    "docs/spec/60.document-persistence.srs.md": "0f26a456afc38f29ef3dcba9ff1315ab971744cedff588253f29c2fa2295d380"
+  },
+  "focusedRun": {
+    "command": "node test/r3/run-node.cjs --case s10",
+    "environment": "Windows x64; DOCULIGHT_R3_NODE_ROOT points to the existing Node snapshot",
+    "exitCode": 0,
+    "output": "PASS case=s10 assertions=46",
+    "observedByReviewer": true
+  },
+  "assessment": "PASS",
+  "verified": [
+    "A to B to C and active D retain the latest durable desired content hash and owner-assigned revision; duplicate intent replay does not increment revision.",
+    "New-schema equal-millisecond saves, clock rollback, concurrent publication and concurrent ACCEPT use a durable publication-order witness rather than wall-clock or lexical ordering. The gate spans witness reservation, private intent persistence and final-file publication.",
+    "Cross-process contention waits asynchronously and publishes in actual order without a caller re-save; stale older-intent replay cannot replace newer final bytes. A to B to A gets a fresh intent identity.",
+    "Startup replay automatically converges retained same-body intents after restart and retries a transient real SQLite commit failure without a caller re-save, one intent per event-loop turn with bounded backoff.",
+    "Stable document identity, one-to-many original aliases, scalar category, merged tags, existing metadata and path history are preserved; published Markdown and completed imports are not rolled back on indexing failure or cancellation.",
+    "Current desired state is enumerated by document-ID keyset across more than one page. A document has at most one active indexing job; active D remains dirty and keyword_dirty, and failed or cancelled history is not reused as the pending winner.",
+    "The owner remains the sole authoritative source-ledger and keyword database writer; queued acknowledgement follows the durable metadata and job transaction."
+  ],
+  "blockingFindings": [],
+  "residuals": [
+    {
+      "severity": "LOW",
+      "location": "src/main/index-ingress-store.js:226",
+      "description": "A crashed lock owner's PID could be reused by another live process, leaving the gate conservatively busy until inspection or a later recovery mechanism. PID existence alone cannot safely distinguish the new process from a paused live publisher; age-based theft could corrupt publication order. Already-published private intents can still replay on owner restart."
+    },
+    {
+      "severity": "LOW",
+      "location": "src/main/search-owner-worker.js:105",
+      "description": "Pre-witness legacy intents with the same body and millisecond timestamp have no recoverable ordering fact. They remain fail-closed with final bytes and provenance intact instead of inventing a latest scalar metadata winner. The public save producer has not emitted this private schema before issue #37."
+    }
+  ],
+  "scopeBoundary": "S11 owns completion-race execution, S12 owns keyword-cache application, and issue #37 owns public save-producer wiring. This review does not claim those outcomes."
+}

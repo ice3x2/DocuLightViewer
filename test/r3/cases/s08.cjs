@@ -104,10 +104,8 @@ module.exports = { async run(context) {
     fs.mkdirSync(replacementInput.ingressRoot);
     replacementInput.rootFingerprint = sha(replacementInput.storeRoot);
     await rejection(() => publishSave({ ...replacementInput, faultAt: 'document_rename' }), 'fault_injected', context);
-    const pendingId = sha(Buffer.from(JSON.stringify({ operation: replacementInput.operation,
-      sourceId: replacementInput.sourceId, rootFingerprint: replacementInput.rootFingerprint,
-      sourceRelativeLocator: replacementInput.sourceRelativeLocator, contentHash: replacementInput.contentHash,
-      provenance: replacementInput.provenance })));
+    const pendingId = fs.readdirSync(replacementInput.ingressRoot)
+      .find(name => name.endsWith('.intent.json')).slice(0, 64);
     fs.renameSync(replacementInput.storeRoot, movedStore);
     fs.mkdirSync(replacementInput.storeRoot);
     const replacedRoot = readPendingSave({ ingressRoot: replacementInput.ingressRoot,
@@ -167,10 +165,6 @@ module.exports = { async run(context) {
     const hugePath = path.join(storeRoot, 'notes', 'huge.md');
     fs.writeFileSync(hugePath, Buffer.alloc(10 * 1024 * 1024 + 1, 65));
     const hugeInput = { ...input, sourceRelativeLocator: 'notes/huge.md' };
-    const hugeIdentity = { operation: hugeInput.operation, sourceId: hugeInput.sourceId,
-      rootFingerprint: hugeInput.rootFingerprint, sourceRelativeLocator: hugeInput.sourceRelativeLocator,
-      contentHash: hugeInput.contentHash, provenance: hugeInput.provenance };
-    const hugeIntentId = sha(Buffer.from(JSON.stringify(hugeIdentity)));
     const originalReadFile = fs.readFileSync;
     let hugeFailure;
     let hugePending;
@@ -180,6 +174,9 @@ module.exports = { async run(context) {
         return originalReadFile.call(this, file, ...options);
       };
       hugeFailure = await publishSave(hugeInput).then(() => null, error => error);
+      const hugeIntentId = fs.readdirSync(ingressRoot).filter(name => name.endsWith('.intent.json'))
+        .map(name => JSON.parse(fs.readFileSync(path.join(ingressRoot, name), 'utf8')))
+        .find(record => record.sourceRelativeLocator === 'notes/huge.md')?.intentId;
       hugePending = readPendingSave({ ingressRoot, storeRoot, intentId: hugeIntentId });
     } finally { fs.readFileSync = originalReadFile; }
     context.assert(hugeFailure?.code === 'published_file_mismatch', 'oversized existing final is rejected without full read');

@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S09 #32](https://github.com/ice3x2/DocuLightViewer/issues/32) · 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33).
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33) · 다음 [S11 #34](https://github.com/ice3x2/DocuLightViewer/issues/34).
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `9/36` 완료(S01~S09)다. private intent와 파일 게시 뒤의 원장 metadata·job 수락 및 per-intent receipt를 실제 FS+SQLite로 검증했다. 같은 밀리초에 순서를 결정할 수 없는 intent의 자동 수렴과 공개 저장 경로 연결은 후속 이슈에 남아 있다. 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33)은 이 브랜치의 S09 인계 SHA에서 durable 최신 revision과 동시 수락 순서를 test-first로 완성한다.
+실행 이슈는 `10/36` 완료(S01~S10)다. 새 private intent 형식은 같은 밀리초·시계 역행·동시 저장에서도 durable 게시 순서와 문서별 desired revision을 유지하며 재시작 후 자동 재시도한다. 실제 job 완료 경합과 공개 저장 경로 연결은 후속 이슈에 남아 있다. 다음 [S11 #34](https://github.com/ice3x2/DocuLightViewer/issues/34)은 이 브랜치의 S10 인계 SHA에서 requested revision 완료 판정을 test-first로 검증한다.
 
 ## S03 진행 기록 — 독립 검토 완료
 
@@ -112,3 +112,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] S08 private intent의 `createdTime`은 밀리초 정밀도다. 동일 문서의 미수락 intent 두 개가 같은 시각이면 S09은 어느 쪽도 current job으로 ACK하지 않고 retryable로 남긴다. S10은 사용자 재저장 없이 수렴하도록 durable 게시 순서 증거나 owner의 동등한 tie 해결 계약을 추가해야 한다.
 - [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·실행 증거를 확인했다. [원장·복구 검토](../analysis/2026-09-24-s09-data-review.json)와 [TDD·공개 계약 검토](../analysis/2026-09-24-s09-tdd-review.json)는 남은 지적 0건이다. 전체 S10 latest-winner 및 #37 공개 producer 연결을 S09 완료로 주장하지 않는다.
 - [x] #32 체크박스·완료 댓글·close, 최종 SHA 및 다음 [S10 #33](https://github.com/ice3x2/DocuLightViewer/issues/33) 인계를 연결한다.
+
+## S10 진행 기록 — 독립 검토 완료
+
+- [x] S09 인계 SHA `780e623a5b46717f74e931952fff86e6bbb98b66`에서 시작했다. `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`를 확인하고 SpecKiwi로 `REL-DOC-009 AC-1`에 private 게시 순서 증거를 반영했다.
+- [x] [S10 실제 FS·SQLite RED/GREEN 및 결함 행렬](../analysis/2026-09-24-s10-revision-evidence.md): 같은 밀리초/clock rollback/동시 저장·수락, owner 재시작 자동 수렴, active 중 D, 취소·재시도, 페이지 크기 초과 keyset, 오래된 intent replay와 A→B→A, crash lock 복구를 확인했다. Focused S10 Node 46 assertions, S09 37, S08 53, S06 42가 통과했다.
+- [x] 작성자가 아닌 독립 검토자가 원 요구사항·diff·실행 증거를 확인했다. [순서·데이터 검토](../analysis/2026-09-24-s10-order-review.json)와 [TDD·신뢰성 검토](../analysis/2026-09-24-s10-tdd-review.json)는 차단 결함 0건이다. 종료된 잠금 소유자의 PID 재사용 때 안전하게 차단되는 낮은 위험도는 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)의 시작 복구 검증에 명시했다.
+- [x] #33 체크박스·완료 댓글·close 및 최종 SHA를 연결한다. 다음 작업은 [S11 #34](https://github.com/ice3x2/DocuLightViewer/issues/34)이다.

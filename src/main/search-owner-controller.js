@@ -74,6 +74,7 @@ class OwnerWorkerController {
       ledgerPath: this.config.ledgerPath,
       keywordPath: this.config.keywordPath,
       sourceRoot: this.config.sourceRoot,
+      ingressRoot: this.config.ingressRoot,
       keywordTokenizerProvider: this.config.keywordTokenizerProvider || 'garu',
       keywordTokenizerMaxAnalysisChars: this.config.keywordTokenizerMaxAnalysisChars
     } });

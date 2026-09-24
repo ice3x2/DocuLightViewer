@@ -365,6 +365,8 @@ class SourceLedgerStore {
     this.ensureColumn('documents', 'dirty', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'keyword_dirty', 'INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'accepted_intent_id', 'TEXT');
+    this.ensureColumn('documents', 'retry_count', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'next_eligible_at', 'TEXT');
     this.ensureColumn('documents', 'document_tags_json', "TEXT NOT NULL DEFAULT '[]'");
     this.ensureColumn('documents', 'classification_json', "TEXT NOT NULL DEFAULT '{}'");
     this.ensureColumn('documents', 'metadata_parse_status', "TEXT NOT NULL DEFAULT 'ok'");
@@ -800,11 +802,14 @@ class SourceLedgerStore {
       const now = this._now();
       const desiredRevision = (existing?.desired_revision || 0) + 1;
       const jobId = `job_${current.intentId}`;
+      const active = db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+        .get(documentId);
       db.prepare(`UPDATE documents SET metadata_json = ?, desired_revision = ?, current_job_id = ?,
         desired_content_hash = ?, active_requested_revision = ?, dirty = 1, keyword_dirty = 1,
-        accepted_intent_id = ? WHERE document_id = ?`)
+        retry_count = 0, next_eligible_at = NULL, accepted_intent_id = ? WHERE document_id = ?`)
         .run(JSON.stringify(acceptedMetadata), desiredRevision, jobId,
-          `sha256:${current.contentHash}`, desiredRevision, current.intentId, documentId);
+          `sha256:${current.contentHash}`, active ? existing.active_requested_revision : desiredRevision,
+          current.intentId, documentId);
       for (const intent of [...historical, current]) {
         for (const alias of intent.provenance.aliases) {
           this.upsertDocumentSourceAlias({ documentId, aliasKind: 'opened_path',
@@ -830,6 +835,71 @@ class SourceLedgerStore {
         currentPathInternal: path.join(storeRoot, locator), contentHash: `sha256:${current.contentHash}`,
         contentByteLength, contentTextLength });
       return { documentId, desiredRevision, jobId, receiptKind: 'queued' };
+    })();
+  }
+
+  // @req FR-DOC-019 DR-DOC-014
+  getPendingDesiredPage({ afterDocumentId = '', limit = 32, now = new Date().toISOString() } = {}) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 256) throw new Error('Invalid page limit');
+    return this.open().prepare(`SELECT d.document_id AS documentId, d.desired_revision AS desiredRevision,
+        d.desired_content_hash AS desiredContentHash, d.current_job_id AS jobId,
+        d.retry_count AS retryCount, d.next_eligible_at AS nextEligibleAt
+      FROM documents d JOIN index_jobs j ON j.job_id = d.current_job_id
+      WHERE d.document_id > ? AND d.dirty = 1 AND j.status = 'queued'
+        AND (d.next_eligible_at IS NULL OR d.next_eligible_at <= ?)
+        AND NOT EXISTS (SELECT 1 FROM index_jobs active
+          WHERE active.document_id = d.document_id AND active.status = 'indexing')
+      ORDER BY d.document_id LIMIT ?`).all(afterDocumentId, now, limit);
+  }
+
+  // @req FR-DOC-019 DR-DOC-014
+  claimDesiredJob({ documentId, desiredRevision }) {
+    this.assertWritable();
+    const db = this.open();
+    return db.transaction(() => {
+      const row = db.prepare(`SELECT d.*, j.status AS job_status, j.content_hash AS job_content_hash
+        FROM documents d JOIN index_jobs j ON j.job_id = d.current_job_id
+        WHERE d.document_id = ?`).get(documentId);
+      if (!row || row.desired_revision !== desiredRevision || row.dirty !== 1
+        || row.job_status !== 'queued' || row.desired_content_hash !== row.job_content_hash
+        || (row.next_eligible_at && row.next_eligible_at > this._now())
+        || db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+          .get(documentId)) return null;
+      const now = this._now();
+      db.prepare(`UPDATE index_jobs SET status = 'indexing', started_at = ?, heartbeat_at = ?,
+        updated_at = ? WHERE job_id = ?`).run(now, now, now, row.current_job_id);
+      db.prepare('UPDATE documents SET active_requested_revision = ?, dirty = 0 WHERE document_id = ?')
+        .run(desiredRevision, documentId);
+      return { documentId, desiredRevision, jobId: row.current_job_id,
+        desiredContentHash: row.desired_content_hash };
+    })();
+  }
+
+  // @req FR-DOC-019 DR-DOC-014
+  scheduleDesiredRetry({ documentId, nextEligibleAt = new Date().toISOString() }) {
+    this.assertWritable();
+    if (!Number.isFinite(Date.parse(nextEligibleAt))) throw new Error('Invalid retry time');
+    const db = this.open();
+    return db.transaction(() => {
+      const row = db.prepare(`SELECT d.*, j.status AS job_status, j.requested_by AS job_requested_by,
+        j.current_path_internal AS job_path, j.content_hash AS job_content_hash,
+        j.content_byte_length AS job_byte_length, j.content_text_length AS job_text_length
+        FROM documents d JOIN index_jobs j ON j.job_id = d.current_job_id
+        WHERE d.document_id = ?`).get(documentId);
+      if (!row || !['failed', 'cancelled'].includes(row.job_status)
+        || row.desired_content_hash !== row.job_content_hash
+        || db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+          .get(documentId)) return null;
+      const retryCount = row.retry_count + 1;
+      const jobId = `job_${row.accepted_intent_id}_retry_${retryCount}`;
+      this.enqueueIndexJob({ jobId, sourceId: row.source_id, documentId,
+        jobType: 'index_document', status: 'queued', requestedBy: row.job_requested_by,
+        currentPathInternal: row.job_path, contentHash: row.desired_content_hash,
+        contentByteLength: row.job_byte_length, contentTextLength: row.job_text_length });
+      db.prepare(`UPDATE documents SET current_job_id = ?, dirty = 1, keyword_dirty = 1,
+        retry_count = ?, next_eligible_at = ? WHERE document_id = ?`)
+        .run(jobId, retryCount, nextEligibleAt, documentId);
+      return { documentId, desiredRevision: row.desired_revision, jobId };
     })();
   }
 
