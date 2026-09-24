@@ -1,0 +1,31 @@
+{
+  "review": "S25 TDD and compatibility",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/48",
+  "baseCommit": "aae49ca39feba3868170c2c0eaea516c64e97d11",
+  "sourceHash": "b1e9dfd7f8d6df3653197494c799046f6d7bdc73addf859c593a22f24675b029",
+  "result": "PASS",
+  "scope": "S25 regression harness and registry only; no requirement-wide verified promotion",
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014", "IR-APP-013"],
+  "findings": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": []
+  },
+  "checks": [
+    "The registry adds s25 to both existing Node case lists without changing dispatch or setup behavior.",
+    "The documented RED changes the prepared snapshot product revision allocation from +1 to +0 and reaches named S25_PRE_COMMIT_REPLAY ASSERTION_FAIL with exit 1; the product file SHA-256 after restoration matches the worktree. This mutation was assessed from the recorded evidence, not rerun by this reviewer.",
+    "An independent GREEN run returned exit 0, PASS case=s25 assertions=16, and all ten markers including S25_ALL_ASSERTIONS_REACHED on Windows Node v24.16.0 ABI 137. The sourceHash and restored product file hash were independently recomputed.",
+    "Separate OS temporary source, store, private ingress, ledger SQLite, and keyword SQLite paths exercise latest revision, stale completion rejection, retry search convergence, preserved saved files, and content-only absence of original aliases.",
+    "A running owner encounters a real SQLite index_jobs INSERT trigger fault: the final file and private intent survive, while the response has enqueue_failed and no jobId; retry accepts one document ID, revision, and job ID.",
+    "The linked importer creates a contained Markdown copy and a durable local.linked_import job; cancellation leaves the completed copy and a retryable desired state.",
+    "A fresh SQLite connection observes one stable document ID with two lexical original aliases and the same canonical target after restart. Owner status and targeted cancel complete during active work.",
+    "Independent no-argument and unknown-case runs each reported Node exit 2 and SETUP_ERROR. The evidence reports indexed-origin and focused S07/S08/S09/S10/S12/S16/S17 regressions passing.",
+    "The corrected evidence uses one final GREEN canonical path hash in both table and narrative, and reports only redacted paths, hashes, IDs, states, markers, sourceHash, and ABI."
+  ],
+  "limits": [
+    "The RED mutation and focused regression results beyond S25 were reviewed from author evidence; this reviewer directly reran S25 GREEN and both CLI error cases.",
+    "S25 uses direct ledger calls for focused lifecycle cases. The live owner transaction boundary and linked-import producer are covered separately. Broader product-main single-writer and IPC cutover remain follow-up work."
+  ],
+  "closureRecommendation": "S25 issue #48 may close after the reviewed artifact is committed and its final SHA is recorded; do not infer full verification of the four requirements."
+}

@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S24 #47](https://github.com/ice3x2/DocuLightViewer/issues/47) · 다음 [S25 #48](https://github.com/ice3x2/DocuLightViewer/issues/48). S20~S23은 검토된 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S25 #48](https://github.com/ice3x2/DocuLightViewer/issues/48) · 다음 [S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49). S20~S23은 검토된 부분 커밋 뒤에도 열린 상태다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `20/36` 완료(S01~S19, S24)다. 공개 baseline SQLite job 전환 뒤 S20~S23은 검토된 부분 결과를 푸시했으나 제품 경로 검증이 남아 열린 상태다. S24는 embedding 등록 UI 제거와 SRS successor 정합성을 완료했다. 다음은 [S25 #48](https://github.com/ice3x2/DocuLightViewer/issues/48)의 책임별 회귀 하니스다.
+실행 이슈는 `21/36` 완료(S01~S19, S24~S25)다. S20~S23은 검토된 부분 결과를 푸시했으나 제품 경로 검증이 남아 열린 상태다. S24는 embedding 등록 UI·SRS successor 정합성을, S25는 실패 검출력이 있는 작은 실제 FS·SQLite 회귀 하니스를 완료했다. 다음은 [S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49)의 실제 Electron 제품 경로 통합 검증이다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -224,3 +224,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] 독립 재검토 LOW 두 건 보완: compatibility test가 실제 Settings sanitizer를 실행하여 legacy secret/activation 미노출을 확인하고, `DR-APP-003` evidence의 AC 범위를 테스트에 맞게 바로잡았다. `FR-APP-013`, `DR-APP-003`, `SEC-APP-004`는 SpecKiwi dry-run/apply로 implemented/evolving에 올렸으며 verified로 올리지 않았다. 최종 재검토용 R3 sourceHash `114ad69597d6b7db765352000dc4bcc92ca9a05cdff5ddac27de9b72f5aa9c15`; SRS validate error 0, known warning 8, stability blocker 0. 최종 hash의 Node S24 28, Electron S24 3 및 compatibility/poller/MCP parity 통과.
 - [x] [UI·SRS 독립 검토](../analysis/2026-09-25-s24-ui-review.json)와 [TDD·호환 독립 검토](../analysis/2026-09-25-s24-tdd-review.json)는 최종 소스·SRS 해시에서 차단 결함 0건이다. 역사적 verified 근거를 보존하면서 현재 보안·데이터 요구의 AC와 evidence 범위가 맞는지 확인했다.
 - [x] #47 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. #44의 embedding UI 의존성은 해결됐지만 다른 owner 제품 경로 조건은 남는다. 다음은 [S25 #48](https://github.com/ice3x2/DocuLightViewer/issues/48)이다.
+
+## S25 진행 기록 — 책임별 회귀 하니스 독립 검토 완료
+
+- 시작 SHA `aae49ca39feba3868170c2c0eaea516c64e97d11`, 격리 worktree `DocuLightViewer-r3`. `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `IR-APP-013`에 Stability 차단 없음.
+- [x] [S25 실제 FS·SQLite mutation RED/GREEN 증거](../analysis/2026-09-25-s25-harness-evidence.md): 격리된 준비 snapshot의 실제 revision 할당 구현 변이에서 명명된 assertion exit 1, 원본 복구 후 16 assertions exit 0과 `S25_ALL_ASSERTIONS_REACHED`. D1 파일·실제 linked import 보존, live owner SQLite commit fault의 pre-ACK jobId 금지, 최신 검색 수렴, 원본 alias 재시작, live owner 상태/취소를 독립 marker로 검증했다. No-arg/unknown exit 2, indexed-origin 및 영향받은 S07/S08/S09/S10/S12/S16/S17 focused 회귀 통과. 검토용 standard R3 sourceHash `b1e9dfd7f8d6df3653197494c799046f6d7bdc73addf859c593a22f24675b029`.
+- [x] [변이·실제 데이터 독립 검토](../analysis/2026-09-25-s25-mutation-review.json)와 [TDD·호환 독립 검토](../analysis/2026-09-25-s25-tdd-review.json)는 최종 소스 해시 `b1e9dfd7f8d6df3653197494c799046f6d7bdc73addf859c593a22f24675b029`에서 차단 결함 0건이다. 임시 제품 변이·원복 SHA와 증거 표의 canonical hash도 교차 확인했다.
+- [x] #48 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. 다음은 [S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49)이다.

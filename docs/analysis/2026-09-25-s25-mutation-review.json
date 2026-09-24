@@ -1,0 +1,44 @@
+{
+  "review": "S25 independent mutation and harness review",
+  "issue": "https://github.com/ice3x2/DocuLightViewer/issues/48",
+  "baseCommit": "aae49ca39feba3868170c2c0eaea516c64e97d11",
+  "reviewedSourceHash": "b1e9dfd7f8d6df3653197494c799046f6d7bdc73addf859c593a22f24675b029",
+  "result": "PASS",
+  "severityCounts": { "critical": 0, "high": 0, "medium": 0, "low": 0 },
+  "scope": {
+    "codeChanges": ["test/r3/cases/s25.cjs", "test/r3/node-main.cjs", "test/r3/run-node.cjs"],
+    "productSourceDiff": false,
+    "requirements": ["FR-DOC-019", "REL-DOC-009", "DR-DOC-014", "IR-APP-013"]
+  },
+  "mutation": {
+    "productFile": "src/main/source-ledger-store.js",
+    "change": "desiredRevision increment +1 to +0 in an isolated prepared Node snapshot",
+    "mutatedFileSha256Recomputed": "755c6f4087efcb83e9ba20ee3f241b52f8305541ad5211843a6124bf64271fe9",
+    "mutatedSourceHashRecomputed": "5b5adb0942c38ffe3ea3e9cb7ce5fa624413e4941a76b72f0e905b8c5893c525",
+    "recordedRed": "exit 1; ASSERTION_FAIL case=s25 assertions=3 S25_PRE_COMMIT_REPLAY",
+    "restoredProductFileSha256VerifiedInWorktreeAndSnapshot": "3c00d78945e612648b8289035b841f74a0ae294e87191063706348d1b64b8fc9",
+    "assessment": "The edit changes revision assignment in product logic; the failure is a semantic assertion after successful fixture and worker setup. The mutation is absent from the worktree and restored snapshot."
+  },
+  "independentRun": {
+    "node": "v24.16.0",
+    "nodeAbi": "137",
+    "case": "node test/r3/run-node.cjs --case s25",
+    "exitCode": 0,
+    "assertions": 16,
+    "terminalMarker": "S25_ALL_ASSERTIONS_REACHED",
+    "caseMarkersReached": 10,
+    "unknownCaseExitCode": 2,
+    "noArgExitCode": 2
+  },
+  "oracleAssessment": {
+    "realFsAndSqlite": "PASS: isolated source/store/private roots, published Markdown, source ledger and keyword SQLite",
+    "durableAck": "PASS: live worker fails a real index_jobs insert transaction, withholds queued/jobId, preserves bytes and private intent, then replays to one stable revision/job",
+    "latestWinsAndSearch": "PASS: old claim cannot complete new revision; failed retry stays dirty; keyword search finds current term and excludes old term",
+    "d1Retention": "PASS: saved file survives failed indexing; actual linked importer completes copy and cancelled job leaves copy plus retry",
+    "originAndAlias": "PASS: content-only document has no aliases; two distinct lexical paths resolve to one canonical target and persist under a stable document ID after a fresh SQLite reopen",
+    "workerStatusCancel": "PASS: real owner worker reports active indexing and handles status plus targeted cancellation before bounded fixture work finishes",
+    "markersAndRedaction": "PASS: ten scenario markers are emitted after their assertions; evidence contains IDs, counts, hashes, revisions, statuses, fixture basename and Node ABI without raw absolute source or store paths"
+  },
+  "evidence": "docs/analysis/2026-09-25-s25-harness-evidence.md",
+  "closureRecommendation": "GH #48 S25 harness criteria met; close after recording this review. This does not promote the broader requirements to verified."
+}
