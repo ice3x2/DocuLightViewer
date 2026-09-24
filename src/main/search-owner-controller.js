@@ -43,7 +43,9 @@ class OwnerWorkerController {
     this.closing = false;
     this.usedIds.clear();
     this.workerSequence = 0;
-    const worker = new Worker(this.config.workerPath || path.join(__dirname, 'search-owner-worker.js'));
+    const worker = new Worker(this.config.workerPath || path.join(__dirname, 'search-owner-worker.js'), {
+      workerData: { r3SchedulerFixture: this.config.r3SchedulerFixture === true }
+    });
     this.worker = worker;
     this.ready = new Promise((resolve, reject) => {
       this.readyReject = reject;
@@ -115,7 +117,18 @@ class OwnerWorkerController {
     if (type === 'shutdown') return this.shutdown(id, true);
     return this._send('COMMAND', type, payload, id);
   }
-  query(type, payload = {}, id) { return this._send('QUERY', type, payload, id); }
+  query(type, payload = {}, id) {
+    if (type === 'get_status') {
+      if (this.closing) return Promise.reject(failure('owner_shutdown'));
+      if (!this.worker) return Promise.reject(failure('owner_unavailable'));
+      const key = id === undefined ? `owner-${++this.nextId}` : id;
+      if (typeof key !== 'string' || !key.trim()) return Promise.reject(failure('owner_invalid_id'));
+      if (this.usedIds.has(key)) return Promise.reject(failure('owner_duplicate_id'));
+      this.usedIds.add(key);
+      return Promise.resolve(this.getStatus());
+    }
+    return this._send('QUERY', type, payload, id);
+  }
   cancel(target, id) { return this._send('CANCEL', 'cancel_job', { target }, id); }
 
   async shutdown(id, command = false) {

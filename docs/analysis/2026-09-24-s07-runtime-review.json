@@ -1,0 +1,18 @@
+{
+  "issue": 30,
+  "requirements": ["FR-DOC-019", "REL-DOC-007", "IR-APP-013"],
+  "sourceHash": "8423453fae1309404e2823b99e55d17062c5abd46c4f2ceff1fbd81202d724d5",
+  "reviewer": "independent-s07-runtime",
+  "result": "PASS",
+  "findings": [],
+  "evidence": {
+    "ownerRoute": "OwnerWorkerController dispatches the private fixture through the S06 owner worker; its existing keyword connection runs synchronous CPU plus SQLite transactions, and no second writer is introduced.",
+    "scheduler": "Accepted jobs are capped at 32 and rotate after each completed work unit. setImmediate yields between units; the fixture transaction itself is synchronous. Query reads the owner connection, cached status is served from the controller, and targeted cancel is observed at a unit boundary.",
+    "node": "Final Node S07 result: PASS, 15 assertions. S06 Node and Electron regressions: PASS, 42 assertions each, as recorded in the S07 evidence document.",
+    "electronRawArtifact": "docs/analysis/2026-09-24-s07-electron-raw.json",
+    "electronRawCheck": "67 of 67 timestamped samples are active; committed progress rises from 1 to 1201 over 590.760 ms. p95 0.236 ms, p99 and max 0.678 ms, cancel 6.590 ms, and 59 active-window heartbeat gaps with max 11.929 ms meet issue #30 thresholds.",
+    "preservation": "Cancellation leaves the saved and completed-import fixture files unchanged; durable revision retry semantics await S08.",
+    "scope": "This result covers the S07 owner-route fixture. Actual save/index overlap and packaged product app responsiveness remain assigned to #31-#35, #45, and #49. No public MCP or IPC control was added.",
+    "diffCheck": "git diff --check exited 0."
+  }
+}

@@ -1,9 +1,10 @@
 'use strict';
 
-const { parentPort, threadId } = require('node:worker_threads');
+const { parentPort, threadId, workerData } = require('node:worker_threads');
 const { SourceLedgerStore } = require('./source-ledger-store');
 const { SQLiteKeywordIndex } = require('./search-sqlite-store');
 const { createKeywordTokenizer } = require('./search-tokenizer');
+const { createWorkUnitScheduler } = require('./search-work-scheduler');
 
 const opened = [];
 function loadDatabase(role) {
@@ -23,12 +24,15 @@ let lastSnapshot = null;
 const seen = new Set();
 let sequence = 0;
 let closing = false;
+const scheduler = createWorkUnitScheduler({ capacity: 32 });
+let fixtureWrite = null;
 
-function status(state, diagnosticCode = null) {
+function status(state, diagnosticCode = null, patch = {}) {
   lastSnapshot = {
     state, active: false, phase: null, progress: { current: 0, total: 0 },
     currentPath: null, heartbeatAt: new Date().toISOString(), cancelRequested: false,
-    diagnostic: diagnosticCode ? { code: diagnosticCode } : null
+    diagnostic: diagnosticCode ? { code: diagnosticCode } : null,
+    ...patch
   };
   parentPort.postMessage({ tag: 'STATUS', sequence: ++sequence, snapshot: lastSnapshot });
 }
@@ -55,6 +59,16 @@ async function dispatch(message) {
         loadDatabase: () => loadDatabase('keyword') });
       ledger.initialize();
       keyword.open();
+      if (workerData?.r3SchedulerFixture === true) {
+        const db = keyword.open();
+        db.exec('CREATE TABLE IF NOT EXISTS r3_scheduler_units (target TEXT NOT NULL, ordinal INTEGER NOT NULL, digest INTEGER NOT NULL, PRIMARY KEY(target, ordinal))');
+        const insert = db.prepare('INSERT INTO r3_scheduler_units VALUES (?, ?, ?)');
+        fixtureWrite = db.transaction((target, ordinal, iterations) => {
+          let digest = ordinal;
+          for (let i = 0; i < iterations; i += 1) digest = (Math.imul(digest, 33) + i) | 0;
+          insert.run(target, ordinal, digest);
+        });
+      }
       const health = keyword.open().prepare('PRAGMA integrity_check').get();
       if (!health || Object.values(health)[0] !== 'ok') throw new Error('keyword integrity');
       const committed = keyword.getCommittedGeneration();
@@ -109,12 +123,43 @@ async function dispatch(message) {
     } else if (tag === 'QUERY' && type === 'resolve_origin') {
       result(id, ledger.getIndexedDocumentOpenTargetInternal({ documentId: payload.documentId, filePath: payload.filePath }));
     } else if (tag === 'QUERY' && type === 'query_keyword') {
+      if (fixtureWrite && payload.r3SchedulerCount === true) {
+        result(id, keyword.open().prepare('SELECT count(*) AS count FROM r3_scheduler_units').get());
+        return;
+      }
       const committed = keywordReady ? keyword.getCommittedGeneration() : null;
       result(id, committed ? keyword.search(payload.query || '', { limit: 20 }) : []);
     } else if (tag === 'CANCEL' && typeof message.target === 'string') {
-      result(id, { cancelled: false });
+      const cancelled = scheduler.cancel(message.target);
+      if (cancelled) status('indexing', null, {
+        active: true, phase: 'cancel_requested', cancelRequested: true,
+        progress: lastSnapshot?.progress || { current: 0, total: 0 }
+      });
+      result(id, { cancelled });
     } else if (tag === 'COMMAND' && type === 'accept_save') {
-      result(id, null, 'owner_not_implemented');
+      if (!fixtureWrite || !Number.isInteger(payload.r3SchedulerUnits) || payload.r3SchedulerUnits < 1 ||
+          payload.r3SchedulerUnits > 20000 || typeof payload.testTarget !== 'string' || !payload.testTarget) {
+        result(id, null, 'owner_not_implemented');
+        return;
+      }
+      let current = 0;
+      const total = payload.r3SchedulerUnits;
+      const iterations = Number.isInteger(payload.r3SchedulerCpuIterations) &&
+        payload.r3SchedulerCpuIterations >= 90000 && payload.r3SchedulerCpuIterations <= 500000
+        ? payload.r3SchedulerCpuIterations : 90000;
+      const target = payload.testTarget;
+      const accepted = scheduler.enqueue({
+        id: target,
+        runUnit() { fixtureWrite(target, ++current, iterations); return current >= total; },
+        onProgress() {
+          status('indexing', null, { active: true, phase: 'fixture', progress: { current, total } });
+        },
+        onDone(cancelled, error) {
+          status(keywordReady ? 'ready' : 'stale', keywordReady ? null : 'keyword_index_missing');
+          result(id, { cancelled, current }, error ? 'owner_operation_failed' : null);
+        }
+      });
+      if (!accepted) result(id, null, 'owner_ingress_capacity');
     } else if (tag === 'COMMAND' && type === 'shutdown') {
       await dispatch({ tag: 'SHUTDOWN', id });
     } else {

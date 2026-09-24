@@ -1,0 +1,65 @@
+{
+  "review": "S07 independent TDD and performance evidence",
+  "issue": 30,
+  "requirements": ["FR-DOC-019", "REL-DOC-007", "IR-APP-013"],
+  "sourceHash": "8423453fae1309404e2823b99e55d17062c5abd46c4f2ceff1fbd81202d724d5",
+  "rawArtifact": {
+    "path": "docs/analysis/2026-09-24-s07-electron-raw.json",
+    "sha256": "8da3544fc5622111f849343ea2035b373d873b0e41abd5f0f8b401371883f1d7",
+    "sampleCount": 67,
+    "allSamplesActive": true,
+    "activeStartMs": 726.275,
+    "activeEndMs": 1317.035,
+    "activeWindowMs": 590.760,
+    "sampleProgressFirst": 1,
+    "sampleProgressLast": 1201,
+    "committedUnitsAtCancel": 1203,
+    "totalUnits": 20000,
+    "p95Ms": 0.236,
+    "p99Ms": 0.678,
+    "maxMs": 0.678,
+    "cancelMs": 6.590,
+    "activeHeartbeatGapCount": 59,
+    "activeHeartbeatMaxGapMs": 11.929
+  },
+  "independentChecks": [
+    "Recomputed nearest-rank p95 and p99 from all 67 raw latency values; both match the artifact.",
+    "Checked all 67 per-operation monotonic start/end samples have active=true, span the declared active window, and show committed progress from 1 to 1201.",
+    "Checked the 59 heartbeat gaps and their 11.929 ms maximum against the active-window evidence.",
+    "Verified scheduler rotates two queued three-unit jobs in ababab order, with one synchronous unit per turn and bounded capacity.",
+    "Verified the workload uses the S06 OwnerWorkerController and owner worker, real CPU loops and better-sqlite3 transactions on the owner's keyword connection, a read-only overlapping SQLite query, cached status, and targeted cancel. The private fixture adds no second worker writer or public control."
+  ],
+  "independentRerun": {
+    "node": {
+      "command": "node test/r3/run-node.cjs --case s07",
+      "exitCode": 0,
+      "assertions": 15,
+      "queryStatusCancelMs": 0.748,
+      "committedUnitsAtCancel": 4
+    },
+    "electron": {
+      "command": "node test/r3/run-electron.cjs --scenario s07",
+      "exitCode": 0,
+      "assertions": 20,
+      "sampleCount": 67,
+      "activeWindowMs": 682.302,
+      "p95Ms": 0.259,
+      "p99Ms": 0.558,
+      "maxMs": 0.558,
+      "cancelMs": 7.735,
+      "activeHeartbeatGapCount": 67,
+      "activeHeartbeatMaxGapMs": 12.380,
+      "sampleProgressFirst": 1,
+      "sampleProgressLast": 1201,
+      "committedUnitsAtCancel": 1202
+    }
+  },
+  "tddEvidence": {
+    "semanticRedRecorded": true,
+    "cases": ["owner route", "async unit rejection", "cancel progress", "completion callback", "queued-job fairness", "sustained Electron active window"],
+    "limitation": "The evidence records assertion-failure RED exits, but pre-implementation source snapshots and complete transcripts are not archived; the historical test-first chronology cannot be independently reconstructed."
+  },
+  "scopeLimit": "S07 proves the new owner route under a gated real SQLite/CPU fixture. Durable saved-document indexing and retryable revisions remain for S08 through S12 and S22; packaged full-application focus, close, and status gates remain for S26.",
+  "findings": [],
+  "result": "PASS"
+}
