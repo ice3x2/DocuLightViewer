@@ -1,0 +1,91 @@
+{
+  "review": "S01 independent review of GitHub issue #24",
+  "reviewedAt": "2026-09-24",
+  "issue": {
+    "url": "https://github.com/ice3x2/DocuLightViewer/issues/24",
+    "stateAtReview": "OPEN",
+    "bodySha256": "71d109d2c7e0d34333321b8e621b72858a446d5fe8edead5327a7caaa44d4b76"
+  },
+  "sources": {
+    "executionNote": "docs/plan/2026-09-11-sol-medium-execution.md",
+    "executionNoteSha256": "1c7a2039c23235d9d1c49fb107b741c616ae2f62591b8e6987ce25a83c17b192",
+    "inventory": "docs/analysis/2026-09-24-s01-carryover-inventory.json",
+    "inventorySha256": "d1c9c2ebe5be7a01f0cb6069fcfb6a8105dd0a0200723fff68c61c739d259105"
+  },
+  "git": {
+    "isolatedWorktree": "C:\\Work\\git\\_Snoworca\\DocuLightViewer-r3",
+    "branch": "feature/issue-24-s01-sol-medium",
+    "head": "12d312cea07d530c7aa28ffb849575ea3d94b459",
+    "originalRoot": "C:\\Work\\git\\_Snoworca\\DocuLightViewer",
+    "originalRootHead": "080ebf62736855b2ee8fc9e2f77ffbbd3a937161",
+    "originalRootCurrentWorkingPaths": 677,
+    "isolatedStatusAtReview": [
+      "?? docs/analysis/2026-09-24-s01-carryover-inventory.json",
+      "?? docs/plan/2026-09-11-sol-medium-execution.md"
+    ]
+  },
+  "inventoryRecomputation": {
+    "method": "git diff --no-renames --name-status -z baseline rootHead; git diff --no-renames --name-status -z HEAD; git ls-files --others --exclude-standard -z",
+    "committedChangedPaths": 180,
+    "workingTrackedPaths": 13,
+    "untrackedPaths": 664,
+    "committedWorkingOverlap": 9,
+    "uniquePaths": 848,
+    "recordCount": 848,
+    "duplicatePaths": 0,
+    "missingPaths": 0,
+    "extraPaths": 0,
+    "recordFieldMismatches": 0,
+    "workingChangeClassificationMismatches": 0,
+    "classificationCounts": {
+      "user change: leave untouched; inspect only if needed": 677,
+      "contract or evidence: compare with SRS before use": 112,
+      "carryover candidate; verify behavior before use": 59
+    }
+  },
+  "requirements": {
+    "source": "SpecKiwi MCP get_active_target and get_requirement with isolated workspaceRoot",
+    "activeTarget": "0.11.0-w2",
+    "stabilityBlockers": 0,
+    "baselineStates": {
+      "FR-DOC-019": "verified/stable; no unchecked AC",
+      "DR-DOC-014": "verified/evolving; no unchecked AC",
+      "FR-DOC-033": "verified/stable; no unchecked AC",
+      "FR-DOC-035": "implemented/evolving; AC-1 through AC-12 unchecked",
+      "FR-DOC-036": "verified/evolving; no unchecked AC",
+      "REL-DOC-009": "not found",
+      "IR-APP-013": "not found",
+      "FR-APP-013": "not found"
+    },
+    "executionNoteTable": "Matches the baseline statuses, Stability, and unchecked AC; distinguishes the three requirements absent from the baseline."
+  },
+  "environment": {
+    "directlyMeasured": {
+      "node": "v24.16.0",
+      "nodeAbi": "137",
+      "npm": "11.5.2",
+      "electronRuntime": "v33.4.11",
+      "installedTopLevelDependencies": "npm ls --depth=0 succeeded"
+    },
+    "authorReportedOnly": {
+      "npmCi": "exit 0; 570 packages added",
+      "initialElectronBinaryAndRepair": "Initial binary absence and local archive repair were not independently observed",
+      "npmAudit": "31 vulnerabilities"
+    }
+  },
+  "findingGate": {
+    "result": "PASS_EXCEPT_PENDING_CLEAN_STATUS",
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": [],
+    "pending": [
+      "After committing the S01 documents and this review, confirm git status --short is empty and record the completion SHA before closing issue #24."
+    ],
+    "evidenceLimits": [
+      "The current original-root HEAD and working paths match the inventory; the current snapshot alone cannot prove historical nonmutation.",
+      "The initial clean state and historical npm ci outcome are author reported; the present HEAD, branch, installed runtime, and current root state were directly measured."
+    ]
+  },
+  "validation": "Documentation and inventory only; no behavior change. Issue #24 requests independent review instead of a behavior test."
+}
