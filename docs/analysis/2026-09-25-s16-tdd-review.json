@@ -1,0 +1,37 @@
+{
+  "issue": 39,
+  "requirements": [
+    "FR-DOC-035",
+    "DR-DOC-014",
+    "FR-DOC-036",
+    "FR-DOC-019",
+    "REL-DOC-009",
+    "SEC-DOC-003"
+  ],
+  "baseCommit": "0bc5d11b404d0499ebd4e0daefc244c1f18dfada",
+  "sourceHash": "569dffbfd666b8b73b57cfa2670f75883e9c21dd652111ec30a5c60fa756f9f5",
+  "verdict": "PASS_PARTIAL",
+  "safeToCommitPartial": true,
+  "issueComplete": false,
+  "findings": [],
+  "review": {
+    "tdd": "The evidence reports a valid first semantic RED at the real owner acceptance assertion, followed by separate assertion REDs for external .markdown publication, a seeded pre-S16 .markdown copy failing stable-ID reopen under the temporary filename workaround, diverged indexed-copy protection, expected-prior-hash enforcement, and pre-publication private diagnostics. The S16 GREEN case passes 23 assertions. Existing S15, opened registrar, and indexed-origin assertions were retained; the S15 count increased to account for the new external owner acceptance.",
+    "ownerAndIdentity": "Real external open and renderer save-as publish a separate configured-store copy through durable intent before owner ACK. The owner assigns document identity, revision, and job. A junction lexical alias keeps a 1:N alias relationship on one document without a duplicate revision; changed content updates the same document; a hash-only alias is backfilled only by a verified source-backed reopen. A fresh owner restart preserves identity and copy bytes.",
+    "failureAndCompatibility": "External .markdown retains its baseline .markdown contained locator, so a seeded pre-S16 alias/copy reopens and updates under the same document ID. The shared publisher permits .markdown only for opened_markdown or update with source alias provenance; save_document still requires .md. A diverged copy is protected by both registrar validation and a publisher expected-prior-hash guard. Post-publication owner failure retains the external file, copy, and replayable intent. A pre-publication destination blocker retains the external file and a bounded private retry marker. The marker is a diagnostic for later user-triggered retry, not an automatic replay job. Renderer save-as retains its existing local {success,filePath} response, with no new sourcePath or store path; external legacy markDirty was removed.",
+    "scope": "This snapshot is safe as an incremental S16 commit. The shared #38 completion gate still lacks actual source stdio and renderer manual IPC entrypoint plus window-continuity failure evidence. Keep #38 open, and apply the #39 handoff order only after that evidence is independently reviewed."
+  },
+  "verification": {
+    "hashRecomputed": "569dffbfd666b8b73b57cfa2670f75883e9c21dd652111ec30a5c60fa756f9f5",
+    "s16": "PASS assertions=23 (reviewer rerun)",
+    "s08": "PASS assertions=53 (reviewer rerun)",
+    "s14": "PASS assertions=20 (reviewer standalone rerun)",
+    "s15": "PASS assertions=26 (author evidence)",
+    "openedMarkdownRegistrar": "PASS (author evidence)",
+    "indexedOriginOpen": "PASS (author evidence)",
+    "mcpToolParity": "PASS (author evidence)",
+    "mcpHttpSaveParity": "PASS (author evidence)",
+    "generatedBundle": "Ignored bundle copied into the Node ABI snapshot for indexed-origin regression; no tracked bundle diff",
+    "diffCheck": "PASS"
+  },
+  "unresolvedEvidence": "A concurrent S14 owner-ACK failure was reported without a diagnostic transcript. S14 uses an isolated temporary root and passed as a standalone reviewer rerun; this review cannot attribute the concurrent failure."
+}

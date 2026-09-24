@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createLegacyAdopter } = require('./legacy-adoption');
+const { publishSave } = require('./index-ingress-store');
 const { redactToken } = require('./redaction');
 
 const DEFAULT_OPENED_NAMESPACE = '.opened';
@@ -47,9 +48,9 @@ class OpenedMarkdownRegistrar {
     return promise;
   }
 
-  async register(filePath) {
-    if (!this.isEnabled()) return { status: 'skipped', reason: 'disabled' };
-    if (!this.searchEngine || typeof this.searchEngine.queueDocumentIndexIfChanged !== 'function') {
+  async register(filePath, { savedExternal = false } = {}) {
+    if (!savedExternal && !this.isEnabled()) return { status: 'skipped', reason: 'disabled' };
+    if (!this.searchEngine) {
       return { status: 'skipped', reason: 'search-index-unavailable' };
     }
     const sourceRoot = this.getSourceRoot();
@@ -62,8 +63,10 @@ class OpenedMarkdownRegistrar {
 
     const canonicalPath = realpathOrPath(absolutePath);
     const content = await fs.promises.readFile(canonicalPath, 'utf8');
+    if (normalizeInternalPath(realpathOrPath(absolutePath)) !== normalizeInternalPath(canonicalPath)) {
+      return pathContainmentFailure(absolutePath, 'realpath_changed');
+    }
     const fingerprint = buildDocumentFingerprint(content);
-    const ledger = this.searchEngine.getSourceLedger();
 
     const canonicalSourceRoot = realpathOrPath(sourceRoot);
     const lexicalPathIsContained = isWithinRoot(absolutePath, sourceRoot);
@@ -72,6 +75,8 @@ class OpenedMarkdownRegistrar {
       return pathContainmentFailure(absolutePath, 'realpath_outside_source_root');
     }
     if (canonicalPathIsContained) {
+      const ledger = typeof this.searchEngine.getSourceLedger === 'function'
+        ? this.searchEngine.getSourceLedger() : null;
       const sourceRelativePath = path.relative(canonicalSourceRoot, canonicalPath);
       const containedPath = path.resolve(sourceRoot, sourceRelativePath);
       if (
@@ -80,16 +85,26 @@ class OpenedMarkdownRegistrar {
       ) {
         return pathContainmentFailure(absolutePath, 'realpath_changed');
       }
+      if (typeof this.searchEngine.queueDocumentIndexIfChanged !== 'function') {
+        return { status: 'skipped', reason: 'search-index-unavailable' };
+      }
       return this.registerContainedPath({ filePath: containedPath, content, fingerprint, ledger, sourceRoot });
     }
-    return this.registerExternalPath({
-      filePath: canonicalPath,
-      originLexicalPathInternal: absolutePath,
-      content,
-      fingerprint,
-      ledger,
-      sourceRoot
-    });
+    const readOnly = typeof this.searchEngine._openReadOnlySourceLedger === 'function';
+    const ledger = readOnly ? this.searchEngine._openReadOnlySourceLedger()
+      : typeof this.searchEngine.getSourceLedger === 'function'
+        ? this.searchEngine.getSourceLedger() : null;
+    try {
+      return await this.registerExternalPath({ filePath: canonicalPath,
+        originLexicalPathInternal: absolutePath, content, fingerprint, ledger, sourceRoot });
+    } finally {
+      if (readOnly && ledger) ledger.close();
+    }
+  }
+
+  // Renderer save-as is a mutation producer even when viewer-open registration is disabled.
+  async registerSavedExternal(filePath) {
+    return this.register(filePath, { savedExternal: true });
   }
 
   isEnabled() {
@@ -145,7 +160,7 @@ class OpenedMarkdownRegistrar {
 
   // @req DR-DOC-014
   async registerExternalPath({ filePath, originLexicalPathInternal, content, fingerprint, ledger, sourceRoot }) {
-    const alias = typeof ledger.findDocumentSourceAliasByCanonicalPath === 'function'
+    const alias = ledger && typeof ledger.findDocumentSourceAliasByCanonicalPath === 'function'
       ? ledger.findDocumentSourceAliasByCanonicalPath({ canonicalPathInternal: filePath })
       : null;
     const destinationPath = alias && alias.linkedSourceRelativePath
@@ -168,7 +183,7 @@ class OpenedMarkdownRegistrar {
         pathToken: redactToken('PATH', destinationPath)
       };
     }
-    if (hasSameContentFingerprint(alias, fingerprint)) {
+    if (alias && alias.linkedContentHash === fingerprint.contentHash) {
       const aliasDestinationStatus = validateExistingAliasDestination({
         sourceRoot,
         destinationPath,
@@ -177,22 +192,12 @@ class OpenedMarkdownRegistrar {
       if (aliasDestinationStatus.status !== 'existing') {
         return aliasDestinationStatus;
       }
-      if (alias.documentId && typeof ledger.upsertDocumentSourceAlias === 'function') {
-        ledger.upsertDocumentSourceAlias({
-          documentId: alias.documentId,
-          originLexicalPathInternal,
-          originPathInternal: filePath,
-          aliasKind: 'opened_path',
-          contentHash: fingerprint.contentHash,
-          contentByteLength: fingerprint.contentByteLength,
-          contentTextLength: fingerprint.contentTextLength
-        });
+      if (ledger && typeof ledger.hasExactDocumentSourceAlias === 'function'
+        && ledger.hasExactDocumentSourceAlias({ documentId: alias.documentId,
+          originLexicalPathInternal, canonicalPathHash: stableHash(normalizeInternalPath(filePath)),
+          contentHash: fingerprint.contentHash })) {
+        return { status: 'existing', indexedPath: destinationPath, documentId: alias.documentId || null };
       }
-      return {
-        status: 'existing',
-        indexedPath: destinationPath,
-        documentId: alias.documentId || null
-      };
     }
 
     if (!alias) {
@@ -218,7 +223,8 @@ class OpenedMarkdownRegistrar {
       namespace: this.namespace,
       filePath,
       content,
-      allowOverwrite: Boolean(alias)
+      allowOverwrite: Boolean(alias),
+      expectedHash: alias?.linkedContentHash || null
     });
     if (destination.status !== 'writable' && destination.status !== 'existing') {
       return {
@@ -228,28 +234,11 @@ class OpenedMarkdownRegistrar {
         pathToken: destination.pathToken || null
       };
     }
-    await copyIfChanged({ destinationPath: destination.targetPath, content });
-    const queued = this.searchEngine.queueDocumentIndexIfChanged({
-      filePath: destination.targetPath,
-      content,
-      requestedBy: 'viewer.opened_markdown'
-    });
-    if (!queued || (!queued.queued && queued.reason !== 'unchanged')) {
-      return queueResultToRegistrationResult(queued, destination.targetPath, destination.targetPath);
-    }
-    const document = queued.document || null;
-    if (document && typeof ledger.upsertDocumentSourceAlias === 'function') {
-      ledger.upsertDocumentSourceAlias({
-        documentId: document.documentId,
-        originLexicalPathInternal,
-        originPathInternal: filePath,
-        aliasKind: 'opened_path',
-        contentHash: fingerprint.contentHash,
-        contentByteLength: fingerprint.contentByteLength,
-        contentTextLength: fingerprint.contentTextLength
-      });
-    }
-    return queueResultToRegistrationResult(queued, destination.targetPath, destination.targetPath);
+    return publishExternalCopy({ searchEngine: this.searchEngine, sourceRoot,
+      destinationPath: destination.targetPath, originLexicalPathInternal,
+      canonicalOriginalPath: filePath, content,
+      expectedExistingHash: alias?.linkedContentHash?.replace(/^sha256:/, '') || null,
+      operation: alias && alias.linkedContentHash !== fingerprint.contentHash ? 'update' : 'opened_markdown' });
   }
 
   findDuplicateActiveDocument({ ledger, fingerprint, excludeDocumentId } = {}) {
@@ -290,6 +279,54 @@ function queueResultToRegistrationResult(queued, indexedPath, destinationPath = 
   };
 }
 
+// @req FR-DOC-035 DR-DOC-014 FR-DOC-019 REL-DOC-009
+async function publishExternalCopy({ searchEngine, sourceRoot, destinationPath,
+  originLexicalPathInternal, canonicalOriginalPath, content, operation,
+  expectedExistingHash }) {
+  const storeRoot = realpathOrPath(sourceRoot);
+  const lexicalRoot = path.resolve(sourceRoot);
+  const sourceRelativeLocator = path.relative(lexicalRoot, destinationPath).replace(/\\/g, '/');
+  const rootKey = process.platform === 'win32' ? lexicalRoot.toLowerCase() : lexicalRoot;
+  const sourceId = `src_${stableHash(`${rootKey}\0${stableHash(lexicalRoot)}`).slice(0, 24)}`;
+  const rootFingerprint = stableHash(path.resolve(storeRoot));
+  const contentBytes = Buffer.from(content, 'utf8');
+  const contentHash = stableHash(contentBytes);
+  const provenance = { aliases: [{ lexicalOriginalPath: originLexicalPathInternal,
+    canonicalOriginalPath, canonicalPathHash: stableHash(normalizeInternalPath(canonicalOriginalPath)) }],
+  metadata: {} };
+  let owner = searchEngine?.ownerController;
+  if (!owner && typeof searchEngine?.getSaveDocumentOwner === 'function') {
+    try { owner = await searchEngine.getSaveDocumentOwner(sourceRoot); }
+    catch { owner = null; }
+  }
+  const ingressRoot = owner?.config?.ingressRoot || searchEngine?.saveDocumentIngressRoot
+    || path.join(path.dirname(storeRoot), `.doculight-save-intents-${stableHash(storeRoot).slice(0, 16)}`);
+  await fs.promises.mkdir(ingressRoot, { recursive: true });
+  let publication;
+  try {
+    publication = await publishSave({ storeRoot, ingressRoot, contentBytes, contentHash,
+      operation, sourceId, rootFingerprint, sourceRelativeLocator, provenance,
+      expectedExistingHash,
+      requireVacant: operation !== 'update' && !fs.existsSync(destinationPath) });
+  } catch (error) {
+    if (!error.published) throw error;
+  }
+  let accepted;
+  if (publication?.intentId && owner?.acceptPublishedSave) {
+    try { accepted = await owner.acceptPublishedSave({ storeRoot, ingressRoot,
+      intentId: publication.intentId, operation, sourceId, rootFingerprint,
+      sourceRelativeLocator, contentHash, provenance }); }
+    catch { /* Published copy and private intent remain retryable. */ }
+  }
+  return { status: accepted?.accepted && accepted.indexingState === 'queued' ? 'queued'
+    : accepted?.accepted && accepted.indexingState === 'provenance_only' ? 'existing' : 'enqueue_failed',
+    indexedPath: destinationPath, destinationPath,
+    documentId: accepted?.documentId || null,
+    document: accepted?.documentId ? { documentId: accepted.documentId,
+      sourceRelativePath: sourceRelativeLocator } : null,
+    jobId: accepted?.accepted ? accepted.indexing?.jobId || null : null };
+}
+
 function duplicateCandidateResult(document) {
   return {
     status: 'duplicate_candidate',
@@ -305,7 +342,8 @@ function destinationForOpenedFile({ sourceRoot, namespace, filePath }) {
   return path.join(sourceRoot, namespace, dirHash, baseName);
 }
 
-function prepareOpenedDestination({ sourceRoot, namespace, filePath, content, allowOverwrite = false }) {
+function prepareOpenedDestination({ sourceRoot, namespace, filePath, content,
+  allowOverwrite = false, expectedHash = null }) {
   const targetPath = destinationForOpenedFile({ sourceRoot, namespace, filePath });
   const normalizedRoot = path.resolve(sourceRoot);
   if (normalizeInternalPath(targetPath) === normalizeInternalPath(normalizedRoot) || !isWithinRoot(targetPath, normalizedRoot)) {
@@ -350,8 +388,11 @@ function prepareOpenedDestination({ sourceRoot, namespace, filePath, content, al
   if (!isWithinRoot(targetReal.value, rootReal.value)) {
     return destinationDiagnostic('destination_realpath_outside_store', targetPath);
   }
-  const existing = fs.readFileSync(targetPath, 'utf8');
-  if (allowOverwrite) return { status: 'writable', targetPath };
+  const existingBytes = fs.readFileSync(targetPath);
+  if (allowOverwrite) return expectedHash === `sha256:${stableHash(existingBytes)}`
+    ? { status: 'writable', targetPath }
+    : destinationDiagnostic('opened_destination_content_mismatch', targetPath);
+  const existing = existingBytes.toString('utf8');
   return destinationDiagnostic(
     existing === content ? 'legacy_destination_without_source_identity' : 'destination_collision',
     targetPath
@@ -440,20 +481,6 @@ function pathContainmentFailure(filePath, diagnosticCode) {
   };
 }
 
-async function copyIfChanged({ destinationPath, content }) {
-  await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
-  try {
-    const existing = await fs.promises.readFile(destinationPath, 'utf8');
-    if (existing === content) return { copied: false, reason: 'unchanged' };
-  } catch (err) {
-    if (!err || err.code !== 'ENOENT') throw err;
-  }
-  const tempPath = `${destinationPath}.tmp-${process.pid}-${Date.now()}`;
-  await fs.promises.writeFile(tempPath, content, 'utf8');
-  await fs.promises.rename(tempPath, destinationPath);
-  return { copied: true };
-}
-
 function buildDocumentFingerprint(content) {
   const text = typeof content === 'string' ? content : '';
   const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -463,14 +490,6 @@ function buildDocumentFingerprint(content) {
     contentTextLength: text.length,
     normalizedTextHash: `sha256:${stableHash(normalizedText)}`
   };
-}
-
-function hasSameContentFingerprint(record, fingerprint) {
-  if (!record || !fingerprint) return false;
-  if (record.contentHash !== fingerprint.contentHash) return false;
-  if (Number.isInteger(record.contentByteLength) && record.contentByteLength !== fingerprint.contentByteLength) return false;
-  if (Number.isInteger(record.contentTextLength) && record.contentTextLength !== fingerprint.contentTextLength) return false;
-  return true;
 }
 
 function isMarkdownFilePath(filePath) {

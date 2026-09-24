@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { SearchEngine } = require('../src/main/search-engine');
 const { createOpenedMarkdownRegistrar } = require('../src/main/opened-markdown-registrar');
+const { OwnerWorkerController } = require('../src/main/search-owner-controller');
 
 function createStore(values) {
   return {
@@ -65,6 +66,7 @@ function stableHash(value) {
 
   let searchEngine = null;
   let aliasedSearchEngine = null;
+  let owner = null;
   let success = false;
   try {
     searchEngine = new SearchEngine(createStore({
@@ -77,6 +79,14 @@ function stableHash(value) {
       disableIndexingWorkerController: true,
       smartIndexDelayMs: 60 * 60 * 1000
     });
+
+    const ingressRoot = path.join(root, 'private-intents');
+    fs.mkdirSync(ingressRoot);
+    owner = new OwnerWorkerController({ ledgerPath: path.join(indexRoot, 'smart-search.sqlite3'),
+      keywordPath: path.join(root, 'owner-keyword.sqlite'), sourceRoot: storeRoot,
+      ingressRoot, keywordTokenizerProvider: 'basic', deriveDocuments: false });
+    await owner.start();
+    searchEngine.getSaveDocumentOwner = async () => owner;
 
     const registrar = createOpenedMarkdownRegistrar({
       store: createStore({
@@ -210,6 +220,7 @@ function stableHash(value) {
     console.log('test-opened-markdown-registrar-contract: all assertions passed');
     success = true;
   } finally {
+    if (owner) await owner.shutdown();
     if (aliasedSearchEngine) aliasedSearchEngine.close();
     if (searchEngine) searchEngine.close();
     await removeTreeWithRetry(root);

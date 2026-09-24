@@ -1,0 +1,37 @@
+{
+  "review": "S16 independent provenance and external save-as review",
+  "baseCommit": "0bc5d11b404d0499ebd4e0daefc244c1f18dfada",
+  "sourceHash": "569dffbfd666b8b73b57cfa2670f75883e9c21dd652111ec30a5c60fa756f9f5",
+  "verdict": "PASS",
+  "findings": {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": []
+  },
+  "scope": [
+    "FR-DOC-035",
+    "DR-DOC-014",
+    "FR-DOC-036",
+    "FR-DOC-019",
+    "REL-DOC-009",
+    "SEC-DOC-003"
+  ],
+  "evidence": [
+    "Independent sourceHash() check matched before and after review.",
+    "S16 Node snapshot passed 23 assertions; S08 Node snapshot passed 53 assertions; git diff --check exited 0.",
+    "A seeded pre-S16 .markdown alias and contained copy reopened with the same locator and documentId, then updated through the owner without creating a second identity. Fresh .markdown registration also passed.",
+    "A second lexical junction alias shares the canonical original and documentId. Same-body alias acceptance records provenance without increasing desired revision; changed content keeps the identity and advances the owner job.",
+    "A divergent contained copy is rejected before publication and by the publisher's expected prior hash guard. The chosen external save-as file and existing renderer response remain intact on owner failure; the contained copy and private intent remain available for retry.",
+    "Hash-only aliases remain pathless until a verified source-backed reopen. Indexed-origin contract coverage exercises read-only origin validation, mismatch fallback, and redacted public responses.",
+    "Prepublication destination failure retains a body-free private registration marker for a later user-triggered retry; it is not claimed as automatic replay. No external legacy markDirty call remains on renderer external save."
+  ],
+  "closure": {
+    "issue39": "S16 implementation and review criteria pass on this source hash; close only after the shared S15 dependency completion order is satisfied.",
+    "issue38": "External save-as dependency passes, but issue #38 remains open pending actual source stdio and renderer manual IPC/window failure evidence and its independent review."
+  },
+  "limitations": [
+    "The .registration.json marker is a private retry diagnostic; a later user action initiates retry. This review does not claim automatic replay of that marker.",
+    "The focused review does not verify the remaining #38 source stdio/manual IPC completion criteria."
+  ]
+}

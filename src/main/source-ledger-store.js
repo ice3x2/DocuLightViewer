@@ -788,6 +788,25 @@ class SourceLedgerStore {
       const prior = this.getSaveIntentReceipt(current.intentId);
       if (prior) return { documentId: prior.document_id, desiredRevision: prior.desired_revision,
         jobId: prior.job_id, receiptKind: prior.receipt_kind };
+      if (existing && current.operation === 'opened_markdown' && historical.length === 0
+        && existing.content_hash === `sha256:${current.contentHash}`
+        && Object.keys(current.provenance.metadata).length === 0) {
+        const now = this._now();
+        for (const alias of current.provenance.aliases) {
+          this.upsertDocumentSourceAlias({ documentId: existing.document_id, aliasKind: 'opened_path',
+            originLexicalPathInternal: alias.lexicalOriginalPath,
+            originPathInternal: alias.canonicalOriginalPath,
+            canonicalPathHash: alias.canonicalPathHash,
+            contentHash: `sha256:${current.contentHash}` });
+        }
+        db.prepare(`INSERT INTO save_intent_acceptances(intent_id, document_id, source_id, root_fingerprint,
+          relative_locator, content_hash, desired_revision, job_id, receipt_kind, accepted_at)
+          VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, 'provenance_only', ?)`).run(current.intentId,
+          existing.document_id, source.sourceId, current.rootFingerprint,
+          locator, current.contentHash, now);
+        return { documentId: existing.document_id, desiredRevision: null,
+          jobId: null, receiptKind: 'provenance_only' };
+      }
       const acceptedMetadata = existing ? JSON.parse(existing.metadata_json || '{}') : {};
       const validTag = value => typeof value === 'string' && value.trim()
         && !/^[\[{]/.test(value.trim());
@@ -1405,6 +1424,16 @@ class SourceLedgerStore {
       WHERE a.alias_id = ?
     `).get(aliasId);
     return documentSourceAliasRowToPublic(row);
+  }
+
+  // @req DR-DOC-014 FR-DOC-035
+  hasExactDocumentSourceAlias({ documentId, originLexicalPathInternal, canonicalPathHash,
+    contentHash } = {}) {
+    if (!documentId || !originLexicalPathInternal || !canonicalPathHash || !contentHash) return false;
+    return Boolean(this.open().prepare(`SELECT 1 FROM document_source_aliases
+      WHERE document_id = ? AND origin_lexical_path_internal = ?
+        AND canonical_path_hash = ? AND content_hash = ? LIMIT 1`)
+      .get(documentId, path.resolve(originLexicalPathInternal), canonicalPathHash, contentHash));
   }
 
   // @req DR-DOC-013 CON-DOC-006 FR-TREE-009 FR-DOC-019

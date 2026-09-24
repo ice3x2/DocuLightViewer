@@ -9,6 +9,7 @@ const { pathToFileURL } = require('url');
 
 const { SearchEngine } = require('../src/main/search-engine');
 const { createOpenedMarkdownRegistrar } = require('../src/main/opened-markdown-registrar');
+const { OwnerWorkerController } = require('../src/main/search-owner-controller');
 const { NavigationHistory, WindowManager } = require('../src/main/window-manager');
 const {
   IndexedDocumentOpenError,
@@ -87,6 +88,13 @@ function listMarkdownFiles(root) {
     disableIndexingWorkerController: true,
     smartIndexDelayMs: 60 * 60 * 1000
   });
+  const ingressRoot = path.join(root, 'private-intents');
+  fs.mkdirSync(ingressRoot);
+  const owner = new OwnerWorkerController({ ledgerPath: path.join(indexRoot, 'smart-search.sqlite3'),
+    keywordPath: path.join(root, 'owner-keyword.sqlite'), sourceRoot: storeRoot,
+    ingressRoot, keywordTokenizerProvider: 'basic', deriveDocuments: false });
+  await owner.start();
+  searchEngine.getSaveDocumentOwner = async () => owner;
 
   let success = false;
   try {
@@ -468,6 +476,7 @@ function listMarkdownFiles(root) {
     console.log('test-indexed-origin-open-contract: all assertions passed');
     success = true;
   } finally {
+    await owner.shutdown();
     searchEngine.close();
     await removeTreeWithRetry(root);
   }

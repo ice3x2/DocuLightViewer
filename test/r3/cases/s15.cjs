@@ -99,7 +99,7 @@ module.exports = { async run(context) {
       'existing externally chosen save path remains editable pending S16 registration');
     ownerController.acceptPublishedSave = async input => { calls.push(input); throw new Error('owner unavailable'); };
     const failed = await saveMcpFile(store, { content: '# Failed enqueue\n', title: 'Retained' }, searchEngine);
-    context.assert(Boolean(failed) && fs.existsSync(failed) && calls.length === 9,
+    context.assert(Boolean(failed) && fs.existsSync(failed) && calls.length === 10,
       'saved file survives owner acceptance failure');
     const beforeUnavailable = fs.readdirSync(ingressRoot).filter(name => name.endsWith('.intent.json')).length;
     const unavailableSearch = { saveDocumentIngressRoot: ingressRoot,

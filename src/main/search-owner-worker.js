@@ -207,6 +207,9 @@ function acceptPublishedSave(payload) {
         try { fs.unlinkSync(intent.intentPath); } catch { /* durable receipt permits retry after cleanup failure */ }
       }
     }
+    if (accepted.receiptKind === 'provenance_only') return { saved: true, accepted: true,
+      indexingState: 'provenance_only', desiredRevision: null,
+      documentId: accepted.documentId, warnings: [] };
     return { saved: true, accepted: true, indexingState: 'queued', indexing: { state: 'queued', jobId: accepted.jobId },
       desiredRevision: accepted.desiredRevision, documentId: accepted.documentId, warnings: [] };
   } catch {

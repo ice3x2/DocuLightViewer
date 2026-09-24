@@ -290,11 +290,20 @@ function publishSaveLocked(input) {
     || fs.statSync(documentRoot).dev !== fs.statSync(privateRoot).dev) throw fail('path_policy_violation');
   if (!validLocator(sourceRelativeLocator)) throw fail('path_policy_violation');
   const destination = path.resolve(documentRoot, sourceRelativeLocator);
-  if (!contained(documentRoot, destination) || path.extname(destination).toLowerCase() !== '.md') throw fail('path_policy_violation');
+  const extension = path.extname(destination).toLowerCase();
+  const openedMarkdownLocator = extension === '.markdown'
+    && ['opened_markdown', 'update'].includes(operation)
+    && Array.isArray(input.provenance?.aliases) && input.provenance.aliases.length > 0;
+  if (!contained(documentRoot, destination)
+    || (extension !== '.md' && !openedMarkdownLocator)) throw fail('path_policy_violation');
   checkedDirectory(documentRoot, path.dirname(destination));
   checkedDirectory(privateRoot, privateRoot);
   if (fs.statSync(path.dirname(destination)).dev !== fs.statSync(privateRoot).dev) throw fail('path_policy_violation');
   if (fs.existsSync(destination) && fs.lstatSync(destination).isSymbolicLink()) throw fail('path_policy_violation');
+  if (input.expectedExistingHash != null
+    && (!/^[a-f0-9]{64}$/.test(input.expectedExistingHash)
+      || !fs.existsSync(destination)
+      || boundedFileHash(destination) !== input.expectedExistingHash)) throw fail('published_file_mismatch');
   if (input.requireVacant === true && !input.intentId && fs.existsSync(destination)) throw fail('published_file_mismatch');
   const provenance = provenanceOf(input.provenance || { aliases: [], metadata: {} });
   const identity = { operation, sourceId, rootFingerprint, sourceRelativeLocator, contentHash, provenance };
@@ -365,6 +374,8 @@ function publishSaveLocked(input) {
       const replacing = operation === 'update' && fs.existsSync(destination);
       if (!replacing && fs.existsSync(destination)) throw fail('published_file_mismatch');
       const previous = replacing ? { stat: fs.statSync(destination), hash: boundedFileHash(destination) } : null;
+      if (replacing && input.expectedExistingHash != null
+        && previous.hash !== input.expectedExistingHash) throw fail('published_file_mismatch');
       if (replacing && previous.hash === null) throw fail('published_file_mismatch');
       documentTemp = path.join(path.dirname(destination), `.${path.basename(destination)}.${crypto.randomUUID()}.tmp`);
       writeFlushed(documentTemp, contentBytes, 'document_temp_write', 'document_temp_flush', faultAt);
@@ -401,4 +412,36 @@ function publishSaveLocked(input) {
   }
 }
 
-module.exports = { publishSave, readPendingSave, withPublicationGate };
+// @req FR-DOC-035 REL-DOC-009 SEC-DOC-003
+function recordExternalRegistrationFailure({ ingressRoot, storeRoot, originLexicalPathInternal,
+  diagnosticCode }) {
+  const privateRoot = path.resolve(ingressRoot);
+  if (!fs.existsSync(privateRoot) || !fs.statSync(privateRoot).isDirectory()
+    || fs.lstatSync(privateRoot).isSymbolicLink()) throw fail('path_policy_violation');
+  const names = fs.readdirSync(privateRoot).filter(name => name.endsWith('.registration.json'));
+  if (names.length >= MAX_INTENTS) throw fail('ingress_capacity');
+  const lexical = path.resolve(originLexicalPathInternal);
+  const canonical = fs.realpathSync.native(lexical);
+  const contentHash = boundedFileHash(canonical);
+  if (!contentHash || lexical.length > 4096 || canonical.length > 4096) throw fail('invalid_identity');
+  const record = { schemaVersion: 1, retryable: true,
+    diagnosticCode: /^[a-z0-9_]{1,80}$/.test(diagnosticCode || '')
+      ? diagnosticCode : 'external_registration_failed',
+    originLexicalPathInternal: lexical, originPathInternal: canonical,
+    canonicalPathHash: canonicalPathHashFor(canonical),
+    rootFingerprint: sha(path.resolve(storeRoot)), contentHash };
+  const key = digest(record);
+  const destination = path.join(privateRoot, `${key}.registration.json`);
+  if (fs.existsSync(destination)) return destination;
+  const temp = path.join(privateRoot, `${key}.${crypto.randomUUID()}.tmp`);
+  try {
+    writeFlushed(temp, Buffer.from(JSON.stringify(record)), 'registration_write',
+      'registration_flush', undefined);
+    fs.renameSync(temp, destination);
+    directoryFlush(privateRoot);
+  } finally { if (fs.existsSync(temp)) fs.unlinkSync(temp); }
+  return destination;
+}
+
+module.exports = { publishSave, readPendingSave, withPublicationGate,
+  recordExternalRegistrationFailure };

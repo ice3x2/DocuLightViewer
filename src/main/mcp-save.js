@@ -453,9 +453,26 @@ async function saveRendererFile(store, savePath, { content, filePath }, searchEn
       operation: fs.existsSync(savePath) ? 'update' : 'opened_markdown' }, searchEngine);
   }
   await writeToDestPath(path.dirname(savePath), savePath, { content, filePath });
-  searchEngine?.markDirty?.({ filePath: savePath, content: content || null,
-    requestedBy: 'renderer.external_save' });
-  return { savedPath: savePath, indexingState: 'external_pending_registration' };
+  let registration;
+  let diagnosticCode = 'external_registration_failed';
+  try {
+    const { createOpenedMarkdownRegistrar } = require('./opened-markdown-registrar');
+    registration = await createOpenedMarkdownRegistrar({ store, searchEngine }).registerSavedExternal(savePath);
+    diagnosticCode = registration?.diagnosticCode || registration?.reason || diagnosticCode;
+  } catch (error) { diagnosticCode = error?.code || diagnosticCode; }
+  if (!registration || ['skipped', 'ambiguous'].includes(registration.status)) {
+    try {
+      const { recordExternalRegistrationFailure } = require('./index-ingress-store');
+      const storeRoot = store.get('mcpAutoSavePath', '');
+      const ingressRoot = searchEngine?.ownerController?.config?.ingressRoot
+        || searchEngine?.saveDocumentIngressRoot;
+      if (storeRoot && ingressRoot) recordExternalRegistrationFailure({ ingressRoot,
+        storeRoot, originLexicalPathInternal: savePath, diagnosticCode });
+    } catch { /* The chosen file remains saved even if private diagnostics are unavailable. */ }
+  }
+  return { savedPath: savePath,
+    indexingState: registration?.status === 'queued' || registration?.status === 'existing'
+      ? 'queued' : 'enqueue_failed' };
 }
 
 // @req FR-DOC-028
