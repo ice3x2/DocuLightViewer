@@ -277,16 +277,9 @@ export function createToolHandlers(windowManager, store, searchEngine) {
           project: project || entry?.meta?.project,
           severity,
           docType: docType || entry?.meta?.docType
-        });
-        if (savedPath && searchEngine) {
-          searchEngine.markDirty({
-            filePath: savedPath,
-            content,
-            requestedBy: 'mcp.http.open_markdown'
-          });
-        }
+        }, searchEngine);
       } catch (err) {
-        console.error('[doculight] MCP auto-save error:', err.message);
+        console.error('[doculight] MCP auto-save error');
       }
 
       if (entry) {
@@ -375,7 +368,7 @@ export function createToolHandlers(windowManager, store, searchEngine) {
           entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
         }
       } catch (err) {
-        console.error('[doculight] MCP HTTP update auto-save error:', err.message);
+        console.error('[doculight] MCP HTTP update auto-save error');
       }
 
       const action = appendMode ? 'Appended to' : 'Updated';

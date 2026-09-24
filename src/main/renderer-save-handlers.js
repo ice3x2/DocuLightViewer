@@ -1,0 +1,35 @@
+'use strict';
+const path = require('node:path');
+const { saveRendererFile } = require('./mcp-save');
+
+// @req FR-DOC-019 REL-DOC-009
+function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, store, searchEngine }) {
+  ipcMain.handle('save-as', async (event, params) => {
+    try {
+      const parentWindow = BrowserWindow.fromWebContents(event.sender);
+      const lastDir = store.get('lastSaveAsDirectory', '');
+      const defaultName = params.defaultFileName || 'untitled.md';
+      const defaultPath = lastDir ? path.join(lastDir, defaultName) : defaultName;
+      const result = await dialog.showSaveDialog(parentWindow, {
+        defaultPath, filters: [{ name: 'Markdown', extensions: ['md'] }]
+      });
+      if (result.canceled) return { success: false };
+      const savePath = result.filePath;
+      store.set('lastSaveAsDirectory', path.dirname(savePath));
+      await saveRendererFile(store, savePath, params, searchEngine);
+      return { success: true, filePath: savePath };
+    } catch (error) { return { success: false, error: error.message }; }
+  });
+
+  ipcMain.handle('quick-save', async (_event, params) => {
+    try {
+      const lastDir = store.get('lastSaveAsDirectory', '');
+      if (!lastDir) return { success: false, reason: 'no-directory' };
+      const savePath = path.join(lastDir, params.defaultFileName || 'untitled.md');
+      await saveRendererFile(store, savePath, params, searchEngine);
+      return { success: true, filePath: savePath };
+    } catch (error) { return { success: false, error: error.message }; }
+  });
+}
+
+module.exports = { registerRendererSaveHandlers };

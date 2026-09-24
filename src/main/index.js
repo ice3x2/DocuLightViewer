@@ -2948,7 +2948,7 @@ async function handleIpcMessage(socket, msg) {
             project: params.project || entry?.meta?.project,
             severity: params.severity,
             docType: params.docType || entry?.meta?.docType
-          });
+          }, searchEngine);
           if (entry && !entry.win.isDestroyed()) {
             // Send MCP document state to renderer (FR-22-001)
             entry.win.webContents.send('set-mcp-state', {
@@ -2957,18 +2957,13 @@ async function handleIpcMessage(socket, msg) {
               project: params.project || entry.meta.project || ''
             });
             if (savedPath) {
-              searchEngine.markDirty({
-                filePath: savedPath,
-                content: params.content,
-                requestedBy: 'mcp.stdio.open_markdown'
-              });
               entry.meta.savedFilePath = savedPath;
               entry.win.webContents.send('set-saved-file-path', { savedFilePath: savedPath });
               entry.win.setTitle(windowManager.formatWindowTitle(entry.meta.title, entry.meta.filePath, savedPath));
             }
           }
         } catch (err) {
-          console.error('[doculight] saveMcpFile error:', err.message);
+          console.error('[doculight] saveMcpFile error');
         }
         break;
       }
@@ -3018,7 +3013,7 @@ async function handleIpcMessage(socket, msg) {
             }
           }
         } catch (e) {
-          console.warn('[doculight] update auto-save error:', e.message);
+          console.warn('[doculight] update auto-save error');
         }
         break;
       }
@@ -4411,72 +4406,8 @@ function registerIpcHandlers() {
   });
 
   // === Save As (FR-21-002) ===
-  ipcMain.handle('save-as', async (event, params) => {
-    try {
-      const parentWindow = BrowserWindow.fromWebContents(event.sender);
-      const lastDir = store.get('lastSaveAsDirectory', '');
-      const defaultName = params.defaultFileName || 'untitled.md';
-      const defaultPath = lastDir ? path.join(lastDir, defaultName) : defaultName;
-
-      const result = await dialog.showSaveDialog(parentWindow, {
-        defaultPath,
-        filters: [{ name: 'Markdown', extensions: ['md'] }]
-      });
-
-      if (result.canceled) {
-        return { success: false };
-      }
-
-      const savePath = result.filePath;
-      store.set('lastSaveAsDirectory', path.dirname(savePath));
-
-      if (params.filePath) {
-        await fs.promises.copyFile(params.filePath, savePath);
-      } else {
-        await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
-      }
-      if (searchEngine) {
-        searchEngine.markDirty({
-          filePath: savePath,
-          content: params && typeof params.content === 'string' ? params.content : null,
-          requestedBy: 'renderer.save_as'
-        });
-      }
-
-      return { success: true, filePath: savePath };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  });
-
-  // === Quick Save (FR-21-003) ===
-  ipcMain.handle('quick-save', async (_event, params) => {
-    try {
-      const lastDir = store.get('lastSaveAsDirectory', '');
-      if (!lastDir) {
-        return { success: false, reason: 'no-directory' };
-      }
-
-      const defaultName = params.defaultFileName || 'untitled.md';
-      const savePath = path.join(lastDir, defaultName);
-
-      if (params.filePath) {
-        await fs.promises.copyFile(params.filePath, savePath);
-      } else {
-        await fs.promises.writeFile(savePath, params.content || '', 'utf-8');
-      }
-      if (searchEngine) {
-        searchEngine.markDirty({
-          filePath: savePath,
-          content: params && typeof params.content === 'string' ? params.content : null,
-          requestedBy: 'renderer.quick_save'
-        });
-      }
-
-      return { success: true, filePath: savePath };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
+  require('./renderer-save-handlers').registerRendererSaveHandlers({
+    ipcMain, dialog, BrowserWindow, store, searchEngine
   });
 
   // === Delete Auto-Saved File (FR-21-001) ===
@@ -4521,7 +4452,7 @@ function registerIpcHandlers() {
 
   // === MCP Manual Save (FR-22-001) ===
   ipcMain.handle('mcp-manual-save', async (event, params) => {
-    const result = await mcpManualSave(store, params);
+    const result = await mcpManualSave(store, params, searchEngine);
     if (result.success) {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (win) {
@@ -4531,11 +4462,6 @@ function registerIpcHandlers() {
           if (entry) entry.meta.savedFilePath = result.filePath;
         }
       }
-      searchEngine.markDirty({
-        filePath: result.filePath,
-        content: params && typeof params.content === 'string' ? params.content : null,
-        requestedBy: 'renderer.mcp_manual_save'
-      });
     }
     return result;
   });

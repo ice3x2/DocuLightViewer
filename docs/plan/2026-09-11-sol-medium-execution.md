@@ -148,3 +148,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] 작성자가 아닌 독립 검토자의 [공개 계약·보안 검토](../analysis/2026-09-25-s14-contract-review.json)와 [TDD·호환 검토](../analysis/2026-09-25-s14-tdd-review.json)를 소스 해시 `217cef8640c912c70a463d3eb258fa2c23138d94f2ecf9cf35b47048c9a10939`에서 마쳤다. 차단 결함 0건이다.
 - [x] #37 완료 판정, 이슈 체크박스·댓글·close, 최종 SHA 및 [S15 #38](https://github.com/ice3x2/DocuLightViewer/issues/38) 인계.
 - 현재 S14의 공개 `save_document` 경로만 owner를 사용한다. 다른 legacy producer의 owner 전환 및 full app session은 S15/S23/S26 후속 범위이며 이 작업의 완료로 주장하지 않는다.
+
+## S15 진행 기록 — 외부 save-as 의존성으로 #38 미완료
+
+- 시작 SHA `81cfbda20ba53d87335a30ba93289d24c0739104`, 격리 worktree `DocuLightViewer-r3`. 관련 요구사항 `FR-DOC-019`, `FR-DOC-035`, `IR-MCP-018`, `IR-MCP-019`, `REL-DOC-009`, `SEC-DOC-003`의 Stability 차단 없음.
+- [x] [S15 RED/GREEN 및 producer 호출표](../analysis/2026-09-25-s15-producer-evidence.md): MCP HTTP/source open·update, renderer 수동 저장 및 설정 저장소 내부 save-as/quick-save를 공용 durable publisher와 owner accept 경로에 연결했다. 실제 HTTP/renderer entrypoint와 real owner의 2회 update revision·job·SQLite hash를 검증했다. Owner 시작 실패 시 private intent 보존과 Windows 임시 파일 점유 retry도 assertion RED 뒤 수정했다. Node ABI 137 S15 25 assertions, S14 20 assertions와 MCP tool/HTTP parity·origin/registrar 회귀가 통과했다.
+- [x] 작성자가 아닌 독립 검토자의 [producer·공개 계약 검토](../analysis/2026-09-25-s15-contract-review.json)와 [TDD·복구 검토](../analysis/2026-09-25-s15-tdd-review.json)를 소스 해시 `014cb0aa845bbb12f6e5cdbfcb3783f4b821d094c06d17ad7cc5a763911d65bc`에서 마쳤다. 현재 구현 부분은 커밋 가능하되 #38 전체는 미완료라는 공통 판정이다.
+- [ ] 외부 위치를 사용자가 고르는 renderer save-as는 파일 위치를 유지하지만 아직 S14 owner의 설정 저장소 root로 durable accept되지 않는다. [S16 #39](https://github.com/ice3x2/DocuLightViewer/issues/39)에서 외부 원본과 설정 저장소 복사본 association을 구현·검증한 뒤 기존 외부 markDirty enqueue를 제거한다. 실제 source stdio와 renderer 수동 저장 IPC 진입점·window continuity 증거도 보강한다. 해당 end-to-end 증거와 독립 검토 전까지 #38은 열린 상태로 둔다.

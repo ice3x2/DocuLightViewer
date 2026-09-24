@@ -305,7 +305,62 @@ async function writeContainedMarkdown(basePath, destDir, destPath, content) {
  * @param {{ content?: string, filePath?: string, title?: string, noSave?: boolean, project?: string }} opts
  * @returns {Promise<string|null>} Saved file path, or null if skipped
  */
-async function saveMcpFile(store, { content, filePath, title, noSave, project, severity, docType }) {
+async function publishMcpSave(store, destPath, { content, filePath, operation }, searchEngine) {
+  const basePath = store.get('mcpAutoSavePath', '');
+  const bytes = filePath ? await fs.promises.readFile(filePath) : Buffer.from(content || '', 'utf8');
+  await fs.promises.mkdir(basePath, { recursive: true });
+  let owner = searchEngine?.ownerController;
+  if (!owner && searchEngine?.getSaveDocumentOwner) {
+    try { owner = await searchEngine.getSaveDocumentOwner(basePath); }
+    catch { owner = null; }
+  }
+  const storeRoot = realpath(basePath);
+  const ingressRoot = owner?.config?.ingressRoot || searchEngine?.saveDocumentIngressRoot
+    || path.join(path.dirname(storeRoot),
+      `.doculight-save-intents-${stableHash(storeRoot).slice(0, 16)}`);
+  await fs.promises.mkdir(ingressRoot, { recursive: true });
+  const lexicalRoot = path.resolve(basePath);
+  const rootKey = process.platform === 'win32' ? lexicalRoot.toLowerCase() : lexicalRoot;
+  const sourceId = `src_${stableHash(`${rootKey}\0${stableHash(lexicalRoot)}`).slice(0, 24)}`;
+  const rootFingerprint = stableHash(path.resolve(storeRoot));
+  const contentHash = crypto.createHash('sha256').update(bytes).digest('hex');
+  const provenance = { aliases: [], metadata: {} };
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const candidate = operation === 'update' || attempt === 0 ? destPath : withCollisionSuffix(destPath, attempt + 1);
+    const sourceRelativeLocator = path.relative(lexicalRoot, candidate).replace(/\\/g, '/');
+    let publication;
+    let published = false;
+    try {
+      publication = await publishSave({ storeRoot, ingressRoot, contentBytes: bytes, contentHash,
+        operation, requireVacant: operation !== 'update', sourceId, rootFingerprint,
+        sourceRelativeLocator, provenance });
+      published = true;
+    } catch (error) {
+      if (error.code === 'published_file_mismatch' && operation !== 'update') continue;
+      if (operation === 'update' && attempt < 4
+        && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) {
+        await new Promise(resolve => setTimeout(resolve, 20 * (attempt + 1)));
+        continue;
+      }
+      if (!error.published) throw error;
+      published = true;
+    }
+    if (!published) continue;
+    const savedPath = path.join(storeRoot, sourceRelativeLocator);
+    let accepted;
+    if (publication?.intentId) {
+      try { accepted = await owner.acceptPublishedSave({ storeRoot, ingressRoot,
+        intentId: publication.intentId, operation, sourceId, rootFingerprint,
+        sourceRelativeLocator, contentHash, provenance }); }
+      catch { /* published file and private intent remain retryable */ }
+    }
+    return { savedPath, indexingState: accepted?.accepted && accepted.indexingState === 'queued'
+      ? 'queued' : 'enqueue_failed', jobId: accepted?.accepted ? accepted.indexing?.jobId : undefined };
+  }
+  throw new Error('Could not allocate a unique MCP filename.');
+}
+
+async function saveMcpFile(store, { content, filePath, title, noSave, project, severity, docType }, searchEngine) {
   if (noSave === true) return null;
   const enabled = store.get('mcpAutoSave', false);
   const basePath = store.get('mcpAutoSavePath', '');
@@ -315,11 +370,11 @@ async function saveMcpFile(store, { content, filePath, title, noSave, project, s
   const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity, docType });
 
   try {
-    const saved = await writeToDestPath(destDir, destPath, { filePath, content });
-    console.log(`[doculight] MCP auto-save: ${saved}`);
-    return saved;
+    const saved = await publishMcpSave(store, destPath, { filePath, content,
+      operation: 'opened_markdown' }, searchEngine);
+    return saved.savedPath;
   } catch (err) {
-    console.error(`[doculight] MCP auto-save failed: ${err.message}`);
+    console.error('[doculight] MCP auto-save failed.');
     return null;
   }
 }
@@ -338,11 +393,11 @@ async function saveMcpUpdatedContent(store, entry, params = {}, searchEngine) {
 
   let savedPath = entry.meta.savedFilePath || null;
   if (savedPath) {
-    if (content) {
-      await fs.promises.writeFile(savedPath, content, 'utf-8');
-    } else if (sourceFilePath) {
-      await fs.promises.copyFile(sourceFilePath, savedPath);
-    }
+    const input = { content, filePath: content ? undefined : sourceFilePath };
+    const configuredRoot = store.get('mcpAutoSavePath', '');
+    savedPath = (configuredRoot && isWithinOrEqual(savedPath, configuredRoot)
+      ? await publishMcpSave(store, savedPath, { ...input, operation: 'update' }, searchEngine)
+      : await saveRendererFile(store, savedPath, input, searchEngine)).savedPath;
   } else {
     savedPath = await saveMcpFile(store, {
       content,
@@ -352,18 +407,11 @@ async function saveMcpUpdatedContent(store, entry, params = {}, searchEngine) {
       project: params.project || entry.meta.project,
       severity: params.severity || entry.meta.severity,
       docType: params.docType || entry.meta.docType
-    });
+    }, searchEngine);
   }
 
   if (savedPath) {
     entry.meta.savedFilePath = savedPath;
-    if (searchEngine && typeof searchEngine.markDirty === 'function') {
-      searchEngine.markDirty({
-        filePath: savedPath,
-        content: content || null,
-        requestedBy: 'mcp.update_markdown'
-      });
-    }
   }
 
   return { savedPath, skipped: !savedPath };
@@ -376,7 +424,7 @@ async function saveMcpUpdatedContent(store, entry, params = {}, searchEngine) {
  * @param {{ content?: string, filePath?: string, title?: string, project?: string }} opts
  * @returns {Promise<{success: boolean, filePath?: string, errorKey?: string, errorDetail?: string}>}
  */
-async function mcpManualSave(store, { content, filePath, title, project, severity, docType }) {
+async function mcpManualSave(store, { content, filePath, title, project, severity, docType }, searchEngine) {
   const basePath = store.get('mcpAutoSavePath', '');
   if (!basePath) {
     return { success: false, errorKey: 'viewer.saveErrorNoDir' };
@@ -386,15 +434,28 @@ async function mcpManualSave(store, { content, filePath, title, project, severit
   const { destDir, destPath } = buildDestPath(basePath, subDirFormat, { filePath, title, content, project, severity, docType });
 
   try {
-    const saved = await writeToDestPath(destDir, destPath, { filePath, content });
-    console.log(`[doculight] MCP manual save: ${saved}`);
-    return { success: true, filePath: saved };
+    const saved = await publishMcpSave(store, destPath, { filePath, content,
+      operation: 'opened_markdown' }, searchEngine);
+    return { success: true, filePath: saved.savedPath };
   } catch (err) {
     if (err.code === 'EACCES' || err.code === 'EPERM') {
       return { success: false, errorKey: 'viewer.saveErrorPermission' };
     }
-    return { success: false, errorKey: 'viewer.saveErrorGeneric', errorDetail: err.message };
+    return { success: false, errorKey: 'viewer.saveErrorGeneric' };
   }
+}
+
+// @req FR-DOC-019 REL-DOC-009
+async function saveRendererFile(store, savePath, { content, filePath }, searchEngine) {
+  const basePath = store.get('mcpAutoSavePath', '');
+  if (basePath && isWithinOrEqual(savePath, basePath)) {
+    return publishMcpSave(store, savePath, { content, filePath,
+      operation: fs.existsSync(savePath) ? 'update' : 'opened_markdown' }, searchEngine);
+  }
+  await writeToDestPath(path.dirname(savePath), savePath, { content, filePath });
+  searchEngine?.markDirty?.({ filePath: savePath, content: content || null,
+    requestedBy: 'renderer.external_save' });
+  return { savedPath: savePath, indexingState: 'external_pending_registration' };
 }
 
 // @req FR-DOC-028
@@ -739,5 +800,6 @@ module.exports = {
   saveMcpFile,
   saveMcpUpdatedContent,
   mcpManualSave,
+  saveRendererFile,
   saveDocumentToStore
 };

@@ -1,0 +1,31 @@
+{
+  "issue": 38,
+  "requirements": [
+    "FR-DOC-019",
+    "FR-DOC-035",
+    "IR-MCP-018",
+    "IR-MCP-019",
+    "REL-DOC-009",
+    "SEC-DOC-003"
+  ],
+  "baseCommit": "81cfbda20ba53d87335a30ba93289d24c0739104",
+  "sourceHash": "014cb0aa845bbb12f6e5cdbfcb3783f4b821d094c06d17ad7cc5a763911d65bc",
+  "verdict": "PASS_PARTIAL",
+  "safeToCommitPartial": true,
+  "issueComplete": false,
+  "findings": [],
+  "review": {
+    "tdd": "The initial open, extracted renderer IPC, external existing path, owner-start failure, and transient Windows replace cases each have a reported semantic RED assertion before their changes. The frozen S15 case passes 25 assertions. Existing parity assertions were changed from legacy dirty counts to zero legacy enqueue plus exact private intent counts; they were not removed or weakened.",
+    "durability": "Configured-store open, update, renderer manual, save-as, and quick-save use the S08 atomic publisher. The owner-absent case now retains a body-free intent and final file without markDirty; unsafe ingress fails before file publication. Owner rejection after publish retains the file. The producer never supplies desiredRevision. A real owner open followed by two updates preserves documentId and stores the final desired revision, content hash, and job ID in the owner ledger. A bounded EPERM retry preserves final update bytes.",
+    "compatibility": "HTTP open and update exercise the real handler and retain windowId and saved content. The indexed-origin regression passes for read-only documentId open. Source, HTTP, and bundle tool parity tests pass; the evidence records a rebuilt bundle without tracked drift. No product-main ledger write was added to the configured-store paths.",
+    "scope": "This is a safe incremental commit, not completion of issue 38. External renderer save-as still uses the legacy markDirty path until S16 issue 39 provides an origin-to-configured-store copy. Actual source stdio and renderer manual IPC entrypoints, plus window continuity under post-publish failure, still need end-to-end S15 evidence. Keep issue 38 open."
+  },
+  "verification": {
+    "s15": "PASS assertions=25",
+    "s14": "PASS assertions=20",
+    "mcpHttpSaveParity": "PASS",
+    "mcpToolParity": "PASS",
+    "indexedOriginOpen": "PASS",
+    "openedMarkdownRegistrar": "PASS"
+  }
+}

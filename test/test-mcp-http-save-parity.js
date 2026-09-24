@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { saveMcpUpdatedContent, saveDocumentToStore } = require('../src/main/mcp-save');
 const { parseFrontmatter } = require('../src/main/frontmatter');
@@ -87,6 +88,10 @@ function listMdFiles(dir) {
 (async () => {
   const { createToolHandlers, TOOLS } = await import('../src/main/mcp-http.mjs');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-http-save-'));
+  const producerIngress = path.join(path.dirname(tmpDir),
+    `.doculight-save-intents-${crypto.createHash('sha256').update(tmpDir).digest('hex').slice(0, 16)}`);
+  const pendingCount = () => fs.existsSync(producerIngress)
+    ? fs.readdirSync(producerIngress).filter(name => name.endsWith('.intent.json')).length : 0;
   const aliasedStoreTarget = path.join(tmpDir, 'aliased-store-target');
   const aliasedStorePath = path.join(os.tmpdir(), `doculight-http-save-alias-${process.pid}-${Date.now()}`);
   const escapedStoreRoot = path.join(tmpDir, 'escaped-store-root');
@@ -442,7 +447,8 @@ existing git frontmatter redaction fixture`;
     const openedFiles = listMdFiles(tmpDir).filter((file) => fs.readFileSync(file, 'utf-8').includes('Initial body'));
     assert.strictEqual(openedFiles.length, 1, 'HTTP open_markdown saves one file');
     assert(openedFiles[0].includes(`${path.sep}ProjectParity${path.sep}guide${path.sep}`), 'HTTP open_markdown passes project/docType into save path');
-    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument + 1, 'HTTP open_markdown marks search index dirty after save');
+    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument, 'HTTP open_markdown does not invoke legacy enqueue');
+    assert.strictEqual(pendingCount(), 1, 'HTTP open_markdown records a durable pending intent when owner is unavailable');
 
     const frontmatterOnlyResult = await handlers.open_markdown({
       content: '---\nproject: FromFrontmatter\ndocType: guide\n---\n# From Frontmatter\n\nBody',
@@ -452,7 +458,8 @@ existing git frontmatter redaction fixture`;
     assert(frontmatterOnlyId, 'frontmatter-only open_markdown returns a window id');
     const frontmatterFiles = listMdFiles(tmpDir).filter((file) => file.includes(`${path.sep}FromFrontmatter${path.sep}guide${path.sep}`));
     assert.strictEqual(frontmatterFiles.length, 1, 'HTTP open_markdown uses frontmatter project/docType when explicit metadata is absent');
-    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument + 2, 'frontmatter-only open_markdown marks search index dirty after save');
+    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument, 'frontmatter-only open avoids legacy enqueue');
+    assert.strictEqual(pendingCount(), 2, 'frontmatter-only open records a separate durable intent');
 
     await handlers.update_markdown({
       windowId,
@@ -462,7 +469,8 @@ existing git frontmatter redaction fixture`;
     const appendedContent = fs.readFileSync(openedFiles[0], 'utf-8');
     assert(appendedContent.includes('Initial body'), 'appendMode persistence keeps previous canonical content');
     assert(appendedContent.includes('Append fragment'), 'appendMode persistence includes appended content');
-    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument + 3, 'HTTP update_markdown marks dirty after saved update');
+    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument, 'HTTP update avoids legacy enqueue');
+    assert.strictEqual(pendingCount(), 3, 'HTTP update records a durable intent');
 
     await handlers.update_markdown({
       windowId,
@@ -470,7 +478,8 @@ existing git frontmatter redaction fixture`;
       noSave: true
     });
     assert.strictEqual(fs.readFileSync(openedFiles[0], 'utf-8'), appendedContent, 'noSave update does not touch saved file');
-    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument + 3, 'noSave update does not mark dirty');
+    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument, 'noSave update does not invoke legacy enqueue');
+    assert.strictEqual(pendingCount(), 3, 'noSave update does not create an intent');
 
     const sourceFile = path.join(tmpDir, 'source-update.md');
     fs.writeFileSync(sourceFile, '# File Update\n\nFile body saved from filePath.', 'utf-8');
@@ -481,7 +490,8 @@ existing git frontmatter redaction fixture`;
     });
     const filePathUpdateContent = fs.readFileSync(openedFiles[0], 'utf-8');
     assert(filePathUpdateContent.includes('File body saved from filePath'), 'filePath update persists canonical file content');
-    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument + 4, 'filePath update marks dirty after saved update');
+    assert.strictEqual(searchEngine.dirtyCount, dirtyAfterSaveDocument, 'filePath update avoids legacy enqueue');
+    assert.strictEqual(pendingCount(), 4, 'filePath update records a durable intent');
 
     const mainSource = fs.readFileSync(path.join(__dirname, '../src/main/index.js'), 'utf-8');
     const httpSource = fs.readFileSync(path.join(__dirname, '../src/main/mcp-http.mjs'), 'utf-8');
@@ -503,7 +513,8 @@ existing git frontmatter redaction fixture`;
     const sharedResult = await saveMcpUpdatedContent(store, sharedEntry, {}, sharedSearchEngine);
     assert(sharedResult.savedPath.includes(`${path.sep}ProjectParity${path.sep}guide${path.sep}`), 'shared stdio/http helper resolves same project/docType fixture path');
     assert(fs.readFileSync(sharedResult.savedPath, 'utf-8').includes('Same canonical content'), 'shared helper persists canonical content for stdio/http parity fixture');
-    assert.strictEqual(sharedSearchEngine.dirtyCount, 1, 'shared helper marks dirty after saved parity fixture');
+    assert.strictEqual(sharedSearchEngine.dirtyCount, 0, 'shared helper avoids legacy enqueue after saved parity fixture');
+    assert.strictEqual(pendingCount(), 5, 'shared helper records a durable intent');
 
     const disabledStore = {
       get(key, defaultValue) {
@@ -537,6 +548,7 @@ existing git frontmatter redaction fixture`;
     try { fs.unlinkSync(aliasedStorePath); } catch {}
     try { fs.unlinkSync(escapedStoreLink); } catch {}
     fs.rmSync(escapedStoreTarget, { recursive: true, force: true });
+    fs.rmSync(producerIngress, { recursive: true, force: true });
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
