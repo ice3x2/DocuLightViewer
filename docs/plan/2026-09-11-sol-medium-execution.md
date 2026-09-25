@@ -264,11 +264,11 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S23b 집중 테스트와 실제 DB 증거](../analysis/2026-09-25-s23b-owner-clear-evidence.md): 확인 없는 clear를 차단하고, 확인된 clear를 장기 owner의 검증된 백업·bounded 삭제 경로로 옮겼다. 삭제 트랜잭션 안의 job-ID 영수증으로 commit 이후 원장 갱신 실패와 재시작을 구분한다. Settings 진행·취소·재빌드 표시, 공개 검색 응답의 진행 중 유지, S23/S20/S19/S17 및 같은 sourceHash의 실제 S26 25 assertions를 확인했다. 독립 검토에서 clear 경로의 Critical/High 구현 결함은 0건이다. SourceHash `3a236a61ed7cf67c3d0a61a804c3976b21f3cfc994dbbeee76d5d877ff9f0b0a`.
 - [x] 사용자는 기존 `auto_vacuum=NONE` DB의 물리적 compact 대신 정직한 `compacted:false`, `compact-rebuild-required` 안내를 선택했다. [FR-DOC-019 AC-10](../spec/60.document-persistence.srs.md)에 쓰기 없는 모드 검사와 자동 rebuild 금지를 반영하고 독립 검토 후 `8c3651aed36d4d1450a596df3472a881965c0993`으로 게시했다.
-- [ ] #61은 계속 OPEN이다. 승인된 compact 안내와 confirmed clear에 대한 실제 Electron Settings IPC, 대용량 WAL/DB 응답성·checksum·단일 writer 감사 증거를 연결하고 독립 검토 후 닫는다. #46 및 전체 36개 실행 이슈의 완료율은 그전까지 늘리지 않는다.
+- [x] #61은 [최종 증거](../analysis/2026-09-25-s23b-final-evidence.md)에서 승인된 compact 안내, confirmed clear의 실제 Electron Settings IPC, 32 MiB WAL/DB 응답성, 논리 checksum, 단일 writer 감사와 두 독립 검토를 확인했다. `983b76051842667e86d787c09a7e58c11f11e401`으로 게시하고 닫았다. 물리적 DB/WAL 파일 SHA를 보존 증거로 주장하지 않는다.
 
 ## S23c 진행 기록 — contained 등록과 제품 writer 감사
 
 - [x] [S23c 실제 파일·제품 감사 증거](../analysis/2026-09-25-s23c-owner-writer-audit.md): `FR-DOC-019 AC-10`, `FR-DOC-035 AC-7/13`, `DR-DOC-014`에 따라 contained 파일의 opt-in 등록을 owner의 `adopt_contained`로 전환했다. 실제 junction alias는 같은 문서 ID를 유지하고 별도 canonical 파일의 동일한 bytes는 duplicate_candidate로 처리한다. 링크 대상 교체 경쟁과 private `rebuild_index`의 구형 writer 경로를 semantic RED 뒤 수정했다. 재시작 후 문서 ID와 작업 수를 유지하고, 기존 파일은 다시 쓰지 않는다.
 - [x] [원시 SQLite open 감사](../analysis/2026-09-25-s23c-sqlite-open-raw.jsonl)와 실제 Electron S26 36 assertions: 두 제품 PID에서 source/keyword DB 쓰기 open은 장기 owner 4건, main 0건, 짧은 worker 0건이었다. Settings·viewer·linked import·8개 공개 MCP 도구·private rebuild 경로를 호출했고, 진행 중 retry는 `job-in-progress`로 거절됐다. S23 45/S19 47/S17 32/S25 16과 S20 단독 21을 확인했으며 S20 병렬 시작시간 실패도 증거에 남겼다. SourceHash `b65556251551425e41a898f1f276e21d7107a2d7bf5b2d4f037b89054c84fb15`.
 - [x] #62는 두 독립 검토에서 차단 결함 0건을 확인하고 `565a8562cc2045564519452ee57f7e4c572b115f`으로 게시한 뒤 닫았다. 구형 short worker/controller는 실제 호환·package-smoke 호출자가 남아 있어 죽은 코드로 단정하여 삭제하지 않았다.
-- [ ] #46 전체 완료는 보류한다. #61의 별도 제품 응답성·checksum gate와 #43/#44/#45의 각 수용 기준이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
+- [ ] #46 전체 완료는 보류한다. #60/#61/#62 하위 작업은 닫혔지만 #43/#44/#45의 각 수용 기준과 상위 전환 조건이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
