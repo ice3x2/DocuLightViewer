@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 완료된 마지막 실행 이슈 [S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49) · 다음 [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50). S20~S23은 검토된 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44). S22~S23은 검토된 부분 커밋 뒤에도 열린 상태다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `22/36` 완료(S01~S19, S24~S26)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S20~S23은 제품 전체 writer·상태·성능 게이트가 남아 열린 상태다. 다음은 [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50)의 독립 통합 검토다.
+실행 이슈는 `23/36` 완료(S01~S20, S24~S26)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S21~S23은 상태 UX·성능·상위 전환 게이트가 남아 열린 상태다. 다음은 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)의 남은 제품 UX 검증이다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -271,4 +271,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S23c 실제 파일·제품 감사 증거](../analysis/2026-09-25-s23c-owner-writer-audit.md): `FR-DOC-019 AC-10`, `FR-DOC-035 AC-7/13`, `DR-DOC-014`에 따라 contained 파일의 opt-in 등록을 owner의 `adopt_contained`로 전환했다. 실제 junction alias는 같은 문서 ID를 유지하고 별도 canonical 파일의 동일한 bytes는 duplicate_candidate로 처리한다. 링크 대상 교체 경쟁과 private `rebuild_index`의 구형 writer 경로를 semantic RED 뒤 수정했다. 재시작 후 문서 ID와 작업 수를 유지하고, 기존 파일은 다시 쓰지 않는다.
 - [x] [원시 SQLite open 감사](../analysis/2026-09-25-s23c-sqlite-open-raw.jsonl)와 실제 Electron S26 36 assertions: 두 제품 PID에서 source/keyword DB 쓰기 open은 장기 owner 4건, main 0건, 짧은 worker 0건이었다. Settings·viewer·linked import·8개 공개 MCP 도구·private rebuild 경로를 호출했고, 진행 중 retry는 `job-in-progress`로 거절됐다. S23 45/S19 47/S17 32/S25 16과 S20 단독 21을 확인했으며 S20 병렬 시작시간 실패도 증거에 남겼다. SourceHash `b65556251551425e41a898f1f276e21d7107a2d7bf5b2d4f037b89054c84fb15`.
 - [x] #62는 두 독립 검토에서 차단 결함 0건을 확인하고 `565a8562cc2045564519452ee57f7e4c572b115f`으로 게시한 뒤 닫았다. 구형 short worker/controller는 실제 호환·package-smoke 호출자가 남아 있어 죽은 코드로 단정하여 삭제하지 않았다.
-- [ ] #46 전체 완료는 보류한다. #60/#61/#62 하위 작업은 닫혔지만 #43/#44/#45의 각 수용 기준과 상위 전환 조건이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
+- [ ] #46 전체 완료는 보류한다. #60/#61/#62 하위 작업과 #43은 닫혔지만 #44/#45의 각 수용 기준과 상위 전환 조건이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
+
+## S20 사후 완료 기록 — 제품 시작·상태·복구 경계
+
+- [x] [S20 제품·복구 증거](../analysis/2026-09-25-s20-startup-evidence.md): 장기 owner의 독점 잠금, 종료/PID 재사용 복구, abandoned `.recovery` sidecar의 fail-closed 처리와 명시적 운영자 절차, READY 후 32개 이하 페이지로 3,101개 modern 및 3,101개 legacy 작업 재개를 확인했다. 실패·취소 때 이전 committed generation ID·논리 checksum·본문 검색 결과가 유지된다.
+- [x] [최종 실제 Electron 원시 결과](../analysis/2026-09-25-s20-s26-7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf-raw.json): 제품 시작·Settings 상태·포커스·viewer 종료·재시작에서 main 쓰기 open 0건이며 상태·포커스·종료 전후 main SQLite open 카운터가 증가하지 않았다. 활성 구형 작업의 cached status도 원장 조회 없이 기존 상태 형태를 유지한다. SourceHash `7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf`; S20 23/S21 23/S24 29/실제 S26 49 assertions 통과. 두 독립 검토의 차단 결함은 0건이다.
+- [x] #43은 `2e72de704865f84313f3e2cc6e4973ce842e8740`으로 게시하고 닫았다. #44/#45/#46 및 별도 릴리스 게이트는 남아 있으며 요구사항을 증거 없이 verified로 승급하지 않았다.
