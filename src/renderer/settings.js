@@ -400,7 +400,7 @@
       result.cleared === false ||
       result.cancelled === false;
     if (failed) {
-      const reason = result.reason === 'compact-rebuild-required'
+      const reason = ['compact-rebuild-required', 'compact-deferred'].includes(result.reason)
         ? t('settings.indexingCompactRebuildRequired')
         : formatIndexingDiagnostic(result.message || result.error || result.reason || 'not-available');
       return {

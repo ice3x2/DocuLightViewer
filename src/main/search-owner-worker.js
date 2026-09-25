@@ -417,8 +417,11 @@ function beginMaintenance(operation, requestedBy = 'settings.rebuild') {
     started: false, scheduled: false, reason: 'job-in-progress' };
   if (maintenanceJob || draining || !sourceRoot || !ledger || !keyword) return {
     started: false, scheduled: false, reason: 'job-in-progress' };
-  if (operation === 'compact') return { started: false, scheduled: false, compacted: false,
-    reason: 'compact-rebuild-required' };
+  if (operation === 'compact') {
+    const autoVacuumMode = keyword.open().pragma('auto_vacuum', { simple: true });
+    return { started: false, scheduled: false, compacted: false,
+      reason: autoVacuumMode === 0 ? 'compact-rebuild-required' : 'compact-deferred' };
+  }
   const kind = operation === 'clear' ? 'clear' : 'rebuild';
   const id = `keyword-${kind}-${crypto.randomUUID()}`;
   ledger.enqueueIndexJob({ jobId: id, jobType: `keyword_${kind}`, status: 'queued', requestedBy });

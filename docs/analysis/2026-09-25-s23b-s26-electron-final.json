@@ -1,0 +1,130 @@
+{
+  "sourceHash": "7c8fba9a1ed721db65373a4bf424d8e494ca10f4df4310bfaa76988a4c34be38",
+  "marker": "s26daffa50451553d4c",
+  "oldMarker": "zzzxq84e3159e1d8d5b75",
+  "newMarker": "qqqjz9f890272b3d5af2f",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s26daffa50451553d4c",
+  "firstSha256": "6f5bea776f29502ea269ed94f7d917b48eaad6583dc7b2761b947af68467eff9",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 63344,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "249d2724d4ca5945eebe216da031e2a7cc21f6acaa1e4bf9e276cbd5c2af8793",
+      "port": 32581
+    },
+    {
+      "pid": 25764,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "249d2724d4ca5945eebe216da031e2a7cc21f6acaa1e4bf9e276cbd5c2af8793",
+      "port": 32581
+    }
+  ],
+  "documentId": "doc_f41287ce8c2dfe137983d087",
+  "sourceRelativePath": "131209884_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_952e4c71025a7790a5a9be5117635dd3b7accce9d7ea8d0897fad7475908a5ce",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_e2a3fbec0a54182b37a7ec69",
+  "aliasCanonicalHash": "96042b32f1a647e5594b5c1eba5353a4898221a141010d0dca4af699335e1ccc",
+  "publicToolsCalled": 8,
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "476ff1fbd8ffd302cf4a2aa9f1f908ff5561317c2a390f66f9c97777530dbd05",
+  "containedDocumentId": "doc_5c99f98c37d66f6fe3d905b2",
+  "cancelJobId": "job_8042a02933e766dc45d3c6b2cde1b8e1f85b0b0cb415e23571db9010badc9b65",
+  "newSha256": "87c22771291b4c6bb8ed288f968611e2cda90c706f6472d17d3b795a62602e92",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "87c22771291b4c6bb8ed288f968611e2cda90c706f6472d17d3b795a62602e92",
+  "externalSha256AfterCancel": "87c22771291b4c6bb8ed288f968611e2cda90c706f6472d17d3b795a62602e92",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 32582.206700000002,
+  "oldSearchText": "No results found for \"zzzxq\". (5 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "87c22771291b4c6bb8ed288f968611e2cda90c706f6472d17d3b795a62602e92",
+  "recoveredExternalSha256": "87c22771291b4c6bb8ed288f968611e2cda90c706f6472d17d3b795a62602e92",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ],
+  "settingsCompact": {
+    "reason": "compact-rebuild-required",
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "sourceAliasCount": 4
+  },
+  "settingsClear": {
+    "declinedReason": "confirmation-declined",
+    "started": true,
+    "terminalStatus": "completed",
+    "backupCount": 1,
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "2f0339802623cd67317fde3a345d9540fa182f4d96824b99797fe72984f929c8",
+    "backupLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "beforeGeneration": "incremental",
+    "afterGeneration": null,
+    "sourceDocumentCount": 5,
+    "sourceAliasCount": 4,
+    "sourceMetadataSha256": "6b9f42d3899ad928e7f609bc2ea7ab23dfe9f48028fadfe424def944db30f5a0",
+    "preexistingJobCount": 7
+  },
+  "settingsMaintenance": {
+    "compact": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "compact-rebuild-required"
+    },
+    "privateRebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "retry": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "rebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "clear": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    }
+  }
+}

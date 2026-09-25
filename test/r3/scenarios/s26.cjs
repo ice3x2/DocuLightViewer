@@ -87,13 +87,30 @@ function privateAction(ipcPath, action, params = {}) {
 
 function ledgerSnapshot(executable, root, ledgerPath) {
   const code = `const D=require('better-sqlite3');const db=new D(process.env.DOCULIGHT_R3_LEDGER_READ_PATH,{readonly:true,fileMustExist:true});
-    const docs=db.prepare('SELECT document_id,relative_path,desired_revision,completed_revision,dirty,project,category,document_tags_json,metadata_json FROM documents').all();
+    const docs=db.prepare('SELECT document_id,source_id,relative_path,desired_revision,completed_revision,dirty,project,category,document_tags_json,metadata_json FROM documents').all();
     const aliases=db.prepare('SELECT document_id,origin_lexical_path_internal,origin_path_internal,canonical_path_hash FROM document_source_aliases').all();
     const jobs=db.prepare('SELECT job_id AS jobId,document_id,status FROM index_jobs').all();
     console.log(JSON.stringify({docs,aliases,jobs}));db.close();`;
   const result = spawnSync(executable, ['-e', code], { cwd: root, encoding: 'utf8', timeout: 5000,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DOCULIGHT_R3_LEDGER_READ_PATH: ledgerPath } });
   if (result.status !== 0) throw new Error(`S26_SETUP_LEDGER_READ ${result.stderr || result.error?.message}`);
+  return JSON.parse(result.stdout.trim());
+}
+
+function keywordSnapshot(executable, root, keywordPath, store, marker) {
+  const code = `const K=require('./src/main/search-sqlite-store').SQLiteKeywordIndex;
+    const index=new K({dbPath:process.env.DOCULIGHT_R3_KEYWORD_READ_PATH,
+      sourceRoot:process.env.DOCULIGHT_R3_STORE_ROOT,readOnly:true});
+    const db=index.open();const generation=index.getCommittedGeneration();
+    const hitCount=index.search(process.env.DOCULIGHT_R3_MARKER).length;
+    const documentCount=db.prepare('SELECT COUNT(*) AS count FROM keyword_documents').get().count;
+    const integrity=db.pragma('quick_check(1)',{simple:true});
+    console.log(JSON.stringify({generation:generation?.generationId||null,hitCount,documentCount,integrity}));
+    index.close();`;
+  const result = spawnSync(executable, ['-e', code], { cwd: root, encoding: 'utf8', timeout: 5000,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DOCULIGHT_R3_KEYWORD_READ_PATH: keywordPath,
+      DOCULIGHT_R3_STORE_ROOT: store, DOCULIGHT_R3_MARKER: marker } });
+  if (result.status !== 0) throw new Error(`S26_SETUP_KEYWORD_READ ${result.stderr || result.error?.message}`);
   return JSON.parse(result.stdout.trim());
 }
 
@@ -391,11 +408,66 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     evidence.recoveredExternalSha256 = sha(fs.readFileSync(externalAFile));
     evidence.recoveredJobStates = recovered.jobs.filter(job => job.document_id === opened.document_id)
       .map(job => job.status);
+    const keywordPath = path.join(userData, 'index', 'search-index.sqlite3');
+    const beforeCompact = { keyword: keywordSnapshot(executable, root, keywordPath, store, newer),
+      ledger: ledgerSnapshot(executable, root, ledgerPath) };
     const compactRoute = await privateAction(ipcPath, 'r3_test_settings_compact');
     assert(compactRoute.result?.compacted === false
       && compactRoute.result.started === false
-      && compactRoute.result.reason === 'compact-rebuild-required',
+      && compactRoute.result.reason === 'compact-rebuild-required'
+      && JSON.stringify(keywordSnapshot(executable, root, keywordPath, store, newer))
+        === JSON.stringify(beforeCompact.keyword)
+      && JSON.stringify(ledgerSnapshot(executable, root, ledgerPath).aliases)
+        === JSON.stringify(beforeCompact.ledger.aliases)
+      && hasSearchHit(await tool(restartPort, 'search_documents', { query: newer }), newer),
       'S26 Settings compact truthfully defers physical work for legacy auto_vacuum NONE');
+    evidence.settingsCompact = { reason: compactRoute.result.reason,
+      beforeLogicalSha256: sha(JSON.stringify(beforeCompact.keyword)),
+      afterLogicalSha256: sha(JSON.stringify(keywordSnapshot(executable, root, keywordPath, store, newer))),
+      sourceAliasCount: beforeCompact.ledger.aliases.length };
+    const beforeClear = { keyword: keywordSnapshot(executable, root, keywordPath, store, newer),
+      ledger: ledgerSnapshot(executable, root, ledgerPath) };
+    const declinedClear = await privateAction(ipcPath, 'r3_test_settings_clear_decline');
+    assert(declinedClear.result?.cleared === false
+      && declinedClear.result.reason === 'confirmation-declined'
+      && JSON.stringify(keywordSnapshot(executable, root, keywordPath, store, newer))
+        === JSON.stringify(beforeClear.keyword)
+      && hasSearchHit(await tool(restartPort, 'search_documents', { query: newer }), newer),
+      'S26 declined Settings clear leaves committed keyword search and logical state intact');
+    const clearRoute = await privateAction(ipcPath, 'r3_test_settings_clear');
+    assert(clearRoute.result?.cleared === false && clearRoute.result.started === true
+      && clearRoute.result.scheduled === true && Boolean(clearRoute.result.jobId),
+      'S26 confirmed Settings clear starts a durable owner job');
+    const clearTerminal = await eventually(15000, async () => {
+      const snapshot = ledgerSnapshot(executable, root, ledgerPath);
+      return snapshot.jobs.find(job => job.jobId === clearRoute.result.jobId)?.status === 'completed'
+        ? snapshot : null;
+    });
+    assert(clearTerminal && !hasSearchHit(await tool(restartPort, 'search_documents', { query: newer }), newer),
+      'S26 confirmed Settings clear reaches terminal success and invalidates public search');
+    const afterClear = keywordSnapshot(executable, root, keywordPath, store, newer);
+    const backups = fs.readdirSync(path.dirname(keywordPath))
+      .filter(name => name.includes('.backup-clear-') && name.endsWith('.sqlite3'));
+    const backup = backups.length === 1
+      ? keywordSnapshot(executable, root, path.join(path.dirname(keywordPath), backups[0]), store, newer) : null;
+    assert(backups.length === 1 && backup?.integrity === 'ok'
+      && backup.generation === beforeClear.keyword.generation && backup.hitCount > 0
+      && afterClear.integrity === 'ok' && afterClear.generation === null && afterClear.hitCount === 0
+      && JSON.stringify(clearTerminal.docs) === JSON.stringify(beforeClear.ledger.docs)
+      && JSON.stringify(clearTerminal.aliases) === JSON.stringify(beforeClear.ledger.aliases),
+      'S26 terminal clear keeps a backup and preserves source documents and aliases');
+    assert(beforeClear.ledger.jobs.every(before => clearTerminal.jobs.some(after =>
+      after.jobId === before.jobId && after.status === before.status)),
+    'S26 terminal clear preserves every preexisting unrelated job and status');
+    evidence.settingsClear = { declinedReason: declinedClear.result.reason,
+      started: clearRoute.result.started, terminalStatus: 'completed', backupCount: backups.length,
+      beforeLogicalSha256: sha(JSON.stringify(beforeClear.keyword)),
+      afterLogicalSha256: sha(JSON.stringify(afterClear)),
+      backupLogicalSha256: sha(JSON.stringify(backup)),
+      beforeGeneration: beforeClear.keyword.generation, afterGeneration: afterClear.generation,
+      sourceDocumentCount: clearTerminal.docs.length, sourceAliasCount: clearTerminal.aliases.length,
+      sourceMetadataSha256: sha(JSON.stringify(clearTerminal.docs)),
+      preexistingJobCount: beforeClear.ledger.jobs.length };
     const privateRebuild = await privateAction(ipcPath, 'rebuild_index');
     const privateOwner = await privateAction(ipcPath, 'r3_test_owner_snapshot');
     assert(privateRebuild.result && (privateRebuild.result.started !== true
@@ -413,11 +485,6 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       ? rebuildRoute.result.scheduled === true && Boolean(rebuildRoute.result.jobId)
       : rebuildRoute.result.scheduled === false && Boolean(rebuildRoute.result.reason)),
       'S26 Settings rebuild reports a durable owner job or an explicit rejection');
-    const clearRoute = await privateAction(ipcPath, 'r3_test_settings_clear');
-    assert(clearRoute.result?.cleared === false && (clearRoute.result.started === true
-      ? clearRoute.result.scheduled === true && Boolean(clearRoute.result.jobId)
-      : clearRoute.result.scheduled === false && Boolean(clearRoute.result.reason)),
-      'S26 confirmed Settings clear reports a durable owner job or an explicit rejection');
     const finalSettingsStatus = await privateAction(ipcPath, 'r3_test_settings_status');
     assert(finalSettingsStatus.result?.sourceRootConfigured === true,
       'S26 Settings status remains available after maintenance actions');

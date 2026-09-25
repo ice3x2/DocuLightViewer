@@ -2442,6 +2442,7 @@ async function handleIpcMessage(socket, msg) {
       case 'r3_test_settings_retry':
       case 'r3_test_settings_compact':
       case 'r3_test_settings_clear':
+      case 'r3_test_settings_clear_decline':
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
           throw new Error('Unknown action');
         }
@@ -2466,9 +2467,9 @@ async function handleIpcMessage(socket, msg) {
           try {
             result = await r3SettingsProbeWindow.webContents.executeJavaScript('window.doclight.importLinkedMarkdown()');
           } finally { dialog.showOpenDialog = originalDialog; }
-        } else if (action === 'r3_test_settings_clear') {
+        } else if (action === 'r3_test_settings_clear' || action === 'r3_test_settings_clear_decline') {
           const originalDialog = dialog.showMessageBox;
-          dialog.showMessageBox = async () => ({ response: 0 });
+          dialog.showMessageBox = async () => ({ response: action === 'r3_test_settings_clear' ? 0 : 1 });
           try {
             result = await r3SettingsProbeWindow.webContents.executeJavaScript('window.doclight.clearSearchIndex()');
           } finally { dialog.showMessageBox = originalDialog; }
@@ -2904,11 +2905,23 @@ function registerIpcHandlers() {
   };
   privateIndexMaintenance = startOwnerIndexMaintenance;
 
-  ipcMain.handle('indexing:start-rebuild', () => {
+  const settingsIndexingWindow = (event) => {
+    const win = event?.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+    const testProbe = process.env.DOCULIGHT_R3_TEST_LIFECYCLE === '1'
+      && process.argv.includes('--r3-test-lifecycle') && win === r3SettingsProbeWindow;
+    return win && (win === settingsWin || testProbe)
+      && win.webContents.getURL().includes('/settings.html') ? win : null;
+  };
+
+  ipcMain.handle('indexing:start-rebuild', (event) => {
+    if (!settingsIndexingWindow(event)) return { started: false, scheduled: false,
+      reason: 'settings-only', status: getIndexingStatusPayload() };
     return startOwnerIndexMaintenance('rebuild');
   });
 
-  ipcMain.handle('indexing:cancel-job', () => {
+  ipcMain.handle('indexing:cancel-job', (event) => {
+    if (!settingsIndexingWindow(event)) return { cancelled: false,
+      reason: 'settings-only', status: getIndexingStatusPayload() };
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
     if (ownerStatus?.active && ['rebuild', 'clear'].includes(ownerStatus.kind) && ownerStatus.jobId) {
       return saveDocumentOwner.cancel(ownerStatus.jobId).then(result => ({
@@ -2922,11 +2935,16 @@ function registerIpcHandlers() {
     return searchEngine.cancelRebuild();
   });
 
-  ipcMain.handle('indexing:retry-failures', () => {
+  ipcMain.handle('indexing:retry-failures', (event) => {
+    if (!settingsIndexingWindow(event)) return { started: false, scheduled: false,
+      reason: 'settings-only', status: getIndexingStatusPayload() };
     return startOwnerIndexMaintenance('retry');
   });
 
-  ipcMain.handle('indexing:compact', async () => {
+  ipcMain.handle('indexing:compact', async (event) => {
+    if (!settingsIndexingWindow(event)) {
+      return { compacted: false, reason: 'settings-only', status: getIndexingStatusPayload() };
+    }
     if (!isDocumentStoreSourceRootConfigured()) {
       return {
         compacted: false,
@@ -2939,8 +2957,8 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('indexing:clear', async (event) => {
-    const win = event?.sender ? BrowserWindow.fromWebContents(event.sender) : null;
-    if (!win || !win.webContents.getURL().includes('/settings.html')) {
+    const win = settingsIndexingWindow(event);
+    if (!win) {
       return { cleared: false, reason: 'confirmation-required', status: getIndexingStatusPayload() };
     }
     const { response } = await dialog.showMessageBox(win, {

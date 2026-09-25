@@ -139,8 +139,12 @@ module.exports = { async run({ fixture, assert }) {
       const statusEnd = product.indexOf('\nfunction sanitizeSettingsPayload(', statusStart);
       assert(statusStart > 0 && statusEnd > statusStart,
         'actual product Settings status composer is extractable');
+      const settingsWindow = { webContents: { getURL: () => 'file:///settings.html' } };
+      const settingsEvent = { sender: {} };
       vm.runInNewContext(`${product.slice(statusStart, statusEnd)}\n${product.slice(first, last)}`, {
         ipcMain: { handle: (name, handler) => callbacks.set(name, handler) },
+        BrowserWindow: { fromWebContents: sender => sender === settingsEvent.sender ? settingsWindow : null },
+        settingsWin: settingsWindow, r3SettingsProbeWindow: null, process: { env: {}, argv: [] },
         searchEngine: engine, saveDocumentOwner: owner,
         isDocumentStoreSourceRootConfigured: () => true,
         nativeRebuildManager: null,
@@ -148,12 +152,12 @@ module.exports = { async run({ fixture, assert }) {
         require: (name) => name === './ledger-status-registry'
           ? require('../../../src/main/ledger-status-registry') : require(name)
       });
-      const rebuild = await callbacks.get('indexing:start-rebuild')();
+      const rebuild = await callbacks.get('indexing:start-rebuild')(settingsEvent);
       assert(shortWorkerCalls === 0 && rebuild.started === true && rebuild.scheduled === true
         && typeof rebuild.jobId === 'string' && rebuild.status?.state === 'rebuilding'
         && rebuild.status?.rebuildSession?.active === true,
         'actual Settings rebuild starts a durable job on the long owner');
-      const duplicate = await callbacks.get('indexing:retry-failures')();
+      const duplicate = await callbacks.get('indexing:retry-failures')(settingsEvent);
       assert(duplicate.started === false && duplicate.scheduled === false
         && duplicate.reason === 'job-in-progress', 'duplicate Settings retry does not enqueue another job');
       let invalid = false;
@@ -254,15 +258,19 @@ module.exports = { async run({ fixture, assert }) {
       const endAt = productSource.indexOf("ipcMain.handle('indexing:compact'", startAt);
       const statusAt = productSource.indexOf('function getIndexingStatusPayload() {');
       const statusUntil = productSource.indexOf('\nfunction sanitizeSettingsPayload(', statusAt);
+      const retrySettingsWindow = { webContents: { getURL: () => 'file:///settings.html' } };
+      const retrySettingsEvent = { sender: {} };
       vm.runInNewContext(`${productSource.slice(statusAt, statusUntil)}\n${productSource.slice(startAt, endAt)}`, {
         ipcMain: { handle: (name, handler) => retryCallbacks.set(name, handler) },
+        BrowserWindow: { fromWebContents: sender => sender === retrySettingsEvent.sender ? retrySettingsWindow : null },
+        settingsWin: retrySettingsWindow, r3SettingsProbeWindow: null, process: { env: {}, argv: [] },
         searchEngine: engine, saveDocumentOwner: retryOwner,
         isDocumentStoreSourceRootConfigured: () => true,
         nativeRebuildManager: null, store: engine.store,
         require: (name) => name === './ledger-status-registry'
           ? require('../../../src/main/ledger-status-registry') : require(name)
       });
-      const retried = await retryCallbacks.get('indexing:retry-failures')();
+      const retried = await retryCallbacks.get('indexing:retry-failures')(retrySettingsEvent);
       assert(retried.started && retried.scheduled && retried.jobId
         && retried.status?.state === 'rebuilding' && retried.status?.rebuildSession?.active,
         'actual Settings retry after failed first rebuild starts another durable owner job');
