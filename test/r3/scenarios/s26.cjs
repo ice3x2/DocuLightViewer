@@ -123,7 +123,9 @@ function waitForExit(child, deadlineMs) {
 }
 
 async function openExternal(executable, root, env, filePath) {
-  const child = spawn(executable, [root, '--profile=dev', filePath], { cwd: root, env,
+  const args = [root, '--profile=dev'];
+  if (filePath) args.push(filePath);
+  const child = spawn(executable, args, { cwd: root, env,
     stdio: ['ignore', 'pipe', 'pipe'] });
   const code = await waitForExit(child, 10000);
   if (code !== 0) throw new Error(`S26_SETUP_OPEN_EXTERNAL exit=${code}`);
@@ -188,6 +190,10 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       'S26 app-owned Electron PID and full command line inspected');
     evidence.runs.push({ pid: child.pid, commandLine: redactedCommandLine(commandLine, root),
       commandLineSha256: sha(commandLine), port });
+    const coldMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite = { cold: coldMain.result };
+    assert(coldMain.result?.writableOpenCount === 0 && coldMain.result?.ledgerAllocated === false,
+      'S20 cold product main has no writable ledger or keyword SQLite opens');
     const listed = (await rpc(port, 'tools/list')).result.tools;
     assert(listed.map(item => item.name).join(',') ===
       'open_markdown,update_markdown,close_viewer,list_viewers,search_documents,search_projects,save_document,smart_search',
@@ -211,6 +217,10 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     });
     if (!seedFound) evidence.seedSearchText = searchText(lastSearch).replaceAll(fixture, '<S26_TEMP>');
     assert(seedFound, 'S26 product keyword search retrieves saved control bytes');
+    const searchedMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.afterSearch = searchedMain.result;
+    assert(searchedMain.result?.writableOpenCount === 0 && searchedMain.result?.keywordReadOnly === true,
+      'S20 product search keeps main keyword SQLite read-only after owner publication');
     const ledgerPath = path.join(userData, 'index', 'smart-search.sqlite3');
     const controlTerminal = ledgerSnapshot(executable, root, ledgerPath).jobs
       .find(job => job.jobId === payload.indexing.jobId);
@@ -245,6 +255,12 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     'S26 indexed original opens through real viewer handler with redacted public payload');
     const viewerId = /windowId: ([^\s]+)/.exec(searchText(openedViewer))?.[1];
     assert(viewerId, 'S26 real open_markdown returns a viewer identity');
+    const beforeFocus = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    await openExternal(executable, root, env);
+    const afterFocus = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.focus = { before: beforeFocus.result, after: afterFocus.result };
+    assert(afterFocus.result?.sqliteOpenCalls === beforeFocus.result?.sqliteOpenCalls,
+      'S20 second-instance focus of an existing viewer makes no main SQLite call');
     assert((await tool(port, 'list_viewers', {})).content?.length > 0,
       'S26 real list_viewers route is available');
     await tool(port, 'update_markdown', { windowId: viewerId,
@@ -253,7 +269,14 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       'S26 real search_projects route is available');
     assert((await tool(port, 'smart_search', { query: marker })).content?.length > 0,
       'S26 real smart_search route is available');
+    const beforeClose = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
     await tool(port, 'close_viewer', { windowId: viewerId });
+    const closedMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.close = { before: beforeClose.result, after: closedMain.result };
+    assert(closedMain.result?.writableOpenCount === 0 && closedMain.result?.ledgerAllocated === false,
+      'S20 viewer focus and close leave product main free of writable SQLite opens');
+    assert(closedMain.result?.sqliteOpenCalls === beforeClose.result?.sqliteOpenCalls,
+      'S20 close_viewer makes no main SQLite call');
     evidence.publicToolsCalled = 8;
     const settingsReady = await privateAction(ipcPath, 'r3_test_settings_probe');
     assert(settingsReady.result?.ready === true, 'S26 real Settings renderer and preload are ready');
@@ -319,9 +342,22 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       return response.result?.active && response.result?.phase === 'index_document' ? response.result : null;
     });
     evidence.cancelJobId = active.jobId;
+    const beforeSettingsStatus = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
     const settingsStatus = await privateAction(ipcPath, 'r3_test_settings_status');
     assert(settingsStatus.result?.sourceRootConfigured === true,
       'S26 Settings status uses real renderer bridge during active owner job');
+    assert(Object.hasOwn(settingsStatus.result || {}, 'hnswCompaction')
+      && settingsStatus.result.hnswCompaction === null,
+    'S20 cached Settings status preserves the HNSW field for disabled semantic search');
+    const statusMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.settingsStatus = {
+      before: beforeSettingsStatus.result, after: statusMain.result
+    };
+    assert(statusMain.result?.writableOpenCount === 0 && statusMain.result?.ledgerAllocated === false,
+      'S20 Settings status leaves product main free of writable SQLite opens');
+    assert(Number.isInteger(beforeSettingsStatus.result?.sqliteOpenCalls)
+      && statusMain.result?.sqliteOpenCalls === beforeSettingsStatus.result?.sqliteOpenCalls,
+      'S20 real Settings status uses cached state without main SQLite open or query');
     const cancel = await privateAction(ipcPath, 'r3_test_settings_cancel');
     assert(cancel.result?.cancelled === true,
       'S26 Settings cancel targets the active owner document job');
@@ -366,6 +402,10 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     const restartCommandLine = processCommandLine(child.pid);
     assert(child.pid !== evidence.runs[0].pid && restartCommandLine.includes(path.basename(executable))
       && restartCommandLine.includes(root), 'S26 restart uses a distinct inspected app-owned Electron PID');
+    const restartMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.restart = restartMain.result;
+    assert(restartMain.result?.writableOpenCount === 0 && restartMain.result?.ledgerAllocated === false,
+      'S20 product restart resumes pending work without a main-process writable SQLite open');
     evidence.runs.push({ pid: child.pid,
       commandLine: redactedCommandLine(restartCommandLine, root),
       commandLineSha256: sha(restartCommandLine), port: restartPort });

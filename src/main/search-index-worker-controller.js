@@ -84,11 +84,13 @@ class IndexingWorkerController {
   }
 
   // @req REL-DOC-007
-  getStatus() {
+  getStatus(options = {}) {
     if (this.activeJob) {
-      const durable = this._readDurableJob(this.activeJob.jobId);
-      if (durable) {
-        this.activeJob.status = this._mergeStatus(this.activeJob.status, durable);
+      if (!options.cachedOnly) {
+        const durable = this._readDurableJob(this.activeJob.jobId);
+        if (durable) {
+          this.activeJob.status = this._mergeStatus(this.activeJob.status, durable);
+        }
       }
       return this._publicStatus(this.activeJob.status || this._createStatus(this.activeJob));
     }

@@ -1968,7 +1968,7 @@ class SearchEngine {
   getStatus(options = {}) {
     const publicPaths = !(options && options.publicPaths === false);
     const workerStatus = this._indexingWorkerController && typeof this._indexingWorkerController.getStatus === 'function'
-      ? this._indexingWorkerController.getStatus()
+      ? this._indexingWorkerController.getStatus({ cachedOnly: options.cachedOnly === true })
       : null;
     const activeWorkerStatus = workerStatus && workerStatus.active ? workerStatus : null;
     let state = this._status.state;
@@ -2031,7 +2031,7 @@ class SearchEngine {
         ? this.keywordTokenizer.getStatus()
         : null,
       indexingWorker: workerStatus,
-      hnswCompaction: this.getHnswCompactionStatus()
+      hnswCompaction: options.cachedOnly ? null : this.getHnswCompactionStatus()
     };
     return publicPaths ? this._sanitizePublicStatusPayload(statusPayload) : statusPayload;
   }

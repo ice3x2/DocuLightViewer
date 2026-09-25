@@ -38,6 +38,18 @@ const { init: initStrings, t, getAll: getAllStrings } = require('./strings');
 const { SearchEngine } = require('./search-engine');
 const { OwnerWorkerController } = require('./search-owner-controller');
 const { SQLiteKeywordIndex, SQLITE_INDEX_FILENAME } = require('./search-sqlite-store');
+const r3MainSqliteAudit = { writableOpenCount: 0, sqliteOpenCalls: 0 };
+if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE === '1' && process.argv.includes('--r3-test-lifecycle')) {
+  const { SourceLedgerStore } = require('./source-ledger-store');
+  for (const StoreType of [SQLiteKeywordIndex, SourceLedgerStore]) {
+    const open = StoreType.prototype.open;
+    StoreType.prototype.open = function auditedOpen(...args) {
+      r3MainSqliteAudit.sqliteOpenCalls += 1;
+      if (!this.db && !this.readOnly) r3MainSqliteAudit.writableOpenCount += 1;
+      return open.apply(this, args);
+    };
+  }
+}
 const { createKeywordTokenizer } = require('./search-tokenizer');
 const { loadHnswlib } = require('./hnsw-index');
 const { createRedactor } = require('./redaction');
@@ -1718,7 +1730,7 @@ function startNativeRepairIfNeeded() {
 
 function getIndexingStatusPayload() {
   const sourceRootConfigured = isDocumentStoreSourceRootConfigured();
-  const rawStatus = searchEngine ? searchEngine.getStatus() : { state: 'unavailable' };
+  const rawStatus = searchEngine ? searchEngine.getStatus({ cachedOnly: true }) : { state: 'unavailable' };
   // The owner publishes an immutable in-memory snapshot. Never query its SQLite stores on this route.
   const ownerStatus = saveDocumentOwner ? saveDocumentOwner.getStatus() : null;
   const { composeIndexingStatusPayload } = require('./ledger-status-registry');
@@ -2489,6 +2501,15 @@ async function handleIpcMessage(socket, msg) {
           throw new Error('Unknown action');
         }
         result = saveDocumentOwner ? saveDocumentOwner.getStatus() : { state: 'unavailable' };
+        break;
+      case 'r3_test_main_sqlite_snapshot':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        result = { writableOpenCount: r3MainSqliteAudit.writableOpenCount,
+          sqliteOpenCalls: r3MainSqliteAudit.sqliteOpenCalls,
+          ledgerAllocated: Boolean(searchEngine?._sourceLedger),
+          keywordReadOnly: searchEngine?.sqliteIndex?.db ? searchEngine.sqliteIndex.readOnly : null };
         break;
       case 'open_markdown': {
         // @req IR-MCP-019

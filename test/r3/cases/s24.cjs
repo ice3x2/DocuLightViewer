@@ -24,6 +24,11 @@ module.exports = { async run({ fixture, assert }) {
   assert(!/EmbeddingModel|embedding:/.test(preload), 'preload has no embedding bridge');
   assert(!/ipcMain\.handle\('embedding:/.test(main), 'main registers no embedding IPC');
   const channels = recordProductIpcChannels(main);
+  let crlfChannels = null;
+  try { crlfChannels = recordProductIpcChannels(main.replace(/\r?\n/g, '\r\n')); }
+  catch { /* The assertion below reports the parser contract failure. */ }
+  assert(crlfChannels?.handled.includes('indexing:get-status'),
+    'product IPC probe recognizes CRLF source without changing registered channels');
   assert(channels.handled.includes('get-settings') && channels.handled.includes('indexing:get-status'),
     'actual product registration retains Settings and indexing IPC');
   assert(![...channels.handled, ...channels.events].some(channel => channel.startsWith('embedding:')),

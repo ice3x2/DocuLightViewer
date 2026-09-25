@@ -7,6 +7,14 @@ const { OwnerWorkerController } = require('../../../src/main/search-owner-contro
 const { acquireOwnerLock } = require('../../../src/main/search-owner-lock');
 const { publishSave, withPublicationGate } = require('../../../src/main/index-ingress-store');
 
+async function readyBeforeBarrier(starting) {
+  let timer;
+  try {
+    return await Promise.race([starting.then(() => true),
+      new Promise(resolve => { timer = setTimeout(() => resolve(false), 5000); })]);
+  } finally { clearTimeout(timer); }
+}
+
 // @req FR-DOC-019 REL-DOC-009 IR-APP-013 IR-APP-010
 module.exports = { async run(context) {
   const root = context.fixture.root;
@@ -124,6 +132,21 @@ module.exports = { async run(context) {
     'publication recovery cannot move a new live lock or admit C while B holds it');
 
   const lock = `${config.ledgerPath}.owner.lock`;
+  const abandonedGate = `${lock}.recovery`;
+  fs.mkdirSync(abandonedGate);
+  let abandonedRejected = false;
+  try { acquireOwnerLock(config.ledgerPath); }
+  catch (error) { abandonedRejected = error.code === 'owner_busy'; }
+  context.assert(abandonedRejected && fs.statSync(abandonedGate).isDirectory(),
+    'abandoned sidecar fails closed until an operator proves all owners stopped');
+  fs.rmdirSync(abandonedGate);
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, identity: null, token: 'unsupported' }));
+  let unsupportedRejected = false;
+  try { acquireOwnerLock(config.ledgerPath); }
+  catch (error) { unsupportedRejected = error.code === 'owner_busy'; }
+  context.assert(unsupportedRejected && fs.existsSync(lock),
+    'unsupported live PID identity is never reclaimed by lock age');
+  fs.unlinkSync(lock);
   fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, identity: 'recycled-pid-old-start', token: 'old' }));
   const recovered = new OwnerWorkerController(config);
   try {
@@ -149,10 +172,8 @@ module.exports = { async run(context) {
 
   const barrier = new SharedArrayBuffer(4);
   const delayed = new OwnerWorkerController({ ...config, r3RecoveryBarrier: barrier });
-  let readyBeforeRecovery = false;
-  const starting = delayed.start().then(() => { readyBeforeRecovery = true; });
-  await new Promise(resolve => setTimeout(resolve, 200));
-  const observedReadyWhileBlocked = readyBeforeRecovery;
+  const starting = delayed.start();
+  const observedReadyWhileBlocked = await readyBeforeBarrier(starting);
   Atomics.store(new Int32Array(barrier), 0, 1);
   Atomics.notify(new Int32Array(barrier), 0);
   try {
@@ -264,10 +285,8 @@ module.exports = { async run(context) {
   const pageAudit = new SharedArrayBuffer(8);
   const migrationOwner = new OwnerWorkerController({ ...config, deriveDocuments: false,
     r3MigrationBarrier: migrationBarrier, r3MigrationPageAudit: pageAudit });
-  let migrationReady = false;
-  const migrationStarting = migrationOwner.start().then(() => { migrationReady = true; });
-  await new Promise(resolve => setTimeout(resolve, 200));
-  const readyDuringMigrationBarrier = migrationReady;
+  const migrationStarting = migrationOwner.start();
+  const readyDuringMigrationBarrier = await readyBeforeBarrier(migrationStarting);
   const deferredBytes = Buffer.from('# Saved during legacy migration\n');
   const deferredSave = await publishSave({ storeRoot: store, ingressRoot: ingress,
     sourceRelativeLocator: 'during-migration.md', operation: 'save_document', sourceId: 's20',

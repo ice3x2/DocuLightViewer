@@ -56,6 +56,22 @@ const statusEngine = new SearchEngine({
 });
 statusEngine.markDirty();
 const statusPayload = statusEngine.getStatus();
+const legacyWorker = statusEngine.getIndexingWorkerController();
+let legacyLedgerOpens = 0;
+let legacyLedgerQueries = 0;
+legacyWorker.activeJob = { jobId: 'legacy-status-job', kind: 'rebuild',
+  status: { active: true, state: 'rebuilding', phase: 'scan',
+    progress: { current: 1, total: 2 } } };
+legacyWorker.statusLedgerProvider = () => {
+  legacyLedgerOpens += 1;
+  return { getIndexJob() { legacyLedgerQueries += 1; return null; }, close() {} };
+};
+const cachedLegacyStatus = statusEngine.getStatus({ cachedOnly: true });
+assert(cachedLegacyStatus.indexingWorker?.active === true
+  && cachedLegacyStatus.indexingWorker?.phase === 'scan'
+  && legacyLedgerOpens === 0 && legacyLedgerQueries === 0,
+  'cached Settings status preserves the active legacy snapshot without a ledger open or query');
+legacyWorker.activeJob = null;
 for (const field of ['state', 'indexedCount', 'pendingCount', 'failedCount', 'currentPath', 'phase', 'lastIndexedTime', 'errorSummary']) {
   assert(Object.prototype.hasOwnProperty.call(statusPayload, field), `indexing status payload includes ${field}`);
 }
