@@ -2131,6 +2131,13 @@ class SearchEngine {
     return this._indexingWorkerController;
   }
 
+  // @req FR-DOC-019 AC-10 IR-APP-013
+  onOwnerStatus(snapshot) {
+    if (!this.options.ownerManaged || snapshot?.kind !== 'rebuild'
+      || snapshot.active || snapshot.phase !== 'completed') return;
+    void this.ensureFresh().catch(() => { /* preserve the prior committed facade on refresh failure */ });
+  }
+
   // @req REL-DOC-007
   async _handleIndexingWorkerCompleted(job = {}) {
     if (job.kind === 'rebuild') {

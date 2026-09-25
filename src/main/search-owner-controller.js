@@ -6,7 +6,7 @@ const { acquireOwnerLock } = require('./search-owner-lock');
 
 const TYPES = Object.freeze({
   accept_save: 'COMMAND', resolve_origin: 'QUERY', query_keyword: 'QUERY',
-  get_status: 'QUERY', cancel_job: 'CANCEL', shutdown: 'COMMAND'
+  get_status: 'QUERY', cancel_job: 'CANCEL', manage_index: 'COMMAND', shutdown: 'COMMAND'
 });
 
 function failure(code) {
@@ -54,6 +54,8 @@ class OwnerWorkerController {
         r3MigrationBarrier: this.config.r3MigrationBarrier,
         r3MigrationPageAudit: this.config.r3MigrationPageAudit,
         r3SkipStartupReplay: this.config.r3SkipStartupReplay === true,
+        r3MaintenanceFaultBeforeCommit: this.config.r3MaintenanceFaultBeforeCommit === true,
+        r3MaintenancePageDelayMs: this.config.r3MaintenancePageDelayMs || 0,
         documentCancelBuffer: this.documentCancel.buffer }
     });
     this.worker = worker;
@@ -65,6 +67,9 @@ class OwnerWorkerController {
           this.workerSequence = message.sequence;
           this.sequence += 1;
           this.snapshot = message.snapshot;
+          if (typeof this.config.onStatus === 'function') {
+            try { this.config.onStatus(this.snapshot); } catch { /* status delivery remains available */ }
+          }
         } else if (message.tag === 'START') {
           this.readyReject = null;
           if (message.state === 'ready') resolve(message);
@@ -130,6 +135,22 @@ class OwnerWorkerController {
 
   command(type, payload = {}, id) {
     if (type === 'shutdown') return this.shutdown(id, true);
+    if (type === 'manage_index' && (payload === null || typeof payload !== 'object'
+      || Array.isArray(payload) || Object.keys(payload).length !== 1
+      || !['rebuild', 'retry', 'compact', 'clear'].includes(payload.operation))) {
+      return Promise.reject(failure('owner_invalid_manage_index_payload'));
+    }
+    if (type === 'manage_index' && this.worker && !this.closing) {
+      const snapshot = this.snapshot;
+      if (snapshot.migrationComplete !== true || snapshot.recoveryComplete !== true) {
+        return Promise.resolve({ started: false, scheduled: false, reason: 'owner-recovery-pending' });
+      }
+      if (!['ready', 'stale', 'READY', 'READY_KEYWORD_ONLY',
+        'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(snapshot.state)
+        || snapshot.active === true) {
+        return Promise.resolve({ started: false, scheduled: false, reason: 'job-in-progress' });
+      }
+    }
     if (type === 'accept_save') {
       const allowed = ['intentId', 'operation', 'sourceId', 'rootFingerprint',
         'sourceRelativeLocator', 'contentHash', 'provenance',

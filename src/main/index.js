@@ -252,7 +252,8 @@ searchEngine.getSaveDocumentOwner = async (storeRoot) => {
     saveDocumentOwner = new OwnerWorkerController({
       ledgerPath: path.join(runtimeProfile.indexDataDir, 'smart-search.sqlite3'),
       keywordPath: path.join(runtimeProfile.indexDataDir, SQLITE_INDEX_FILENAME),
-      sourceRoot, publicationRoot, ingressRoot, deriveDocuments: true
+      sourceRoot, publicationRoot, ingressRoot, deriveDocuments: true,
+      onStatus: snapshot => searchEngine.onOwnerStatus(snapshot)
     });
   }
   await saveDocumentOwner.start();
@@ -2862,21 +2863,40 @@ function registerIpcHandlers() {
     return getIndexingStatusPayload();
   });
 
-  ipcMain.handle('indexing:start-rebuild', () => {
+  const startOwnerIndexMaintenance = async (operation) => {
+    const unavailable = (reason) => ({ started: false, scheduled: false, reason,
+      status: getIndexingStatusPayload() });
     if (!isDocumentStoreSourceRootConfigured()) {
-      return {
-        started: false,
-        scheduled: false,
-        reason: 'source-root-unconfigured',
-        status: getIndexingStatusPayload()
-      };
+      return unavailable('source-root-unconfigured');
     }
-    return searchEngine.startRebuild();
+    try {
+      const owner = await searchEngine.getSaveDocumentOwner(store.get('mcpAutoSavePath', ''));
+      const ownerStatus = owner.getStatus();
+      const { fromOwnerSnapshot } = require('./ledger-status-registry');
+      const state = fromOwnerSnapshot(ownerStatus, true).ledgerState;
+      if (!['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED',
+        'READY_MAINTENANCE_PENDING'].includes(state) || ownerStatus.active) {
+        return unavailable('job-in-progress');
+      }
+      const result = await owner.command('manage_index', { operation });
+      return { started: result.started === true, scheduled: result.scheduled === true,
+        jobId: result.jobId || null, reason: result.reason,
+        status: getIndexingStatusPayload() };
+    } catch (error) { return unavailable(error.code || 'owner-unavailable'); }
+  };
+
+  ipcMain.handle('indexing:start-rebuild', () => {
+    return startOwnerIndexMaintenance('rebuild');
   });
 
   ipcMain.handle('indexing:cancel-job', () => {
-    if (searchEngine.getStatus().state === 'rebuilding') return searchEngine.cancelRebuild();
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
+    if (ownerStatus?.active && ownerStatus.kind === 'rebuild' && ownerStatus.jobId) {
+      return saveDocumentOwner.cancel(ownerStatus.jobId).then(result => ({
+        cancelled: result.cancelled === true, jobId: ownerStatus.jobId,
+        status: getIndexingStatusPayload()
+      }));
+    }
     if (ownerStatus?.active && ownerStatus.phase === 'index_document' && ownerStatus.jobId) {
       return saveDocumentOwner.cancel(ownerStatus.jobId);
     }
@@ -2884,15 +2904,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('indexing:retry-failures', () => {
-    if (!isDocumentStoreSourceRootConfigured()) {
-      return {
-        started: false,
-        scheduled: false,
-        reason: 'source-root-unconfigured',
-        status: getIndexingStatusPayload()
-      };
-    }
-    return searchEngine.retryFailures();
+    return startOwnerIndexMaintenance('retry');
   });
 
   ipcMain.handle('indexing:compact', async () => {

@@ -307,6 +307,47 @@ class SQLiteKeywordIndex {
     };
   }
 
+  // @req FR-DOC-019 AC-6 AC-10
+  appendStagedRebuildPage(stage, documents) {
+    const generationId = requiredString(stage && stage.generationId, 'generationId');
+    const items = Array.isArray(documents) ? documents : [];
+    if (items.length > 16) throw new Error('Staged rebuild page exceeds 16 documents');
+    const db = this.open();
+    db.transaction(() => {
+      const meta = db.prepare('SELECT 1 FROM keyword_rebuild_staging_meta WHERE generation_id = ?').get(generationId);
+      if (!meta) throw new Error('Unknown staged rebuild generation');
+      const removeSegments = db.prepare('DELETE FROM keyword_rebuild_staging_segments WHERE generation_id = ? AND file_path = ?');
+      const removeDocument = db.prepare('DELETE FROM keyword_rebuild_staging_documents WHERE generation_id = ? AND file_path = ?');
+      const insertDocument = db.prepare(`INSERT INTO keyword_rebuild_staging_documents(
+        generation_id, file_path, title, project, doc_name, doc_type, category, document_tags_json,
+        description, date, git_branch, git_last_commit, snippet, content_hash, updated_at)
+        VALUES (@generationId, @filePath, @title, @project, @docName, @docType, @category,
+          @documentTagsJson, @description, @date, @gitBranch, @gitLastCommit, @snippet,
+          @contentHash, @updatedAt)`);
+      const insertSegment = db.prepare(`INSERT INTO keyword_rebuild_staging_segments(
+        generation_id, file_path, ordinal, search_text, text_hash)
+        VALUES (?, ?, 0, ?, ?)`);
+      for (const item of items) {
+        removeSegments.run(generationId, item.filePath);
+        removeDocument.run(generationId, item.filePath);
+        insertDocument.run({ generationId, filePath: item.filePath,
+          title: item.meta.title || null, project: item.meta.project || null,
+          docName: item.meta.docName || null, docType: item.meta.docType || null,
+          category: item.meta.category || null,
+          documentTagsJson: JSON.stringify(Array.isArray(item.meta.documentTags) ? item.meta.documentTags : []),
+          description: item.meta.description || null, date: item.meta.date || null,
+          gitBranch: item.meta.gitBranch || null, gitLastCommit: item.meta.gitLastCommit || null,
+          snippet: item.meta.snippet || null, contentHash: item.contentHash || null,
+          updatedAt: new Date().toISOString() });
+        insertSegment.run(generationId, item.filePath, buildSearchText(item, this.tokenizer),
+          item.textHash || item.contentHash || null);
+      }
+      db.prepare(`UPDATE keyword_rebuild_staging_meta SET document_count = (
+        SELECT COUNT(*) FROM keyword_rebuild_staging_documents WHERE generation_id = ?)
+        WHERE generation_id = ?`).run(generationId, generationId);
+    })();
+  }
+
   // @req REL-DOC-007
   commitStagedGeneration(stage, options = {}) {
     const generationId = requiredString(stage && stage.generationId, 'generationId');

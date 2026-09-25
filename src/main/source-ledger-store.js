@@ -2416,6 +2416,46 @@ class SourceLedgerStore {
     };
   }
 
+  // @req FR-DOC-019 AC-10 REL-DOC-008
+  requeueDerivedAfterKeywordRebuildPage({ sourceRoot, maintenanceJobId, afterDocumentId = '', limit = 16 } = {}) {
+    this.assertWritable();
+    if (!sourceRoot || !maintenanceJobId || !Number.isInteger(limit) || limit < 1 || limit > 16) {
+      throw new Error('Invalid scoped rebuild requeue');
+    }
+    const db = this.open();
+    const rows = db.prepare(`SELECT d.document_id, d.source_id, d.relative_path,
+        d.desired_content_hash, d.content_byte_length, d.content_text_length
+      FROM documents d JOIN sources s ON s.source_id = d.source_id
+      WHERE s.root_path_internal = ? AND d.document_id > ?
+        AND d.path_status = 'active' AND d.import_state = 'active' AND d.dirty = 0
+      ORDER BY d.document_id LIMIT ?`).all(sourceRoot, afterDocumentId, limit);
+    db.transaction(() => {
+      for (const row of rows) {
+        db.prepare('DELETE FROM links WHERE from_document_id = ?').run(row.document_id);
+        db.prepare(`UPDATE ann_indexes SET status = 'stale', updated_at = ?
+          WHERE status = 'committed' AND ann_index_id IN (
+            SELECT m.ann_index_id FROM ann_memberships m
+            JOIN chunks c ON c.chunk_id = m.chunk_id WHERE c.document_id = ?)`)
+          .run(this._now(), row.document_id);
+        db.prepare(`DELETE FROM ann_memberships WHERE chunk_id IN (
+          SELECT chunk_id FROM chunks WHERE document_id = ?)`).run(row.document_id);
+        db.prepare(`DELETE FROM chunk_embeddings WHERE chunk_id IN (
+          SELECT chunk_id FROM chunks WHERE document_id = ?)`).run(row.document_id);
+        db.prepare('DELETE FROM chunks WHERE document_id = ?').run(row.document_id);
+        const jobId = `rebuild_${maintenanceJobId}_${row.document_id}`;
+        this.enqueueIndexJob({ jobId, sourceId: row.source_id, documentId: row.document_id,
+          jobType: 'index_document', status: 'queued', requestedBy: 'settings.rebuild.full-reset',
+          currentPathInternal: path.join(sourceRoot, row.relative_path),
+          contentHash: row.desired_content_hash,
+          contentByteLength: row.content_byte_length, contentTextLength: row.content_text_length });
+        db.prepare(`UPDATE documents SET current_job_id = ?, dirty = 1, keyword_dirty = 1,
+          next_eligible_at = NULL WHERE document_id = ?`).run(jobId, row.document_id);
+      }
+    })();
+    return { queued: rows.length, afterDocumentId: rows.at(-1)?.document_id || afterDocumentId,
+      hasMore: rows.length === limit };
+  }
+
   // @req REL-DOC-004
   getRecoveryDiagnostics(error) {
     return this.redactor.redactValue({

@@ -67,6 +67,22 @@ function composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigur
       pendingCount: 0, failedCount: 0, currentPath: null, phase: null,
       progress: null, rebuildSession: null, errorSummary: null });
   }
+  if (sourceRootConfigured && ownerStatus?.kind === 'rebuild') {
+    const session = ownerStatus.rebuildSession || null;
+    Object.assign(status, {
+      state: ownerStatus.active ? 'rebuilding' : ownerStatus.phase === 'failed' ? 'degraded'
+        : ownerStatus.phase === 'cancelled' ? 'stale' : status.state,
+      phase: ownerStatus.phase || null,
+      progress: ownerStatus.progress || status.progress,
+      rebuildSession: session,
+      indexedCount: session?.active ? session.indexedCount : status.indexedCount,
+      pendingCount: session?.active ? session.pendingCount : status.pendingCount,
+      currentPath: ownerStatus.currentPath || null,
+      heartbeatAt: ownerStatus.heartbeatAt || null,
+      cancelRequested: ownerStatus.cancelRequested === true,
+      diagnostic: ownerStatus.diagnostic || status.diagnostic
+    });
+  }
   return status;
 }
 
