@@ -1,0 +1,22 @@
+{
+  "review": "S23 Settings owner maintenance SRS rollback checkpoint",
+  "baseCommit": "0afbd15fa88f5025c1a04d46c2b8ba957994d3c2",
+  "sourceHash": "175381d337ea84c434b2aedac1144a12a9b6f9816a7d27fe635bec0c8fdc541c",
+  "verdict": "PASS_DOCS_ONLY_CHECKPOINT",
+  "blockingFindings": [],
+  "verified": [
+    "git diff --name-status lists only docs/spec/60.document-persistence.srs.md, docs/analysis/2026-09-25-s23-cutover-evidence.md, and docs/plan/2026-09-11-sol-medium-execution.md; product, owner, controller, and test source match HEAD.",
+    "FR-DOC-019 AC-10 remains unchecked and its Status/Stability are unchanged. The amended text describes manage_index as a planned private Settings command with strict operation-only input and no public MCP control expansion.",
+    "The amended AC separates successful confirmed clear from rebuild/retry/compact preservation and failure/cancel behavior, preserves Settings response shapes, and binds admission to IR-APP-013 AC-15/16 and interrupted-rebuild recovery to REL-DOC-008 AC-4/5.",
+    "speckiwi validate --json exited 0 with zero errors and eight known warnings: six SRS-W015 and two SRS-W073.",
+    "git diff --check exited 0, and node test/test-settings-indexing-contract.js passed independently.",
+    "The evidence and execution plan label the experimental implementation unsafe, state that it was restored, enumerate its five blocking gaps, and leave #46, #43, #44, and #45 open.",
+    "The evidence records one intermittent S26 Settings partial-import failure followed by one isolated PASS25 rerun, without claiming a consistently passing release gate. Since the product and test blobs equal HEAD, this docs-only rollback introduces no code-path change that could cause that failure."
+  ],
+  "remainingWork": [
+    "Implement manage_index only after semantic RED cases for stale retry, body-only committed search during compact or rejected clear, confirmed clear admission, bounded owner query/cancel during maintenance, and scoped post-rebuild derived reset/requeue.",
+    "Keep the live short indexing worker and S17/S19 recovery adapters until owner substitutes and real cold Electron all-route writable-open instrumentation pass.",
+    "Investigate the intermittent S26 partial-import assertion separately; one pass after one failure is not release closure evidence.",
+    "Do not mark FR-DOC-019 AC-10 verified or close #46, #43, #44, or #45 from this documentation checkpoint."
+  ]
+}
