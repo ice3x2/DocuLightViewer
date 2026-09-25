@@ -2874,8 +2874,10 @@ function registerIpcHandlers() {
       const ownerStatus = owner.getStatus();
       const { fromOwnerSnapshot } = require('./ledger-status-registry');
       const state = fromOwnerSnapshot(ownerStatus, true).ledgerState;
-      if (!['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED',
-        'READY_MAINTENANCE_PENDING'].includes(state) || ownerStatus.active) {
+      const allowed = operation === 'compact' || operation === 'clear'
+        ? ['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING']
+        : ['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'];
+      if (!allowed.includes(state) || ownerStatus.active) {
         return unavailable('job-in-progress');
       }
       const result = await owner.command('manage_index', { operation });
@@ -2891,7 +2893,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('indexing:cancel-job', () => {
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
-    if (ownerStatus?.active && ownerStatus.kind === 'rebuild' && ownerStatus.jobId) {
+    if (ownerStatus?.active && ['rebuild', 'clear'].includes(ownerStatus.kind) && ownerStatus.jobId) {
       return saveDocumentOwner.cancel(ownerStatus.jobId).then(result => ({
         cancelled: result.cancelled === true, jobId: ownerStatus.jobId,
         status: getIndexingStatusPayload()
@@ -2915,11 +2917,27 @@ function registerIpcHandlers() {
         status: getIndexingStatusPayload()
       };
     }
-    return searchEngine.compact();
+    const result = await startOwnerIndexMaintenance('compact');
+    return { compacted: false, ...result, status: getIndexingStatusPayload() };
   });
 
-  ipcMain.handle('indexing:clear', async () => {
-    return searchEngine.clear();
+  ipcMain.handle('indexing:clear', async (event) => {
+    const win = event?.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+    if (!win || !win.webContents.getURL().includes('/settings.html')) {
+      return { cleared: false, reason: 'confirmation-required', status: getIndexingStatusPayload() };
+    }
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning', title: t('settings.indexingClear'),
+      message: t('settings.indexingClearConfirm'),
+      detail: t('settings.indexingBackupWarning'),
+      buttons: [t('settings.indexingClear'), t('settings.indexingClearCancel')],
+      defaultId: 1, cancelId: 1, noLink: true
+    });
+    if (response !== 0) {
+      return { cleared: false, reason: 'confirmation-declined', status: getIndexingStatusPayload() };
+    }
+    const result = await startOwnerIndexMaintenance('clear');
+    return { cleared: false, ...result, status: getIndexingStatusPayload() };
   });
 
   ipcMain.handle('indexing:open-data-dir', async () => {

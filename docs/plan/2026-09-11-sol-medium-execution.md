@@ -259,3 +259,8 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S23a TDD 및 SQLite 증거](../analysis/2026-09-25-s23a-owner-rebuild-evidence.md): `FR-DOC-019 AC-10` 범위에서 실제 Settings rebuild/retry handler를 단일 장기 owner의 private `manage_index`로 전환했다. 엄격한 `{operation}` 검증, durable 작업, 실패·취소 전 committed generation/본문 검색 보존, missing-index 실패 후 retry, 중단된 명시적 rebuild의 시작 시 재개, 16문서 단위 처리, source identity/alias/무관한 pending job 보존을 검증했다. 독립 검토의 stale product facade, recovery 이전 admission, 10 MiB 제한, ANN stale 및 취소 직후 rebuild status 소실 지적을 RED→GREEN으로 수정했다. 11 MiB 2개/160 MiB sparse 파일 및 legacy FTS·metadata parity를 포함해 S23 45, S19 47, S20 21, S17 32, Settings/SQLite keyword 계약, 실제 S26 25가 같은 sourceHash에서 통과했다. SourceHash `5ad59582f77451bf909f8c9a907e6302a1fd393b8231347769597d6442f8226b`.
 - [ ] 독립 외부 검토와 큰 corpus commit latency, S23b compact/clear, S23c contained registration 및 제품 cold writer audit 전에는 #46을 닫거나 완료율에 넣지 않는다. #43/#44/#45도 각자의 별도 gate가 남아 있다.
+
+## S23b 부분 진행 기록 — Settings clear 안전화
+
+- [x] [S23b 집중 테스트와 실제 DB 증거](../analysis/2026-09-25-s23b-owner-clear-evidence.md): 확인 없는 clear를 차단하고, 확인된 clear를 장기 owner의 검증된 백업·bounded 삭제 경로로 옮겼다. 삭제 트랜잭션 안의 job-ID 영수증으로 commit 이후 원장 갱신 실패와 재시작을 구분한다. Settings 진행·취소·재빌드 표시, 공개 검색 응답의 진행 중 유지, S23/S20/S19/S17 및 같은 sourceHash의 실제 S26 25 assertions를 확인했다. 독립 검토에서 clear 경로의 Critical/High 구현 결함은 0건이다. SourceHash `3a236a61ed7cf67c3d0a61a804c3976b21f3cfc994dbbeee76d5d877ff9f0b0a`.
+- [ ] #61은 계속 OPEN이다. 기존 `auto_vacuum=NONE` DB의 물리적 compact는 안전한 bounded 경로가 없어 `compacted:false`와 rebuild-required를 반환한다. 실제 대용량 WAL/DB 응답성·checksum·제품 전체 writable-open 감사와 실제 Electron Settings clear IPC 증거도 남아 있다. #46 및 전체 36개 실행 이슈의 완료율은 늘리지 않는다.

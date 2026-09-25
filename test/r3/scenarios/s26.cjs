@@ -236,6 +236,24 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     fs.writeFileSync(importEntry, entryBytes);
     fs.writeFileSync(path.join(importRoot, 'completed.md'), completedBytes);
     const imported = await privateAction(ipcPath, 'r3_test_settings_import', { filePath: importEntry });
+    if (!(imported.result?.success === true && imported.result.counts?.imported === 2
+      && imported.result.counts?.missing >= 1 && !JSON.stringify(imported.result).includes(importRoot))) {
+      const ownerAtFailure = await privateAction(ipcPath, 'r3_test_owner_snapshot').catch(() => null);
+      const settingsAtFailure = await privateAction(ipcPath, 'r3_test_settings_status').catch(() => null);
+      evidence.linkedImportFailure = {
+        success: imported.result?.success === true,
+        counts: imported.result?.counts || null,
+        reasonCode: /^[a-z0-9_-]{1,80}$/.test(imported.result?.reason || '')
+          ? imported.result.reason : null,
+        containsRawImportRoot: JSON.stringify(imported.result).includes(importRoot),
+        owner: ownerAtFailure?.result ? { state: ownerAtFailure.result.state,
+          phase: ownerAtFailure.result.phase, active: ownerAtFailure.result.active,
+          diagnosticCode: ownerAtFailure.result.diagnostic?.code || null } : null,
+        settings: settingsAtFailure?.result ? { state: settingsAtFailure.result.state,
+          ledgerState: settingsAtFailure.result.ledgerState,
+          phase: settingsAtFailure.result.phase } : null
+      };
+    }
     assert(imported.result?.success === true && imported.result.counts?.imported === 2
       && imported.result.counts?.missing >= 1
       && !JSON.stringify(imported.result).includes(importRoot),

@@ -14,6 +14,7 @@ const { parseFrontmatter } = require('./frontmatter');
 const { runClaimedDesiredJob } = require('./desired-job-processor');
 const { deriveValidatedDocument } = require('./derived-document-indexer');
 const { SearchEngine } = require('./search-engine');
+const { redactToken } = require('./redaction');
 
 const opened = [];
 function loadDatabase(role) {
@@ -56,6 +57,7 @@ const documentCancel = workerData?.documentCancelBuffer
 let documentCancelRevision = 0;
 let maintenanceJob = null;
 let maintenancePromise = null;
+let maintenanceReadOnlyKeyword = null;
 let interruptedMaintenanceFound = false;
 
 function validatedPublicationRoot() {
@@ -153,15 +155,21 @@ function resumeInterruptedJobs() {
 // @req FR-DOC-019 AC-10 REL-DOC-008 AC-4 AC-5
 function resumeInterruptedMaintenance() {
   if (closing || maintenanceJob) return;
-  const rows = ledger.open().prepare(`SELECT job_id, cancel_requested, requested_by FROM index_jobs
-    WHERE job_type = 'keyword_rebuild' AND status IN ('queued', 'indexing')
+  const rows = ledger.open().prepare(`SELECT job_id, job_type, cancel_requested, requested_by FROM index_jobs
+    WHERE job_type IN ('keyword_rebuild', 'keyword_clear') AND status IN ('queued', 'indexing')
     ORDER BY created_at, job_id LIMIT 16`).all();
   for (const row of rows) {
-    ledger.updateIndexJob(row.job_id, { status: row.cancel_requested ? 'cancelled' : 'failed',
-      phase: 'interrupted', finishedAt: true,
-      diagnosticCode: row.cancel_requested ? 'interrupted_rebuild_cancelled' : 'interrupted_rebuild_restarted' });
+    const clearCommitted = row.job_type === 'keyword_clear'
+      && Boolean(keyword.open().prepare('SELECT 1 FROM keyword_clear_receipts WHERE job_id = ?')
+        .get(row.job_id));
+    ledger.updateIndexJob(row.job_id, { status: clearCommitted ? 'completed'
+      : row.cancel_requested ? 'cancelled' : 'failed',
+      phase: clearCommitted ? 'completed' : 'interrupted', finishedAt: true,
+      diagnosticCode: clearCommitted ? 'interrupted_clear_committed'
+        : row.job_type === 'keyword_clear' ? 'interrupted_clear_preserved'
+          : row.cancel_requested ? 'interrupted_rebuild_cancelled' : 'interrupted_rebuild_restarted' });
   }
-  if (rows.some(row => !row.cancel_requested && ['settings.rebuild',
+  if (rows.some(row => row.job_type === 'keyword_rebuild' && !row.cancel_requested && ['settings.rebuild',
     'settings.retry-failures', 'startup.rebuild.interrupted'].includes(row.requested_by))) {
     interruptedMaintenanceFound = true;
   }
@@ -216,7 +224,9 @@ async function readIndexableMarkdown(filePath, realPath, parser, job) {
 }
 
 function maintenanceSnapshot(job, phase, currentPath = null) {
-  status('rebuilding', null, { active: true, kind: 'rebuild', jobId: job.id, phase,
+  const kind = job.operation || 'rebuild';
+  status(kind === 'rebuild' || kind === 'retry' ? 'rebuilding' : `${kind}ing`, null,
+    { active: true, kind: kind === 'retry' ? 'rebuild' : kind, jobId: job.id, phase,
     cancelRequested: job.cancelRequested, currentPath: currentPath ? path.relative(sourceRoot, currentPath) : null,
     progress: { current: job.indexed, total: job.total },
     rebuildSession: { active: true, indexedCount: job.indexed,
@@ -307,23 +317,117 @@ async function runMaintenance(job) {
   }
 }
 
+// @req FR-DOC-019 AC-6 AC-10 REL-DOC-004 REL-DOC-007
+async function runClearMaintenance(job) {
+  const db = keyword.open();
+  const backupPath = `${keyword.dbPath}.backup-clear-${crypto.randomUUID()}.sqlite3`;
+  let transactionOpen = false;
+  let committed = false;
+  try {
+    const oldGeneration = keyword.getCommittedGeneration();
+    maintenanceSnapshot(job, 'backup');
+    await db.backup(backupPath, { progress: progress => {
+      if (job.cancelRequested || closing) throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
+      job.total = progress.totalPages;
+      job.indexed = progress.totalPages - progress.remainingPages;
+      maintenanceSnapshot(job, 'backup');
+      return 32;
+    } });
+    if (job.cancelRequested || closing) throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
+    const BackupDatabase = loadDatabase('clear-backup-check');
+    const backup = new BackupDatabase(backupPath, { readonly: true, fileMustExist: true });
+    try {
+      if (backup.pragma('quick_check(1)', { simple: true }) !== 'ok'
+        || backup.prepare("SELECT value FROM keyword_index_meta WHERE key = 'committed_generation'").get()?.value
+          !== oldGeneration?.generationId
+        || backup.prepare('SELECT COUNT(*) AS count FROM keyword_documents').get().count
+          !== db.prepare('SELECT COUNT(*) AS count FROM keyword_documents').get().count) {
+        throw new Error('clear_backup_validation_failed');
+      }
+    } finally { backup.close(); }
+    maintenanceReadOnlyKeyword = new SQLiteKeywordIndex({ dbPath: keyword.dbPath,
+      sourceRoot, readOnly: true, tokenizer: keyword.tokenizer });
+    maintenanceReadOnlyKeyword.open();
+    db.exec('BEGIN IMMEDIATE');
+    transactionOpen = true;
+    const batches = [
+      ['keyword_fts', 'rowid'], ['keyword_segments', 'segment_id'],
+      ['keyword_documents', 'rowid']
+    ];
+    for (const [table, key] of batches) {
+      while (true) {
+        if (job.cancelRequested || closing) throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
+        const ids = db.prepare(`SELECT ${key} AS id FROM ${table} LIMIT 128`).all().map(row => row.id);
+        if (!ids.length) break;
+        db.prepare(`DELETE FROM ${table} WHERE ${key} IN (${ids.map(() => '?').join(',')})`).run(...ids);
+        job.indexed += ids.length;
+        maintenanceSnapshot(job, 'clear');
+        await new Promise(resolve => setImmediate(resolve));
+      }
+    }
+    db.prepare("DELETE FROM keyword_index_meta WHERE key IN ('committed_generation', 'committed_revision', 'committed_document_count', 'last_rebuilt_at')").run();
+    db.prepare('INSERT INTO keyword_clear_receipts(job_id, committed_at) VALUES (?, ?)')
+      .run(job.id, new Date().toISOString());
+    if (job.cancelRequested || closing) throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
+    if (workerData?.r3MaintenanceFaultBeforeCommit) throw new Error('r3_fault_before_commit');
+    maintenanceSnapshot(job, 'commit');
+    db.exec('COMMIT');
+    transactionOpen = false;
+    committed = true;
+    keywordReady = false;
+    keywordDiagnosticCode = 'keyword_index_missing';
+    const backupPathToken = redactToken('PATH', backupPath);
+    if (workerData?.r3MaintenanceFaultAfterCommit) throw new Error('r3_fault_after_commit');
+    ledger.updateIndexJob(job.id, { status: 'completed', phase: 'completed', finishedAt: true });
+    status('stale', keywordDiagnosticCode, { active: false, kind: 'clear', jobId: job.id,
+      phase: 'completed', backupPath: backupPathToken });
+  } catch (error) {
+    if (transactionOpen) db.exec('ROLLBACK');
+    if (committed) {
+      status('stale', 'index_clear_ledger_finalize_pending', { active: false,
+        kind: 'clear', jobId: job.id, phase: 'completed',
+        backupPath: redactToken('PATH', backupPath) });
+      return;
+    }
+    const cancelled = error.code === 'cancelled' || job.cancelRequested;
+    ledger.updateIndexJob(job.id, { status: cancelled ? 'cancelled' : 'failed',
+      phase: cancelled ? 'cancelled' : 'failed', finishedAt: true,
+      diagnosticCode: cancelled ? 'index_clear_cancelled' : 'index_clear_failed' });
+    status(keywordReady ? 'ready' : 'stale', cancelled ? 'index_clear_cancelled' : 'index_clear_failed',
+      { active: false, kind: 'clear', jobId: job.id, phase: cancelled ? 'cancelled' : 'failed' });
+  } finally {
+    if (maintenanceReadOnlyKeyword) maintenanceReadOnlyKeyword.close();
+    maintenanceReadOnlyKeyword = null;
+    maintenanceJob = null;
+    scheduleDesiredDrain();
+  }
+}
+
 function beginMaintenance(operation, requestedBy = 'settings.rebuild') {
-  if (!['rebuild', 'retry'].includes(operation)) return { started: false, scheduled: false,
+  if (!['rebuild', 'retry', 'compact', 'clear'].includes(operation)) return { started: false, scheduled: false,
     reason: 'unsupported-operation' };
   if (!recoveryReady || !recoveryComplete) return {
     started: false, scheduled: false, reason: 'owner-recovery-pending' };
-  if (!['ready', 'stale', 'READY', 'READY_KEYWORD_ONLY',
-    'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(lastSnapshot?.state)
+  const allowed = operation === 'compact' || operation === 'clear'
+    ? ['ready', 'READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING']
+    : ['ready', 'stale', 'READY', 'READY_KEYWORD_ONLY',
+      'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'];
+  if (!allowed.includes(lastSnapshot?.state)
     || lastSnapshot.active === true) return {
     started: false, scheduled: false, reason: 'job-in-progress' };
   if (maintenanceJob || draining || !sourceRoot || !ledger || !keyword) return {
     started: false, scheduled: false, reason: 'job-in-progress' };
-  const id = `keyword-rebuild-${crypto.randomUUID()}`;
-  ledger.enqueueIndexJob({ jobId: id, jobType: 'keyword_rebuild', status: 'queued', requestedBy });
-  maintenanceJob = { id, cancelRequested: false, indexed: 0, total: 0 };
+  if (operation === 'compact') return { started: false, scheduled: false, compacted: false,
+    reason: 'compact-rebuild-required' };
+  const kind = operation === 'clear' ? 'clear' : 'rebuild';
+  const id = `keyword-${kind}-${crypto.randomUUID()}`;
+  ledger.enqueueIndexJob({ jobId: id, jobType: `keyword_${kind}`, status: 'queued', requestedBy });
+  maintenanceJob = { id, operation, cancelRequested: false, indexed: 0, total: 0 };
   maintenanceSnapshot(maintenanceJob, 'queued');
   setImmediate(() => {
-    if (maintenanceJob) maintenancePromise = runMaintenance(maintenanceJob).finally(() => { maintenancePromise = null; });
+    if (maintenanceJob) maintenancePromise = (operation === 'clear'
+      ? runClearMaintenance(maintenanceJob) : runMaintenance(maintenanceJob))
+      .finally(() => { maintenancePromise = null; });
   });
   return { started: true, scheduled: true, jobId: id };
 }
@@ -595,7 +699,7 @@ async function dispatch(message) {
         return;
       }
       const committed = keywordReady ? keyword.getCommittedGeneration() : null;
-      result(id, committed ? keyword.search(payload.query || '', { limit: 20 }) : []);
+      result(id, committed ? (maintenanceReadOnlyKeyword || keyword).search(payload.query || '', { limit: 20 }) : []);
     } else if (tag === 'CANCEL' && typeof message.target === 'string') {
       const maintenance = maintenanceJob && maintenanceJob.id === message.target;
       if (maintenance) {
@@ -603,8 +707,9 @@ async function dispatch(message) {
         ledger.updateIndexJob(maintenanceJob.id, { cancelRequested: true });
       }
       const cancelled = maintenance || scheduler.cancel(message.target);
-      if (maintenance) status('rebuilding', null, {
-        active: true, kind: 'rebuild', jobId: maintenanceJob.id,
+      if (maintenance) status(maintenanceJob.operation === 'clear' ? 'clearing' : 'rebuilding', null, {
+        active: true, kind: maintenanceJob.operation === 'retry' ? 'rebuild' : maintenanceJob.operation,
+        jobId: maintenanceJob.id,
         phase: 'cancel_requested', cancelRequested: true,
         currentPath: lastSnapshot?.currentPath || null,
         progress: lastSnapshot?.progress || { current: 0, total: 0 },

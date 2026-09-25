@@ -1,0 +1,70 @@
+{
+  "sourceHash": "7e1e07b13640f7a0b6606714605b4109c87131a839d87e41c632648d614eb8a6",
+  "marker": "s264713c6995b36ef15",
+  "oldMarker": "zzzxqcbe25e4574108e41",
+  "newMarker": "qqqjzd8c1ef283c4a5c24",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s264713c6995b36ef15",
+  "firstSha256": "a65a05785f4a1e0e8bc9516f6def55654eaf03365a0e622f01ae918478dba7bc",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 4532,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "249d2724d4ca5945eebe216da031e2a7cc21f6acaa1e4bf9e276cbd5c2af8793",
+      "port": 32581
+    },
+    {
+      "pid": 59096,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "249d2724d4ca5945eebe216da031e2a7cc21f6acaa1e4bf9e276cbd5c2af8793",
+      "port": 32581
+    }
+  ],
+  "documentId": "doc_70874e42720fcd4fad75ed89",
+  "sourceRelativePath": "111132611_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_11874ec6f6999999634d72e74003526b3fdc76fa2f4cda92dac5e74a17f1091d",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_700d8d295924ec5e51cd5b0d",
+  "aliasCanonicalHash": "d2db51ce5c7324a20e2a71efa10ad1acf2360f0a963058427779d340a9071c19",
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "ea3122822569ef4e0917f8f30b2c4d9ed019e0d090487f128174f8f26070b115",
+  "cancelJobId": "job_541e3d5ba254fe6a208ab932a6bad73e5bd8d05982b5be87ff0060391c290e67",
+  "newSha256": "8be0a6b8d0121971c1718d7db053c98c60ce11cc2de520d6abb08cea158ee74a",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "8be0a6b8d0121971c1718d7db053c98c60ce11cc2de520d6abb08cea158ee74a",
+  "externalSha256AfterCancel": "8be0a6b8d0121971c1718d7db053c98c60ce11cc2de520d6abb08cea158ee74a",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 36366.55589999999,
+  "oldSearchText": "No results found for \"zzzxq\". (4 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "8be0a6b8d0121971c1718d7db053c98c60ce11cc2de520d6abb08cea158ee74a",
+  "recoveredExternalSha256": "8be0a6b8d0121971c1718d7db053c98c60ce11cc2de520d6abb08cea158ee74a",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ]
+}

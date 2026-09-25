@@ -56,6 +56,11 @@ class SQLiteKeywordIndex {
         value TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS keyword_clear_receipts (
+        job_id TEXT PRIMARY KEY,
+        committed_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS keyword_documents (
         file_path TEXT PRIMARY KEY,
         title TEXT,

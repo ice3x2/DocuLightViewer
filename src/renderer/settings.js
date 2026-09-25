@@ -390,6 +390,9 @@
 
   function formatIndexingActionResult(result) {
     if (!result || typeof result !== 'object') return null;
+    if (result.scheduled === true) {
+      return { type: 'notice', message: t('settings.indexingActionScheduled') };
+    }
     const failed = result.success === false ||
       result.started === false ||
       result.scheduled === false ||
@@ -397,14 +400,13 @@
       result.cleared === false ||
       result.cancelled === false;
     if (failed) {
-      const reason = formatIndexingDiagnostic(result.message || result.error || result.reason || 'not-available');
+      const reason = result.reason === 'compact-rebuild-required'
+        ? t('settings.indexingCompactRebuildRequired')
+        : formatIndexingDiagnostic(result.message || result.error || result.reason || 'not-available');
       return {
         type: 'error',
         message: t('settings.indexingActionNotCompleted', { reason })
       };
-    }
-    if (result.scheduled) {
-      return { type: 'notice', message: t('settings.indexingActionScheduled') };
     }
     if (result.backupPath) {
       return { type: 'notice', message: t('settings.indexingActionCompletedWithBackup') };
@@ -470,7 +472,7 @@
     const ledgerCode = typeof status.ledgerCode === 'string' ? status.ledgerCode : '';
     const ledgerPercent = Number.isFinite(status.ledgerProgress)
       ? Math.max(0, Math.min(100, status.ledgerProgress)) : null;
-    const legacyActive = nativeRepairActive || isFullRebuildActive(status, state) ||
+    const legacyActive = nativeRepairActive || state === 'clearing' || isFullRebuildActive(status, state) ||
       Boolean(status.indexingWorker && status.indexingWorker.active);
     const displayPercent = legacyActive ? formatProgressPercent(status.progress) : ledgerPercent;
     const bucket = displayPercent === null ? '' : (displayPercent === 100 ? 100 : Math.floor(displayPercent / 10) * 10);
@@ -533,13 +535,13 @@
     const rebuildActive = isFullRebuildActive(status, state);
     const sourceRootConfigured = status.sourceRootConfigured !== false;
     const legacyCancelAvailable = !nativeRepairActive && !rebuildActive &&
-      Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild');
+      (state === 'clearing' || Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild'));
     const legacyRetryAvailable = !active && sourceRootConfigured && (status.failedCount || 0) > 0;
     if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
     if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement) || !legacyCancelAvailable;
     if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || (ledgerState
-      ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
+      ? !['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
     if (indexingRetryBtn) indexingRetryBtn.disabled = busy || !legacyRetryAvailable;
     if (indexingCompactBtn) indexingCompactBtn.disabled = busy || (ledgerState

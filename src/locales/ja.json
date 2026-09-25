@@ -148,6 +148,8 @@
   "settings.linkedImportUnconfirmed": "リンクインポートは一部完了: インポート {imported} 件、更新 {updated} 件、既存 {existing} 件、スキップ {skipped} 件、未確認 {unconfirmed} 件。確認済みのファイルは保存されています。同じファイルを再度インポートして確認してください。",
   "settings.linkedImportFailed": "リンクインポートに失敗しました",
   "settings.indexingClearConfirm": "検索インデックスをクリアしますか？インデックスファイルがある場合はバックアップを作成します。",
+  "settings.indexingClearCancel": "キャンセル",
+  "settings.indexingCompactRebuildRequired": "データベースの空き領域を回収するには、検索インデックスを再作成してください。",
   "settings.indexingCompactConfirm": "検索インデックスDBを今すぐ整理しますか？保存済みインデックスファイルを書き直します。",
   "settings.indexingBackupWarning": "削除は既存インデックスをバックアップします。DB整理は保存済みインデックスを書き直します。",
   "viewer.exportPdf": "PDF エクスポート",

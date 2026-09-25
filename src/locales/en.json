@@ -151,6 +151,8 @@
   "settings.linkedImportUnconfirmed": "Linked import partial: {imported} imported, {updated} updated, {existing} existing, {skipped} skipped, {unconfirmed} unconfirmed. Confirmed files remain saved. Retry the same import to check the unconfirmed result.",
   "settings.linkedImportFailed": "Linked import failed",
   "settings.indexingClearConfirm": "Clear the search index? A backup is created when an index file exists.",
+  "settings.indexingClearCancel": "Cancel",
+  "settings.indexingCompactRebuildRequired": "Rebuild the search index to reclaim database space.",
   "settings.indexingCompactConfirm": "Clean the search index database now? This rewrites the saved index file.",
   "settings.indexingBackupWarning": "Delete backs up the existing index. Clean rewrites the saved index database.",
   "viewer.exportPdf": "PDF Export",

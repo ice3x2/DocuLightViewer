@@ -1,0 +1,33 @@
+{
+  "sourceHash": "a6788e4e2998d82be96f5fde9ae1417379da61397182e149deffe944fd88a928",
+  "marker": "s26f634e5987702eb87",
+  "oldMarker": "zzzxq8a4cb6ddb94db9b9",
+  "newMarker": "qqqjz43c8f1ae1758c52d",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s26f634e5987702eb87",
+  "firstSha256": "e0ee2e0b4ce2ab3f3f6b2746f87619faf86bce0fc198efa4cd06c868a3d469e4",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 95524,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "249d2724d4ca5945eebe216da031e2a7cc21f6acaa1e4bf9e276cbd5c2af8793",
+      "port": 32581
+    }
+  ],
+  "documentId": "doc_ca866a5ae5d24177b3b6c84a",
+  "sourceRelativePath": "111507584_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_26721a9479cd84d84e542bd86e54deac9bcb7e73107207423bb6a0e0c035495a",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_d7a439df088e97a27e1f2b5b",
+  "aliasCanonicalHash": "ecd74e6521eef006a0bba5c6ba0d773a26f173540333d9ad51b05a309c8196f9"
+}

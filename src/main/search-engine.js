@@ -2133,8 +2133,19 @@ class SearchEngine {
 
   // @req FR-DOC-019 AC-10 IR-APP-013
   onOwnerStatus(snapshot) {
-    if (!this.options.ownerManaged || snapshot?.kind !== 'rebuild'
-      || snapshot.active || snapshot.phase !== 'completed') return;
+    if (!this.options.ownerManaged || snapshot?.active || snapshot?.phase !== 'completed') return;
+    if (snapshot.kind === 'clear') {
+      if (this.sqliteIndex) this.sqliteIndex.close();
+      this.sqliteIndex = null;
+      this._ownerKeywordDataVersion = null;
+      this._createFreshEngine();
+      this.initialized = true;
+      this.dirty = false;
+      this._status = { ...this._status, state: 'stale', phase: null, currentPath: null,
+        errorSummary: null, failedFiles: [] };
+      return;
+    }
+    if (snapshot.kind !== 'rebuild') return;
     void this.ensureFresh().catch(() => { /* preserve the prior committed facade on refresh failure */ });
   }
 

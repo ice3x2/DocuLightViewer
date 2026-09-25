@@ -55,6 +55,7 @@ class OwnerWorkerController {
         r3MigrationPageAudit: this.config.r3MigrationPageAudit,
         r3SkipStartupReplay: this.config.r3SkipStartupReplay === true,
         r3MaintenanceFaultBeforeCommit: this.config.r3MaintenanceFaultBeforeCommit === true,
+        r3MaintenanceFaultAfterCommit: this.config.r3MaintenanceFaultAfterCommit === true,
         r3MaintenancePageDelayMs: this.config.r3MaintenancePageDelayMs || 0,
         documentCancelBuffer: this.documentCancel.buffer }
     });
@@ -145,8 +146,11 @@ class OwnerWorkerController {
       if (snapshot.migrationComplete !== true || snapshot.recoveryComplete !== true) {
         return Promise.resolve({ started: false, scheduled: false, reason: 'owner-recovery-pending' });
       }
-      if (!['ready', 'stale', 'READY', 'READY_KEYWORD_ONLY',
-        'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(snapshot.state)
+      const allowed = payload.operation === 'compact' || payload.operation === 'clear'
+        ? ['ready', 'READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING']
+        : ['ready', 'stale', 'READY', 'READY_KEYWORD_ONLY',
+          'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'];
+      if (!allowed.includes(snapshot.state)
         || snapshot.active === true) {
         return Promise.resolve({ started: false, scheduled: false, reason: 'job-in-progress' });
       }

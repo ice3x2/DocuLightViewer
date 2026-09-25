@@ -40,6 +40,7 @@ function fromOwnerSnapshot(snapshot, configured) {
     if (Object.hasOwn(STATES, state)) ledgerState = state;
     else if (state === 'ready') ledgerState = 'READY';
     else if (state === 'stale') ledgerState = 'READY_KEYWORD_DEGRADED';
+    else if (state === 'clearing') ledgerState = 'READY_MAINTENANCE_PENDING';
     else if (state === 'indexing') ledgerState = snapshot.phase === 'ann' ? 'ANN_BUILDING' : 'KEYWORD_REPAIRING';
     else if (state === 'failed') ledgerState = 'OWNER_EXIT_BLOCKED';
     else if (state === 'shutdown') ledgerState = 'OWNER_EXIT_PENDING';
@@ -67,10 +68,11 @@ function composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigur
       pendingCount: 0, failedCount: 0, currentPath: null, phase: null,
       progress: null, rebuildSession: null, errorSummary: null });
   }
-  if (sourceRootConfigured && ownerStatus?.kind === 'rebuild') {
+  if (sourceRootConfigured && ['rebuild', 'clear'].includes(ownerStatus?.kind)) {
     const session = ownerStatus.rebuildSession || null;
     Object.assign(status, {
-      state: ownerStatus.active ? 'rebuilding' : ownerStatus.phase === 'failed' ? 'degraded'
+      state: ownerStatus.active ? ownerStatus.kind === 'clear' ? 'clearing' : 'rebuilding'
+        : ownerStatus.phase === 'failed' ? 'degraded'
         : ownerStatus.phase === 'cancelled' ? 'stale' : status.state,
       phase: ownerStatus.phase || null,
       progress: ownerStatus.progress || status.progress,

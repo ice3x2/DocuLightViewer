@@ -151,6 +151,8 @@
   "settings.linkedImportUnconfirmed": "Importación de enlaces parcial: {imported} importados, {updated} actualizados, {existing} existentes, {skipped} omitidos, {unconfirmed} sin confirmar. Los archivos confirmados siguen guardados. Repite la importación del mismo archivo para comprobar el resultado pendiente.",
   "settings.linkedImportFailed": "Error al importar enlaces",
   "settings.indexingClearConfirm": "¿Borrar el índice de búsqueda? Se crea una copia de seguridad cuando existe el archivo de índice.",
+  "settings.indexingClearCancel": "Cancelar",
+  "settings.indexingCompactRebuildRequired": "Vuelve a crear el índice de búsqueda para recuperar espacio en la base de datos.",
   "settings.indexingCompactConfirm": "¿Limpiar ahora la base del índice de búsqueda? Esto reescribe el archivo de índice guardado.",
   "settings.indexingBackupWarning": "Eliminar respalda el índice existente. Limpiar reescribe la base del índice guardada.",
   "viewer.exportPdf": "Exportar PDF",
