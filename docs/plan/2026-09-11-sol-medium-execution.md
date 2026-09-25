@@ -263,4 +263,5 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 ## S23b 부분 진행 기록 — Settings clear 안전화
 
 - [x] [S23b 집중 테스트와 실제 DB 증거](../analysis/2026-09-25-s23b-owner-clear-evidence.md): 확인 없는 clear를 차단하고, 확인된 clear를 장기 owner의 검증된 백업·bounded 삭제 경로로 옮겼다. 삭제 트랜잭션 안의 job-ID 영수증으로 commit 이후 원장 갱신 실패와 재시작을 구분한다. Settings 진행·취소·재빌드 표시, 공개 검색 응답의 진행 중 유지, S23/S20/S19/S17 및 같은 sourceHash의 실제 S26 25 assertions를 확인했다. 독립 검토에서 clear 경로의 Critical/High 구현 결함은 0건이다. SourceHash `3a236a61ed7cf67c3d0a61a804c3976b21f3cfc994dbbeee76d5d877ff9f0b0a`.
-- [ ] #61은 계속 OPEN이다. 기존 `auto_vacuum=NONE` DB의 물리적 compact는 안전한 bounded 경로가 없어 `compacted:false`와 rebuild-required를 반환한다. 실제 대용량 WAL/DB 응답성·checksum·제품 전체 writable-open 감사와 실제 Electron Settings clear IPC 증거도 남아 있다. #46 및 전체 36개 실행 이슈의 완료율은 늘리지 않는다.
+- [x] 사용자는 기존 `auto_vacuum=NONE` DB의 물리적 compact 대신 정직한 `compacted:false`, `compact-rebuild-required` 안내를 선택했다. [FR-DOC-019 AC-10](../spec/60.document-persistence.srs.md)에 쓰기 없는 모드 검사와 자동 rebuild 금지를 반영하고 독립 검토 후 `8c3651aed36d4d1450a596df3472a881965c0993`으로 게시했다.
+- [ ] #61은 계속 OPEN이다. 승인된 compact 안내와 confirmed clear에 대한 실제 Electron Settings IPC, 대용량 WAL/DB 응답성·checksum·단일 writer 감사 증거를 연결하고 독립 검토 후 닫는다. #46 및 전체 36개 실행 이슈의 완료율은 그전까지 늘리지 않는다.
