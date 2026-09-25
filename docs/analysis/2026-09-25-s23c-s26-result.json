@@ -1,0 +1,18 @@
+{
+  "sourceHash": "b65556251551425e41a898f1f276e21d7107a2d7bf5b2d4f037b89054c84fb15",
+  "result": "PASS",
+  "scenario": "s26",
+  "assertions": 36,
+  "inspectedProductPids": [60688, 143172],
+  "publicMcpToolsCalled": 8,
+  "containedRegistrationDocumentIdPresent": true,
+  "restartRecoveredLatestRevision": true,
+  "settingsMaintenance": {
+    "compact": { "started": false, "scheduled": false, "reason": "compact-rebuild-required" },
+    "privateRebuild": { "started": true, "scheduled": true, "reason": null },
+    "retry": { "started": false, "scheduled": false, "reason": "job-in-progress" },
+    "rebuild": { "started": true, "scheduled": true, "reason": null },
+    "clearConfirmed": { "started": true, "scheduled": true, "reason": null }
+  },
+  "sqliteAudit": "2026-09-25-s23c-owner-writer-audit.json"
+}

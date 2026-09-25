@@ -417,5 +417,7 @@ function findLedgerDocumentById(ledger, documentId) {
 module.exports = {
   LegacyAdopter,
   createLegacyAdopter,
-  createLegacyAdoptionService
+  createLegacyAdoptionService,
+  normalizeTrustedDocumentId,
+  normalizeDocumentTags
 };

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createRedactor, redactValue, redactToken } = require('./redaction');
+const { normalizeTrustedDocumentId, normalizeDocumentTags } = require('./legacy-adoption');
 
 const SOURCE_LEDGER_SCHEMA_VERSION = 1;
 const CANONICAL_LINK_STATUSES = Object.freeze([
@@ -1052,6 +1053,86 @@ class SourceLedgerStore {
         currentPathInternal: path.join(storeRoot, locator), contentHash: `sha256:${current.contentHash}`,
         contentByteLength, contentTextLength });
       return { documentId, desiredRevision, jobId, receiptKind: 'queued' };
+    })();
+  }
+
+  // @req FR-DOC-019 AC-10 FR-DOC-035 AC-4 AC-6 AC-7 AC-13
+  adoptContainedDocument({ storeRoot, sourceRelativeLocator, canonicalPathInternal,
+    content, contentHash, contentByteLength, metadata = {} }) {
+    this.assertWritable();
+    const db = this.open();
+    return db.transaction(() => {
+      const knownSource = db.prepare('SELECT source_id FROM sources WHERE root_path_internal = ?')
+        .get(normalizeInternalPath(storeRoot));
+      const pathKey = normalizePathKey(sourceRelativeLocator);
+      const byPath = knownSource ? db.prepare('SELECT * FROM documents WHERE source_id = ? AND path_key = ?')
+        .get(knownSource.source_id, pathKey) : null;
+      const byCanonical = this.findDocumentByCanonicalPath({ canonicalPathInternal });
+      const existing = byCanonical || byPath;
+      const trustedDocumentId = normalizeTrustedDocumentId(metadata.documentId);
+      if (metadata.documentId && !trustedDocumentId) {
+        return { status: 'skipped', reason: 'legacy-adoption-skipped', diagnosticCode: 'unsafe_document_id' };
+      }
+      const byTrustedId = trustedDocumentId
+        ? db.prepare('SELECT source_id, path_key FROM documents WHERE document_id = ?').get(trustedDocumentId)
+        : null;
+      if (byTrustedId && (byTrustedId.source_id !== knownSource?.source_id
+        || byTrustedId.path_key !== pathKey) && !existing) {
+        return { status: 'skipped', reason: 'legacy-adoption-skipped', diagnosticCode: 'duplicate_document_id' };
+      }
+      if (existing && existing.sourceId !== knownSource?.source_id) {
+        return { status: 'skipped', reason: 'identity-conflict', diagnosticCode: 'source_identity_conflict' };
+      }
+      if (!existing) {
+        const duplicate = this.findActiveDocumentByContentFingerprint({ contentHash,
+          contentByteLength, contentTextLength: content.length });
+        if (duplicate) return { status: 'duplicate_candidate',
+          diagnosticCode: 'duplicate_content_active_path', documentId: duplicate.documentId };
+      }
+      const locator = existing?.sourceRelativePath || sourceRelativeLocator;
+      if (existing && existing.contentHash === contentHash
+        && existing.contentByteLength === contentByteLength
+        && existing.contentTextLength === content.length) {
+        return { status: 'existing', document: existing };
+      }
+      const source = knownSource ? { sourceId: knownSource.source_id }
+        : this.recordSource({ rootPathInternal: storeRoot,
+          sourceKind: 'knowledge_store', rootFingerprint: stableHash(realpathOrPath(storeRoot)),
+          displayName: 'Knowledge Store', includeGlobs: ['**/*.md', '**/*.markdown'] });
+      const tags = existing?.documentTags || [];
+      const frontmatterTags = normalizeDocumentTags(metadata.documentTags);
+      const document = this.upsertDocument({ sourceId: source.sourceId,
+        documentId: existing?.documentId || trustedDocumentId || undefined, sourceRelativePath: locator,
+        canonicalPathInternal, contentHash, contentByteLength,
+        contentTextLength: content.length, normalizedTextHash: existing?.normalizedTextHash,
+        project: existing?.project || metadata.project || null,
+        docType: existing?.docType || metadata.docType || null,
+        category: existing?.category || metadata.category || null,
+        documentTags: [...new Set([...tags, ...frontmatterTags])],
+        classification: existing?.classification || {},
+        pathHistory: existing?.pathHistory || [],
+        pathStatus: existing?.pathStatus || 'active',
+        importState: existing?.importState || 'legacy_adopted' });
+      const raw = db.prepare('SELECT * FROM documents WHERE document_id = ?').get(document.documentId);
+      const desiredRevision = (raw.desired_revision || 0) + 1;
+      const jobId = stableId('job', document.documentId, String(desiredRevision), contentHash);
+      const active = db.prepare("SELECT 1 FROM index_jobs WHERE document_id = ? AND status = 'indexing' LIMIT 1")
+        .get(document.documentId);
+      const now = this._now();
+      db.prepare(`UPDATE documents SET desired_revision = ?, current_job_id = ?,
+        desired_content_hash = ?, active_requested_revision = ?, dirty = 1,
+        keyword_dirty = 1, retry_count = 0, next_eligible_at = NULL
+        WHERE document_id = ?`).run(desiredRevision, jobId, contentHash,
+          active ? raw.active_requested_revision : desiredRevision, document.documentId);
+      db.prepare(`UPDATE index_jobs SET status = 'cancelled', finished_at = ?, updated_at = ?
+        WHERE document_id = ? AND status = 'queued' AND job_id <> ?`)
+        .run(now, now, document.documentId, jobId);
+      this.enqueueIndexJob({ jobId, sourceId: source.sourceId,
+        documentId: document.documentId, jobType: 'index_document', status: 'queued',
+        requestedBy: 'knowledge_store.legacy_adoption',
+        currentPathInternal: path.join(storeRoot, locator), contentHash,
+        contentByteLength, contentTextLength: content.length });
+      return { status: 'queued', document, jobId, desiredRevision };
     })();
   }
 

@@ -113,6 +113,7 @@ let isExporting = false;
 const windowManager = new WindowManager();
 let searchEngine = null; // Initialized after store is created
 let saveDocumentOwner = null;
+let privateIndexMaintenance = null;
 let openedMarkdownRegistrar = null;
 let nativeRebuildManager = null;
 let r3SettingsProbeWindow = null;
@@ -2437,6 +2438,10 @@ async function handleIpcMessage(socket, msg) {
       case 'r3_test_settings_status':
       case 'r3_test_settings_cancel':
       case 'r3_test_settings_import':
+      case 'r3_test_settings_rebuild':
+      case 'r3_test_settings_retry':
+      case 'r3_test_settings_compact':
+      case 'r3_test_settings_clear':
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
           throw new Error('Unknown action');
         }
@@ -2461,10 +2466,21 @@ async function handleIpcMessage(socket, msg) {
           try {
             result = await r3SettingsProbeWindow.webContents.executeJavaScript('window.doclight.importLinkedMarkdown()');
           } finally { dialog.showOpenDialog = originalDialog; }
+        } else if (action === 'r3_test_settings_clear') {
+          const originalDialog = dialog.showMessageBox;
+          dialog.showMessageBox = async () => ({ response: 0 });
+          try {
+            result = await r3SettingsProbeWindow.webContents.executeJavaScript('window.doclight.clearSearchIndex()');
+          } finally { dialog.showMessageBox = originalDialog; }
         } else {
           result = action === 'r3_test_settings_probe' ? { ready: true }
-            : await r3SettingsProbeWindow.webContents.executeJavaScript(action === 'r3_test_settings_status'
-              ? 'window.doclight.getIndexingStatus()' : 'window.doclight.cancelIndexingJob()');
+            : await r3SettingsProbeWindow.webContents.executeJavaScript({
+              r3_test_settings_status: 'window.doclight.getIndexingStatus()',
+              r3_test_settings_cancel: 'window.doclight.cancelIndexingJob()',
+              r3_test_settings_rebuild: 'window.doclight.startIndexingRebuild()',
+              r3_test_settings_retry: 'window.doclight.retryIndexingFailures()',
+              r3_test_settings_compact: 'window.doclight.compactSearchIndex()'
+            }[action]);
         }
         break;
       case 'r3_test_owner_snapshot':
@@ -2655,9 +2671,9 @@ async function handleIpcMessage(socket, msg) {
       }
 
       case 'rebuild_index':
-        result = typeof searchEngine.startRebuild === 'function'
-          ? searchEngine.startRebuild()
-          : await searchEngine.rebuild();
+        result = privateIndexMaintenance
+          ? await privateIndexMaintenance('rebuild')
+          : { started: false, scheduled: false, reason: 'owner-unavailable' };
         break;
 
       default:
@@ -2886,6 +2902,7 @@ function registerIpcHandlers() {
         status: getIndexingStatusPayload() };
     } catch (error) { return unavailable(error.code || 'owner-unavailable'); }
   };
+  privateIndexMaintenance = startOwnerIndexMaintenance;
 
   ipcMain.handle('indexing:start-rebuild', () => {
     return startOwnerIndexMaintenance('rebuild');

@@ -584,6 +584,87 @@ function acceptPublishedSave(payload) {
   }
 }
 
+// @req FR-DOC-019 AC-10 FR-DOC-035 AC-13
+async function adoptContained(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+    || Object.keys(payload).length !== 1 || typeof payload.sourceRelativeLocator !== 'string') {
+    throw Object.assign(new Error('invalid locator'), { code: 'owner_invalid_adopt_contained_payload' });
+  }
+  const locator = payload.sourceRelativeLocator;
+  if (!locator || path.isAbsolute(locator) || locator.includes('\\') || locator.includes(':')
+    || locator.split('/').some(part => !part || part === '.' || part === '..')
+    || !/\.(?:md|markdown)$/i.test(locator)) {
+    throw Object.assign(new Error('invalid locator'), { code: 'owner_invalid_adopt_contained_payload' });
+  }
+  const canonicalRoot = validatedPublicationRoot();
+  if (!canonicalRoot || !recoveryReady) {
+    throw Object.assign(new Error('owner unavailable'), { code: 'owner_not_ready' });
+  }
+  const lexicalPath = path.resolve(sourceRoot, locator);
+  const within = (candidate, root) => candidate !== root && candidate.startsWith(`${root}${path.sep}`);
+  if (!within(lexicalPath, path.resolve(sourceRoot))) {
+    throw Object.assign(new Error('invalid locator'), { code: 'owner_invalid_adopt_contained_payload' });
+  }
+  let handle;
+  const raceGate = workerData?.r3AdoptRaceBuffer
+    && payload.sourceRelativeLocator === workerData.r3AdoptRaceLocator
+    ? new Int32Array(workerData.r3AdoptRaceBuffer) : null;
+  const pauseRace = phase => {
+    if (!raceGate) return;
+    Atomics.store(raceGate, 0, phase);
+    Atomics.notify(raceGate, 0);
+    while (Atomics.load(raceGate, 1) < phase) Atomics.wait(raceGate, 1, phase - 1, 1000);
+  };
+  try {
+    const canonicalBefore = fs.realpathSync.native(lexicalPath);
+    if (!within(canonicalBefore, canonicalRoot)) throw new Error('outside root');
+    const targetBefore = fs.statSync(canonicalBefore);
+    pauseRace(1);
+    handle = await fs.promises.open(lexicalPath, 'r');
+    pauseRace(2);
+    const before = await handle.stat();
+    if (!before.isFile() || before.size > 10 * 1024 * 1024
+      || before.dev !== targetBefore.dev || before.ino !== targetBefore.ino) {
+      throw new Error('not bounded canonical regular file');
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!read.bytesRead) throw new Error('short read');
+      offset += read.bytesRead;
+    }
+    const afterFirstRead = await handle.stat();
+    const confirmBytes = Buffer.alloc(before.size);
+    offset = 0;
+    while (offset < confirmBytes.length) {
+      const read = await handle.read(confirmBytes, offset, confirmBytes.length - offset, offset);
+      if (!read.bytesRead) throw new Error('short read');
+      offset += read.bytesRead;
+    }
+    const after = await handle.stat();
+    const canonicalAfter = fs.realpathSync.native(lexicalPath);
+    const targetAfter = fs.statSync(canonicalAfter);
+    if (canonicalBefore !== canonicalAfter || before.dev !== after.dev || before.ino !== after.ino
+      || after.dev !== targetAfter.dev || after.ino !== targetAfter.ino
+      || before.size !== after.size || before.mtimeMs !== after.mtimeMs
+      || before.mtimeMs !== afterFirstRead.mtimeMs
+      || !crypto.createHash('sha256').update(bytes).digest().equals(
+        crypto.createHash('sha256').update(confirmBytes).digest())
+      || !within(canonicalAfter, canonicalRoot)) throw new Error('file changed');
+    const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const canonicalLocator = path.relative(canonicalRoot, canonicalAfter).replace(/\\/g, '/');
+    const adopted = ledger.adoptContainedDocument({ storeRoot: sourceRoot,
+      sourceRelativeLocator: canonicalLocator, canonicalPathInternal: canonicalAfter,
+      content, contentHash: `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`,
+      contentByteLength: bytes.length, metadata: parseFrontmatter(content).data || {} });
+    if (adopted.status === 'queued') scheduleDesiredDrain();
+    return adopted;
+  } finally {
+    if (handle) await handle.close();
+  }
+}
+
 function status(state, diagnosticCode = null, patch = {}) {
   lastSnapshot = {
     state, active: false, phase: null, progress: { current: 0, total: 0 },
@@ -729,6 +810,9 @@ async function dispatch(message) {
         result(id, beginMaintenance(payload.operation,
           payload.operation === 'retry' ? 'settings.retry-failures' : 'settings.rebuild'));
       }
+    } else if (tag === 'COMMAND' && type === 'adopt_contained') {
+      try { result(id, await adoptContained(payload)); }
+      catch (error) { result(id, null, error.code || 'owner_adopt_contained_failed'); }
     } else if (tag === 'COMMAND' && type === 'accept_save') {
       if (!Number.isInteger(payload.r3SchedulerUnits)) {
         const accepted = acceptPublishedSave(payload);

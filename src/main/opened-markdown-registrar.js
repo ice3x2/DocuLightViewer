@@ -3,7 +3,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { createLegacyAdopter } = require('./legacy-adoption');
 const { publishSave } = require('./index-ingress-store');
 const { redactToken } = require('./redaction');
 
@@ -62,12 +61,6 @@ class OpenedMarkdownRegistrar {
     }
 
     const canonicalPath = realpathOrPath(absolutePath);
-    const content = await fs.promises.readFile(canonicalPath, 'utf8');
-    if (normalizeInternalPath(realpathOrPath(absolutePath)) !== normalizeInternalPath(canonicalPath)) {
-      return pathContainmentFailure(absolutePath, 'realpath_changed');
-    }
-    const fingerprint = buildDocumentFingerprint(content);
-
     const canonicalSourceRoot = realpathOrPath(sourceRoot);
     const lexicalPathIsContained = isWithinRoot(absolutePath, sourceRoot);
     const canonicalPathIsContained = isWithinRoot(canonicalPath, canonicalSourceRoot);
@@ -75,21 +68,15 @@ class OpenedMarkdownRegistrar {
       return pathContainmentFailure(absolutePath, 'realpath_outside_source_root');
     }
     if (canonicalPathIsContained) {
-      const ledger = typeof this.searchEngine.getSourceLedger === 'function'
-        ? this.searchEngine.getSourceLedger() : null;
       const sourceRelativePath = path.relative(canonicalSourceRoot, canonicalPath);
-      const containedPath = path.resolve(sourceRoot, sourceRelativePath);
-      if (
-        !isWithinRoot(containedPath, sourceRoot) ||
-        normalizeInternalPath(realpathOrPath(containedPath)) !== normalizeInternalPath(canonicalPath)
-      ) {
-        return pathContainmentFailure(absolutePath, 'realpath_changed');
-      }
-      if (typeof this.searchEngine.queueDocumentIndexIfChanged !== 'function') {
-        return { status: 'skipped', reason: 'search-index-unavailable' };
-      }
-      return this.registerContainedPath({ filePath: containedPath, content, fingerprint, ledger, sourceRoot });
+      return this.registerContainedPath({ filePath: absolutePath,
+        sourceRelativeLocator: sourceRelativePath.replace(/\\/g, '/'), sourceRoot });
     }
+    const content = await fs.promises.readFile(canonicalPath, 'utf8');
+    if (normalizeInternalPath(realpathOrPath(absolutePath)) !== normalizeInternalPath(canonicalPath)) {
+      return pathContainmentFailure(absolutePath, 'realpath_changed');
+    }
+    const fingerprint = buildDocumentFingerprint(content);
     const readOnly = typeof this.searchEngine._openReadOnlySourceLedger === 'function';
     const ledger = readOnly ? this.searchEngine._openReadOnlySourceLedger()
       : typeof this.searchEngine.getSourceLedger === 'function'
@@ -118,44 +105,20 @@ class OpenedMarkdownRegistrar {
     return value ? path.resolve(String(value)) : '';
   }
 
-  async registerContainedPath({ filePath, content, ledger, sourceRoot }) {
-    const fingerprint = buildDocumentFingerprint(content);
-    const existing = typeof ledger.findDocumentByCanonicalPath === 'function'
-      ? ledger.findDocumentByCanonicalPath({ canonicalPathInternal: filePath })
-      : null;
-    if (!existing) {
-      const duplicate = this.findDuplicateActiveDocument({ ledger, fingerprint, excludeDocumentId: null });
-      if (duplicate) {
-        return duplicateCandidateResult(duplicate);
-      }
+  async registerContainedPath({ filePath, sourceRelativeLocator, sourceRoot }) {
+    const owner = this.searchEngine.ownerController
+      || (typeof this.searchEngine.getSaveDocumentOwner === 'function'
+        ? await this.searchEngine.getSaveDocumentOwner(sourceRoot) : null);
+    if (!owner || typeof owner.command !== 'function') {
+      return { status: 'skipped', reason: 'search-index-unavailable' };
     }
-    const adopter = createLegacyAdopter({
-      knowledgeStoreRoot: sourceRoot,
-      ledger
-    });
-    const adoption = await adopter.adoptMarkdownFile(filePath, content);
-    if (!adoption || adoption.status === 'skipped' || adoption.status === 'ambiguous') {
-      return {
-        status: 'skipped',
-        reason: 'legacy-adoption-skipped',
-        diagnosticCode: adoption && adoption.diagnosticCode ? adoption.diagnosticCode : 'legacy_adoption_failed',
-        redactedPath: redactToken('PATH', filePath)
-      };
+    try {
+      const result = await owner.command('adopt_contained', { sourceRelativeLocator });
+      return { ...result, indexedPath: filePath };
+    } catch (error) {
+      return { status: 'skipped', reason: 'legacy-adoption-skipped',
+        diagnosticCode: normalizeDiagnosticCode(error), redactedPath: redactToken('PATH', filePath) };
     }
-    if (adoption.status === 'existing' || adoption.shouldQueue === false) {
-      return {
-        status: 'existing',
-        indexedPath: filePath,
-        document: adoption.document || null
-      };
-    }
-    const queued = this.searchEngine.queueKnownDocumentIndex({
-      filePath,
-      content,
-      document: adoption.document,
-      requestedBy: adoption.requestedBy || 'knowledge_store.legacy_adoption'
-    });
-    return queueResultToRegistrationResult(queued, filePath);
   }
 
   // @req DR-DOC-014

@@ -226,6 +226,18 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     assert(JSON.stringify(openedViewer).includes('sourceUsed: origin')
       && !JSON.stringify(openedViewer).includes(externalAFile),
     'S26 indexed original opens through real viewer handler with redacted public payload');
+    const viewerId = /windowId: ([^\s]+)/.exec(searchText(openedViewer))?.[1];
+    assert(viewerId, 'S26 real open_markdown returns a viewer identity');
+    assert((await tool(port, 'list_viewers', {})).content?.length > 0,
+      'S26 real list_viewers route is available');
+    await tool(port, 'update_markdown', { windowId: viewerId,
+      content: `# S26 viewer update\n\n${marker}viewer\n`, noSave: true, foreground: false });
+    assert((await tool(port, 'search_projects', {})).content?.length > 0,
+      'S26 real search_projects route is available');
+    assert((await tool(port, 'smart_search', { query: marker })).content?.length > 0,
+      'S26 real smart_search route is available');
+    await tool(port, 'close_viewer', { windowId: viewerId });
+    evidence.publicToolsCalled = 8;
     const settingsReady = await privateAction(ipcPath, 'r3_test_settings_probe');
     assert(settingsReady.result?.ready === true, 'S26 real Settings renderer and preload are ready');
     const importRoot = path.join(fixture, 'linked-import');
@@ -264,6 +276,17 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     evidence.importCounts = imported.result.counts;
     evidence.importedEntrySha256 = sha(entryBytes);
     evidence.importedCompletedSha256 = sha(completedBytes);
+    const containedPath = path.join(store, 'contained-open.md');
+    const containedBytes = Buffer.from(`# S26 contained open\n\n${marker}contained\n`);
+    fs.writeFileSync(containedPath, containedBytes);
+    await openExternal(executable, root, env, containedPath);
+    const contained = await eventually(10000, () => {
+      const snapshot = ledgerSnapshot(executable, root, ledgerPath);
+      return snapshot.docs.find(doc => doc.relative_path === 'contained-open.md') || null;
+    });
+    assert(contained?.document_id && sha(fs.readFileSync(containedPath)) === sha(containedBytes),
+      'S26 contained viewer open adopts under owner without rewriting the file');
+    evidence.containedDocumentId = contained.document_id;
     const large = largeMarkdownFixture();
     const updatedText = large.bytes.toString('utf8').slice(0, 2_000_000)
       .replace('title: S22 large document\ncategory: engineering\ndocumentTags: [performance, 색인]',
@@ -368,6 +391,43 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     evidence.recoveredExternalSha256 = sha(fs.readFileSync(externalAFile));
     evidence.recoveredJobStates = recovered.jobs.filter(job => job.document_id === opened.document_id)
       .map(job => job.status);
+    const compactRoute = await privateAction(ipcPath, 'r3_test_settings_compact');
+    assert(compactRoute.result?.compacted === false
+      && compactRoute.result.started === false
+      && compactRoute.result.reason === 'compact-rebuild-required',
+      'S26 Settings compact truthfully defers physical work for legacy auto_vacuum NONE');
+    const privateRebuild = await privateAction(ipcPath, 'rebuild_index');
+    const privateOwner = await privateAction(ipcPath, 'r3_test_owner_snapshot');
+    assert(privateRebuild.result && (privateRebuild.result.started !== true
+      || (privateRebuild.result.scheduled === true
+        && privateRebuild.result.jobId === privateOwner.result?.jobId
+        && privateOwner.result?.kind === 'rebuild')),
+      'S26 private rebuild_index cannot start a short-worker job outside the owner');
+    const retryRoute = await privateAction(ipcPath, 'r3_test_settings_retry');
+    assert(retryRoute.result && (retryRoute.result.started === true
+      ? retryRoute.result.scheduled === true && Boolean(retryRoute.result.jobId)
+      : retryRoute.result.scheduled === false && Boolean(retryRoute.result.reason)),
+      'S26 Settings retry reports a durable owner job or an explicit rejection');
+    const rebuildRoute = await privateAction(ipcPath, 'r3_test_settings_rebuild');
+    assert(rebuildRoute.result && (rebuildRoute.result.started === true
+      ? rebuildRoute.result.scheduled === true && Boolean(rebuildRoute.result.jobId)
+      : rebuildRoute.result.scheduled === false && Boolean(rebuildRoute.result.reason)),
+      'S26 Settings rebuild reports a durable owner job or an explicit rejection');
+    const clearRoute = await privateAction(ipcPath, 'r3_test_settings_clear');
+    assert(clearRoute.result?.cleared === false && (clearRoute.result.started === true
+      ? clearRoute.result.scheduled === true && Boolean(clearRoute.result.jobId)
+      : clearRoute.result.scheduled === false && Boolean(clearRoute.result.reason)),
+      'S26 confirmed Settings clear reports a durable owner job or an explicit rejection');
+    const finalSettingsStatus = await privateAction(ipcPath, 'r3_test_settings_status');
+    assert(finalSettingsStatus.result?.sourceRootConfigured === true,
+      'S26 Settings status remains available after maintenance actions');
+    evidence.settingsMaintenance = Object.fromEntries([
+      ['compact', compactRoute.result], ['privateRebuild', privateRebuild.result],
+      ['retry', retryRoute.result],
+      ['rebuild', rebuildRoute.result], ['clear', clearRoute.result]
+    ].map(([name, value]) => [name, { started: value.started === true,
+      scheduled: value.scheduled === true, compacted: value.compacted === true,
+      cleared: value.cleared === true, reason: value.reason || null }]));
     console.error('S26_RESTART_RECOVERED');
     const secondQuit = await privateAction(ipcPath, 'r3_test_graceful_quit');
     assert(secondQuit.result?.accepted === true && await waitForExit(child, 10000) === 0,

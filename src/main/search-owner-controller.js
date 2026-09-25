@@ -5,7 +5,7 @@ const { Worker } = require('node:worker_threads');
 const { acquireOwnerLock } = require('./search-owner-lock');
 
 const TYPES = Object.freeze({
-  accept_save: 'COMMAND', resolve_origin: 'QUERY', query_keyword: 'QUERY',
+  accept_save: 'COMMAND', adopt_contained: 'COMMAND', resolve_origin: 'QUERY', query_keyword: 'QUERY',
   get_status: 'QUERY', cancel_job: 'CANCEL', manage_index: 'COMMAND', shutdown: 'COMMAND'
 });
 
@@ -57,6 +57,8 @@ class OwnerWorkerController {
         r3MaintenanceFaultBeforeCommit: this.config.r3MaintenanceFaultBeforeCommit === true,
         r3MaintenanceFaultAfterCommit: this.config.r3MaintenanceFaultAfterCommit === true,
         r3MaintenancePageDelayMs: this.config.r3MaintenancePageDelayMs || 0,
+        r3AdoptRaceBuffer: this.config.r3AdoptRaceBuffer,
+        r3AdoptRaceLocator: this.config.r3AdoptRaceLocator,
         documentCancelBuffer: this.documentCancel.buffer }
     });
     this.worker = worker;

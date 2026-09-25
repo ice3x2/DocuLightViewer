@@ -33,7 +33,9 @@ async function removeTreeWithRetry(targetPath) {
 }
 
 function queuedJobs(searchEngine) {
-  return searchEngine.getSourceLedger().getRecoverableIndexJobs({ statuses: ['queued', 'indexing'] });
+  const ledger = searchEngine._openReadOnlySourceLedger();
+  try { return ledger ? ledger.getRecoverableIndexJobs({ statuses: ['queued', 'indexing'] }) : []; }
+  finally { if (ledger) ledger.close(); }
 }
 
 function openedDestinationFor(sourceRoot, filePath) {
@@ -67,6 +69,7 @@ function stableHash(value) {
   let searchEngine = null;
   let aliasedSearchEngine = null;
   let owner = null;
+  let aliasedOwner = null;
   let success = false;
   try {
     searchEngine = new SearchEngine(createStore({
@@ -114,6 +117,12 @@ function stableHash(value) {
       disableIndexingWorkerController: true,
       smartIndexDelayMs: 60 * 60 * 1000
     });
+    fs.mkdirSync(aliasedIndexRoot, { recursive: true });
+    aliasedOwner = new OwnerWorkerController({ ledgerPath: path.join(aliasedIndexRoot, 'smart-search.sqlite3'),
+      keywordPath: path.join(root, 'alias-owner-keyword.sqlite'), sourceRoot: aliasedStoreRoot,
+      ingressRoot: path.join(root, 'alias-private-intents'), keywordTokenizerProvider: 'basic', deriveDocuments: false });
+    await aliasedOwner.start();
+    aliasedSearchEngine.getSaveDocumentOwner = async () => aliasedOwner;
     const aliasedRegistrar = createOpenedMarkdownRegistrar({
       store: createStore({
         mcpAutoSavePath: aliasedStoreRoot,
@@ -153,8 +162,10 @@ function stableHash(value) {
     assert.strictEqual(escaped.diagnosticCode, 'realpath_outside_source_root', 'junction escape reports a stable realpath diagnostic');
     assert(escaped.pathToken && !escaped.pathToken.includes(escapedStorePath), 'junction escape exposes only a redacted path token');
     assert.strictEqual(queuedJobs(searchEngine).length, escapeJobsBefore, 'junction escape does not queue an indexing job');
-    assert.strictEqual(searchEngine.getSourceLedger().findDocumentByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a document row');
-    assert.strictEqual(searchEngine.getSourceLedger().findDocumentSourceAliasByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a source alias');
+    const escapedLedger = searchEngine._openReadOnlySourceLedger();
+    assert.strictEqual(escapedLedger.findDocumentByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a document row');
+    assert.strictEqual(escapedLedger.findDocumentSourceAliasByCanonicalPath({ canonicalPathInternal: escapedPhysicalPath }), null, 'junction escape does not create a source alias');
+    escapedLedger.close();
     assert.strictEqual(fs.existsSync(path.join(storeRoot, '.opened')), false, 'junction escape does not create an opened-document copy');
 
     const disabledPath = path.join(externalRoot, 'Disabled.md');
@@ -221,6 +232,7 @@ function stableHash(value) {
     success = true;
   } finally {
     if (owner) await owner.shutdown();
+    if (aliasedOwner) await aliasedOwner.shutdown();
     if (aliasedSearchEngine) aliasedSearchEngine.close();
     if (searchEngine) searchEngine.close();
     await removeTreeWithRetry(root);

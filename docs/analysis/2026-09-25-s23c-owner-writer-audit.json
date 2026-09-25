@@ -1,0 +1,16 @@
+{
+  "sourceHash": "b65556251551425e41a898f1f276e21d7107a2d7bf5b2d4f037b89054c84fb15",
+  "rawAuditSha256": "f6daaad61e111fe49846b9bdaace774068460673845112caad252f554741bdd0",
+  "inspectedProductRuns": 2,
+  "productConstructorOpenCount": 51,
+  "mainWritableOpenCount": 0,
+  "shortWorkerWritableOpenCount": 0,
+  "ownerWritableOpenCount": 4,
+  "ownerWritableDatabaseRoles": [
+    "search-index.sqlite3",
+    "smart-search.sqlite3"
+  ],
+  "productReadOnlyOpenCount": 47,
+  "auxiliaryReadOnlyOpenCount": 23,
+  "auxiliaryWritableOpenCount": 0
+}
