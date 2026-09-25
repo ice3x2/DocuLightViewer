@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const { SearchEngine } = require('../../../src/main/search-engine');
 const { SQLiteKeywordIndex } = require('../../../src/main/search-sqlite-store');
 const { SourceLedgerStore } = require('../../../src/main/source-ledger-store');
+const { resolveIndexedMarkdownOpen } = require('../../../src/main/indexed-origin-resolver');
 
 // @req FR-DOC-019 AC-6 AC-7 AC-8 AC-9
 module.exports = { async run({ fixture, assert }) {
@@ -89,5 +90,20 @@ module.exports = { async run({ fixture, assert }) {
     assert(startupEngine.getStatus().state === 'ready' && diagnostics.some(line => line.includes('owner_start_failed')),
       'product search remains ready while owner failure is diagnosed');
     startupEngine.close();
+    let resolverError = null;
+    const resolverModes = [];
+    SourceLedgerStore.prototype.open = function instrumentedResolverOpen(...args) {
+      if (this.dbPath === ledgerPath) {
+        resolverModes.push(this.readOnly);
+        if (!this.readOnly) throw new Error('product_main_writable_ledger_open');
+      }
+      return originalOpen.apply(this, args);
+    };
+    try { await resolveIndexedMarkdownOpen({ documentId: 's23-unknown', searchEngine: engine }); }
+    catch (error) { resolverError = error; }
+    finally { SourceLedgerStore.prototype.open = originalOpen; }
+    assert(resolverError?.code === 'indexed_document_not_found' && resolverModes.length > 0
+      && resolverModes.every(Boolean) && engine._sourceLedger === null,
+    'product indexed-origin lookup is read-only and preserves unknown-ID contract');
   } finally { engine.close(); }
 } };

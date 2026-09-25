@@ -1,0 +1,28 @@
+{
+  "review": "S23 post-S26 indexed-origin read-only continuation",
+  "baseCommit": "414110745d77a9cb4a21e2e44e45b677ec05dfc3",
+  "sourceHash": "b5548df835acfec2efa02be2db258d6079198a16408a122622e4e2b7ac41dbfd",
+  "verdict": "PASS_SAFE_PARTIAL_COMMIT",
+  "findings": [],
+  "verified": [
+    "The changed product indexed-origin resolver selects SearchEngine._openReadOnlySourceLedger when available. The production SearchEngine provides that method, so the route no longer invokes its writable getSourceLedger for lookup.",
+    "A try/finally closes the temporary read-only ledger immediately after getIndexedDocumentOpenTargetInternal returns or throws, before origin and indexed-copy file validation. The returned target contains detached data used by the existing same-handle TOCTOU checks.",
+    "The S23 addition seeds a real SQLite ledger, instruments SourceLedgerStore.open, rejects writable opens, and asserts the existing unknown documentId error code. It adds an assertion without changing prior test assertions.",
+    "Existing non-product searchEngine stubs without _openReadOnlySourceLedger continue to use getSourceLedger, preserving their contract.",
+    "Independent run of node test/test-indexed-origin-open-contract.js exited 0 with all assertions passed, including origin and indexed-copy fallback and HTTP/stdio behavior.",
+    "The source hash was independently reproduced. The S26 raw sample working-file blob e5dd546042c79a565b4faca382fe77d65731bcc1 equals HEAD, with no content diff.",
+    "The continuation deletes no worker, journal adapter, user Markdown, or SQLite data and does not change the public eight-tool MCP surface. The documentation clearly labels S26 evidence as completed while #46, #43, and #45 remain open."
+  ],
+  "unmetGates": [
+    "Settings rebuild/retry/compact/clear still run the short indexing worker, which opens keyword SQLite writable; its controller persists and patches jobs through a writable main-process source ledger. Rebuild completion also resets derived state and queues reindex through the main ledger.",
+    "Opt-in contained Markdown registration still calls main getSourceLedger, legacy adoption, and queueKnownDocumentIndex. External registration already uses the owner, and Settings linked import already uses an owner with a read-only lookup handle.",
+    "FR-DOC-019 AC-10 fixes the exact private owner command registry at six names. Any owner action or contained-adoption extension requires a reviewed SpecKiwi SRS amendment before behavior implementation; no public MCP indexing controls may be added.",
+    "A full #46 claim still needs instrumented real product-main and short-worker zero-writable-open evidence, committed keyword generation preservation through failure/cancel, S17 partial-import and S19 legacy migration regression, and public search/filter/status parity.",
+    "#43 retains its committed-index checksum and sidecar recovery gates; #45 retains the approximately 10 MiB actual product IPC/viewer latency and completion-event gates."
+  ],
+  "issueDisposition": {
+    "46": "OPEN",
+    "43": "OPEN",
+    "45": "OPEN"
+  }
+}

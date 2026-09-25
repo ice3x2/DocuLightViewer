@@ -212,7 +212,8 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - 시작 SHA `e6c905a957c8bf9967d595efce4ea39f841be7b6`, 격리 worktree `DocuLightViewer-r3`. `FR-DOC-019`, `FR-DOC-033`, `FR-DOC-035`, `DR-DOC-014`, `REL-DOC-009`의 Stability 차단 없음.
 - [x] [실제 inventory·RED/GREEN·잔여 의존성](../analysis/2026-09-25-s23-cutover-evidence.md): 제품 SearchEngine 시작 시 keyword SQLite를 읽기 전용으로 열고 main의 startup ledger reconciliation을 owner recovery에 맡겼다. active status는 읽기 전용 ledger만 연다. 독립 검토에서 찾은 owner 시작 실패 시 기존 검색 불능 결함을 실제 제품 시작 함수 RED 뒤 수정하여 이전 committed keyword 결과와 S17/S19/S20 재시작 회귀를 보존했다.
 - [x] [writer·제품 경로 독립 검토](../analysis/2026-09-25-s23-inventory-review.json)와 [TDD·호환 독립 검토](../analysis/2026-09-25-s23-tdd-review.json)는 소스 해시 `16fef874888cc5847419e32642a79ab610cdaed62e569bd3412b434a89f6016c`의 시작·검색 read-only 부분 변경을 안전한 중간 커밋으로 판정했다.
-- [ ] #46 전체 완료는 보류한다. Settings legacy index worker, linked import, opened registration, semantic Settings callback이 아직 main/단기 worker ledger writer를 호출한다. S26 #49에서 대체 owner 경로와 실제 Electron product IPC를 검증해야 한다. #43·#45도 열린 상태로 유지한다.
+- [x] S26 완료 SHA `414110745d77a9cb4a21e2e44e45b677ec05dfc3` 뒤 제품 indexed-origin 조회의 main 원장 쓰기 가능 개방을 실제 SQLite assertion RED로 재현하고 읽기 전용으로 고쳤다. [inventory·원본 조회 재검토](../analysis/2026-09-25-s23-inventory-review-2.json)와 [TDD·cold app 재검토](../analysis/2026-09-25-s23-tdd-review-2.json)는 소스 해시 `b5548df835acfec2efa02be2db258d6079198a16408a122622e4e2b7ac41dbfd`의 변경을 안전한 부분 커밋으로 판정했다. S23 10, S20 21, S25 16, 실제 S26 25 assertions와 indexed-origin 계약이 통과했다.
+- [ ] #46 전체 완료는 보류한다. S26에서 Settings linked import는 owner/read-only로 연결됐고 S24에서 등록 UI는 제거됐으나, Settings 재구축·재시도·압축·초기화의 짧은 legacy worker/main ledger writer와 contained opened registrar의 legacy adoption, rebuild 완료 semantic callback이 남아 있다. FR-DOC-019 AC-10의 정확한 private 6-command registry를 SpecKiwi로 안전하게 갱신하기 전 owner Settings command를 임의 추가하지 않는다. 대체 경로·실제 Electron writer audit·S19/S17 복구 증거 전에는 live worker를 삭제하지 않고 #43·#45도 열린 상태로 둔다.
 
 ## S24 진행 기록 — embedding registration removal 독립 검토 완료
 
@@ -239,3 +240,9 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] 작성자가 아닌 [제품 수명주기 독립 검토](../analysis/2026-09-25-s26-product-review.json)와 [TDD·복구 독립 검토](../analysis/2026-09-25-s26-tdd-review.json)는 최종 소스 해시 `a0f1f029c78b13269d3cb1dceea52697291f73341e842141acd143a257e196e8`에서 차단 결함 0건이다. TDD 검토자는 별도 제품 두 번 실행으로 S26 25 assertions와 모든 marker를 확인했고 [redacted sample](../analysis/2026-09-25-s26-electron-integration-samples.json)을 원본대로 복원했다.
 - [x] #49 완료 조건·이슈 체크박스·댓글·close·최종 SHA를 연결한다. #43/#45/#46의 별도 게이트는 계속 열린다. 다음은 [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50)이다.
 - [ ] #43/#45/#46은 계속 OPEN이다. Cold product-main 전체 writable DB-open audit, 실패·취소 full rebuild checksum/abandoned sidecar gate, 실제 제품 viewer/Settings handler의 S22 10 MiB latency raw samples와 임계치는 별도 미충족이다. 부분 S26 lifecycle 결과를 이들의 완료 증거로 사용하지 않는다.
+
+## S23 사후 진행 기록 — indexed-origin 조회 단독 read-only 전환
+
+- 시작 SHA `414110745d77a9cb4a21e2e44e45b677ec05dfc3`. `FR-DOC-019`, `FR-DOC-033`, `FR-DOC-035`, `DR-DOC-014`, `FR-DOC-036`, `REL-DOC-009`는 활성 target의 draft/deprecated 차단 없이 계속 적용된다.
+- [x] [S23 addendum](../analysis/2026-09-25-s23-cutover-evidence.md): 실제 SQLite 원장의 indexed-origin 조회에서 제품 main writable open assertion RED 뒤 read-only handle 조회·종료로 수정했다. S23 10, S20 21, S25 16, 실제 Electron S26 25 assertions 및 indexed-origin 전체 계약이 통과했다. 검토용 standard R3 sourceHash `b5548df835acfec2efa02be2db258d6079198a16408a122622e4e2b7ac41dbfd`.
+- [ ] #46 전체 완료는 보류한다. live Settings short worker와 contained opened-file adoption이 아직 단일 owner 외 DB writer를 사용한다. `FR-DOC-019 AC-10`의 정확한 private 여섯 명령 registry를 확장하려면 SpecKiwi SRS 변경·검증이 먼저 필요하다. 대체 owner 명령과 제품 전체 writable-open 계측, S17/S19 회귀 뒤에만 old worker를 제거한다. #43/#45도 각 별도 게이트 전에는 닫지 않는다.

@@ -49,15 +49,18 @@ async function resolveIndexedMarkdownOpen({
   fsPromises = fs.promises
 } = {}) {
   const hasDocumentId = documentId !== undefined && documentId !== null;
-  const ledger = searchEngine && typeof searchEngine.getSourceLedger === 'function'
-    ? searchEngine.getSourceLedger()
-    : null;
+  const readOnly = typeof searchEngine?._openReadOnlySourceLedger === 'function';
+  const ledger = readOnly ? searchEngine._openReadOnlySourceLedger()
+    : searchEngine && typeof searchEngine.getSourceLedger === 'function'
+      ? searchEngine.getSourceLedger() : null;
   if (!ledger || typeof ledger.getIndexedDocumentOpenTargetInternal !== 'function') {
     if (hasDocumentId) throw new IndexedDocumentOpenError('indexed_document_not_found');
     return null;
   }
 
-  const target = ledger.getIndexedDocumentOpenTargetInternal({ documentId, filePath });
+  let target;
+  try { target = ledger.getIndexedDocumentOpenTargetInternal({ documentId, filePath }); }
+  finally { if (readOnly) ledger.close(); }
   if (!target) {
     if (hasDocumentId) {
       throw new IndexedDocumentOpenError('indexed_document_not_found');
