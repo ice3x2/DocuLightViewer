@@ -45,6 +45,8 @@ assert.deepEqual(fromOwnerSnapshot(null, false), { ledgerState: 'NOT_CONFIGURED'
   ledgerPhase: null, ledgerProgress: null, ledgerCondition: null }, 'unconfigured store is canonical');
 assert.equal(fromOwnerSnapshot({ state: 'stale' }, true).ledgerCode, STATES.READY_KEYWORD_DEGRADED,
   'legacy owner stale state maps to canonical keyword degradation');
+assert.equal(fromOwnerSnapshot({ state: 'rebuilding', active: true, kind: 'rebuild' }, true).ledgerState,
+  'KEYWORD_REPAIRING', 'active owner rebuild has the keyword maintenance state');
 assert.equal(fromOwnerSnapshot({ state: 'ready', progress: { current: 9, total: 10 } }, true).ledgerProgress, 90,
   'progress comes from the owner snapshot');
 const mixed = composeIndexingStatusPayload({ state: 'rebuilding', failedCount: 2, rebuildSession: { active: true } },

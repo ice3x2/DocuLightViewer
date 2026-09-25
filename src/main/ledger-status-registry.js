@@ -41,7 +41,7 @@ function fromOwnerSnapshot(snapshot, configured) {
     else if (state === 'ready') ledgerState = 'READY';
     else if (state === 'stale') ledgerState = 'READY_KEYWORD_DEGRADED';
     else if (state === 'clearing') ledgerState = 'READY_MAINTENANCE_PENDING';
-    else if (state === 'indexing') ledgerState = snapshot.phase === 'ann' ? 'ANN_BUILDING' : 'KEYWORD_REPAIRING';
+    else if (state === 'indexing' || state === 'rebuilding') ledgerState = snapshot.phase === 'ann' ? 'ANN_BUILDING' : 'KEYWORD_REPAIRING';
     else if (state === 'failed') ledgerState = 'OWNER_EXIT_BLOCKED';
     else if (state === 'shutdown') ledgerState = 'OWNER_EXIT_PENDING';
     else ledgerState = 'COLD';
@@ -61,6 +61,7 @@ function composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigur
     ...rawStatus,
     sourceRootConfigured,
     canRebuild: sourceRootConfigured,
+    ledgerOwnerActive: ownerStatus?.active === true,
     ...fromOwnerSnapshot(ownerStatus, sourceRootConfigured)
   };
   if (!sourceRootConfigured) {

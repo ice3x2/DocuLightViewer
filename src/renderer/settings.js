@@ -534,17 +534,24 @@
     const active = isIndexingWorkerActive(state) || nativeRepairActive;
     const rebuildActive = isFullRebuildActive(status, state);
     const sourceRootConfigured = status.sourceRootConfigured !== false;
-    const legacyCancelAvailable = !nativeRepairActive && !rebuildActive &&
+    const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive &&
       (state === 'clearing' || Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild'));
-    const legacyRetryAvailable = !active && sourceRootConfigured && (status.failedCount || 0) > 0;
+    const legacyRetryAvailable = status.ledgerOwnerActive !== true && !active
+      && sourceRootConfigured && (status.failedCount || 0) > 0;
+    const ownerCancelAvailable = status.ledgerOwnerActive === true && ledgerState === 'KEYWORD_REPAIRING'
+      && !rebuildActive && status.cancelRequested !== true;
+    const ownerRetryAvailable = ledgerState === 'READY_KEYWORD_DEGRADED'
+      && status.ledgerOwnerActive !== true && !active && sourceRootConfigured;
     if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
-    if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement) || !legacyCancelAvailable;
-    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || (ledgerState
+    if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement)
+      || !(legacyCancelAvailable || ownerCancelAvailable);
+    if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
-    if (indexingRetryBtn) indexingRetryBtn.disabled = busy || !legacyRetryAvailable;
-    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || (ledgerState
+    if (indexingRetryBtn) indexingRetryBtn.disabled = (busy && indexingRetryBtn !== document.activeElement)
+      || !(legacyRetryAvailable || ownerRetryAvailable);
+    if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
     if (indexingOpenDirBtn) indexingOpenDirBtn.disabled = busy || !sourceRootConfigured;

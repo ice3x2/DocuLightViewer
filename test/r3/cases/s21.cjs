@@ -1,6 +1,8 @@
 'use strict';
 
 const path = require('node:path');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const { BrowserWindow, ipcMain } = require('electron');
 const { SearchEngine } = require('../../../src/main/search-engine');
 const { composeIndexingStatusPayload } = require('../../../src/main/ledger-status-registry');
@@ -14,6 +16,11 @@ module.exports = {
       ledgerPhase: null, ledgerProgress: 0, sourceRootConfigured: true };
     let cancelCount = 0;
     let retryCount = 0;
+    let ownerCancelCount = 0;
+    let ownerRetryCount = 0;
+    let ownerActionMode = false;
+    let ownerSnapshot = { state: 'ready', active: false };
+    let ownerCancelHandler = null;
     let legacyRebuildActive = false;
     let legacyWorkerActive = false;
     const legacyWorker = {
@@ -35,8 +42,12 @@ module.exports = {
       'indexing:get-status': () => snapshot,
       'get-file-association-status': () => ({ registered: false }),
       'check-port-available': () => true,
-      'indexing:cancel-job': () => { cancelCount += 1; return SearchEngine.prototype.cancelRebuild.call(legacyEngine); },
-      'indexing:retry-failures': () => { retryCount += 1; return SearchEngine.prototype.retryFailures.call(legacyEngine); },
+      'indexing:cancel-job': event => ownerActionMode
+        ? ownerCancelHandler(event)
+        : (cancelCount += 1, SearchEngine.prototype.cancelRebuild.call(legacyEngine)),
+      'indexing:retry-failures': () => ownerActionMode
+        ? (ownerRetryCount += 1, { started: true, scheduled: true, jobId: 'owner-retry', status: snapshot })
+        : (retryCount += 1, SearchEngine.prototype.retryFailures.call(legacyEngine)),
       'quick-save': () => saveResult
     };
     for (const [channel, handler] of Object.entries(handlers)) ipcMain.handle(channel, handler);
@@ -44,6 +55,22 @@ module.exports = {
       preload: path.join(__dirname, '../../../src/main/preload.js'), contextIsolation: true, nodeIntegration: false
     } });
     try {
+      const product = fs.readFileSync(path.join(__dirname, '../../../src/main/index.js'), 'utf8');
+      const cancelStart = product.indexOf("ipcMain.handle('indexing:cancel-job'");
+      const cancelEnd = product.indexOf("ipcMain.handle('indexing:retry-failures'", cancelStart);
+      const actualHandlers = new Map();
+      vm.runInNewContext(product.slice(cancelStart, cancelEnd), {
+        ipcMain: { handle: (name, handler) => actualHandlers.set(name, handler) },
+        settingsIndexingWindow: () => win,
+        saveDocumentOwner: {
+          getStatus: () => ownerSnapshot,
+          cancel: async () => { ownerCancelCount += 1; return { cancelled: true }; }
+        },
+        searchEngine: legacyEngine,
+        getIndexingStatusPayload: () => snapshot
+      });
+      ownerCancelHandler = actualHandlers.get('indexing:cancel-job');
+      assert(typeof ownerCancelHandler === 'function', 'actual private Settings cancel handler is registered');
       await win.loadFile(path.join(__dirname, '../../../src/renderer/settings.html'));
       await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 50))');
       const inspect = () => win.webContents.executeJavaScript(`({
@@ -55,6 +82,8 @@ module.exports = {
         diagnostic: document.getElementById('indexing-error').textContent,
         retryDisabled: document.getElementById('indexing-retry-btn').disabled,
         cancelDisabled: document.getElementById('indexing-cancel-btn').disabled,
+        rebuildDisabled: document.getElementById('indexing-rebuild-btn').disabled,
+        compactDisabled: document.getElementById('indexing-compact-btn').disabled,
         focus: document.activeElement.id
       })`);
       const update = async next => {
@@ -110,6 +139,8 @@ module.exports = {
       view = await inspect();
       assert(/rebuild/i.test(view.text) && !/ready/i.test(view.text),
         'active legacy rebuild is announced ahead of parallel owner READY');
+      assert(view.rebuildDisabled && view.compactDisabled,
+        'active legacy rebuild blocks maintenance actions despite parallel owner READY');
       await update({ ledgerCondition: 'indexing_ingress_capacity' });
       view = await inspect();
       assert(/rebuild/i.test(view.text) && /deferred/i.test(view.text) && !/saved/i.test(view.text),
@@ -142,6 +173,49 @@ module.exports = {
       view = await inspect();
       assert(retryCount === 1 && /could not be completed/i.test(view.diagnostic),
         'legacy retry routes to SearchEngine.retryFailures and leaves not-started result visible');
+      ownerActionMode = true;
+      ownerSnapshot = { state: 'rebuilding', active: true, kind: 'rebuild', jobId: 'owner-job', phase: 'scan' };
+      await update(composeIndexingStatusPayload({ state: 'ready', indexingWorker: null,
+        failedCount: 0, rebuildSession: null },
+      ownerSnapshot, true));
+      view = await inspect();
+      assert(/rebuild/i.test(view.text) && view.cancelDisabled,
+        'owner full rebuild uses canonical keyword repair but keeps visible Stop disabled');
+      await win.webContents.executeJavaScript('document.getElementById("indexing-cancel-btn").focus(); document.getElementById("indexing-cancel-btn").click()');
+      await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 30))');
+      assert(ownerCancelCount === 0, 'owner full rebuild Stop does not invoke private cancel');
+      ownerSnapshot = { state: 'indexing', active: true, phase: 'index_document', jobId: 'owner-document' };
+      await update(composeIndexingStatusPayload({ state: 'ready', indexingWorker: null,
+        failedCount: 1, rebuildSession: null },
+      ownerSnapshot, true));
+      view = await inspect();
+      assert(!view.cancelDisabled, 'owner document indexing offers supported private Cancel');
+      assert(view.retryDisabled, 'retained failed count does not enable Retry during an active owner document job');
+      await win.webContents.executeJavaScript('document.getElementById("indexing-cancel-btn").focus(); document.getElementById("indexing-cancel-btn").click()');
+      await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 30))');
+      view = await inspect();
+      assert(ownerCancelCount === 1 && view.focus === 'indexing-cancel-btn',
+        'owner document cancel uses private IPC and preserves focus');
+      ownerSnapshot = { state: 'clearing', active: true, kind: 'clear', jobId: 'owner-clear', phase: 'scan' };
+      await update(composeIndexingStatusPayload({ state: 'ready', indexingWorker: null,
+        failedCount: 0, rebuildSession: null },
+      ownerSnapshot, true));
+      view = await inspect();
+      assert(view.cancelDisabled, 'owner clear cannot use Cancel outside the P0 safe-cancel matrix');
+      await win.webContents.executeJavaScript('document.getElementById("indexing-cancel-btn").click()');
+      assert(ownerCancelCount === 1, 'owner clear does not invoke private cancel from Settings');
+      const directClearCancel = await win.webContents.executeJavaScript('window.doclight.cancelIndexingJob()');
+      assert(directClearCancel.cancelled === false && ownerCancelCount === 1,
+        'direct private Settings cancel rejects owner clear without touching the job');
+      await update(composeIndexingStatusPayload({ state: 'ready', indexingWorker: null,
+        failedCount: 0, rebuildSession: null }, { state: 'stale', active: false, phase: 'failed' }, true));
+      view = await inspect();
+      assert(!view.retryDisabled, 'owner keyword degradation offers supported private retry');
+      await win.webContents.executeJavaScript('document.getElementById("indexing-retry-btn").focus(); document.getElementById("indexing-retry-btn").click()');
+      await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 30))');
+      view = await inspect();
+      assert(ownerRetryCount === 1 && view.focus === 'indexing-retry-btn',
+        `owner degraded retry uses private IPC and preserves focus (calls=${ownerRetryCount}, focus=${view.focus})`);
       await win.loadFile(path.join(__dirname, '../../../src/renderer/viewer.html'));
       await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 50))');
       win.webContents.send('render-markdown', { markdown: '# Saved note', source: 'paste' });

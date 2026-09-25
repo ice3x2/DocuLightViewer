@@ -135,10 +135,11 @@ assert(main.includes('composeIndexingStatusPayload(rawStatus, ownerStatus, sourc
   composeIndexingStatusPayload({ state: 'ready' }, { state: 'ready' }, true).canRebuild === true,
   'main indexing status composes source-root rebuild capability with cached owner status');
 assert(/fs\.statSync\([^)]*\)\.isDirectory\(\)/.test(main), 'main process treats only existing directories as configured document store roots');
-assert(settingsJs.includes('const legacyCancelAvailable = !nativeRepairActive && !rebuildActive') &&
+assert(settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
   settingsJs.includes('status.indexingWorker.active && status.indexingWorker.kind !== \'rebuild\'') &&
-  settingsJs.includes('|| !legacyCancelAvailable'),
-  'settings renderer preserves full-rebuild cancel guard and permits supported non-rebuild worker cancel');
+  settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
+  settingsJs.includes('|| !(legacyCancelAvailable || ownerCancelAvailable)'),
+  'settings renderer preserves full-rebuild cancel guard and permits supported document and legacy worker cancel');
 assert(settingsJs.includes('const showPhase'), 'technical phase text is hidden unless indexing is actively running');
 assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings renderer tracks an in-flight indexing status request');
 assert(settingsJs.includes('if (indexingStatusRequest) return indexingStatusRequest'), 'settings renderer prevents overlapping indexing status polling');
@@ -157,8 +158,9 @@ assert(/phaseParts\.push\(formatIndexingDisplayPath\(status\.currentPath\)\)/.te
 assert(/formatLinkedImportMessage\(\(result && result\.message\)/.test(settingsJs), 'linked import result errors are sanitized before rendering');
 assert(settingsJs.includes('confirm(t(\'settings.indexingCompactConfirm\'))'), 'compact index requires confirmation');
 assert(
-  settingsJs.includes('const legacyCancelAvailable = !nativeRepairActive && !rebuildActive') &&
-    settingsJs.includes('|| !legacyCancelAvailable'),
+  settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
+    settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
+    settingsJs.includes('|| !(legacyCancelAvailable || ownerCancelAvailable)'),
   'settings renderer keeps full-rebuild cancel disabled despite an owner snapshot'
 );
 assert(

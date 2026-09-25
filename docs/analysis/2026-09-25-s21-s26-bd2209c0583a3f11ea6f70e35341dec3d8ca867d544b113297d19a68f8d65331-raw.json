@@ -1,0 +1,192 @@
+{
+  "sourceHash": "bd2209c0583a3f11ea6f70e35341dec3d8ca867d544b113297d19a68f8d65331",
+  "marker": "s26216f1ac43caf96ca",
+  "oldMarker": "zzzxq47efff321a6e026a",
+  "newMarker": "qqqjzfc4a08a4f84d8271",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s26216f1ac43caf96ca",
+  "firstSha256": "5f1f0a6cfd14c469a86a1f9a09d0d4d73fedad1a3d79cd99d4c3237dfc583a3f",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 86764,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "36b57ce548f83cafb6b2744a9c04e76ccedc714f028029a70c1e47a4e929b20a",
+      "port": 32581
+    },
+    {
+      "pid": 83324,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "36b57ce548f83cafb6b2744a9c04e76ccedc714f028029a70c1e47a4e929b20a",
+      "port": 32581
+    }
+  ],
+  "mainSqlite": {
+    "cold": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 0,
+      "ledgerAllocated": false,
+      "keywordReadOnly": null
+    },
+    "afterSearch": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 29,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    },
+    "focus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 48,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 48,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "close": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 58,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 58,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "settingsStatus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 65,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 65,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "restart": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 4,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    }
+  },
+  "documentId": "doc_db9565a26a32c36415b80161",
+  "sourceRelativePath": "142912184_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_9dc14c97d833f30b0c6ae2e4b4c7a064de22ad77880f330cc94bda613d37d7b5",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_600ca0e27be477cc1091b4ee",
+  "aliasCanonicalHash": "7963d194adca59aa8199cf2157092ee2090187004ee05b885d48a1c7511f8cfc",
+  "publicToolsCalled": 8,
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "b9975cf4b6b78edc9df885eaf9b7b06372ea163eece9e5ad5108293dc1315793",
+  "containedDocumentId": "doc_ec22ef363d888580a887c6d7",
+  "cancelJobId": "job_e10848d7552fbb6ba6e4a0509fe7e1a703005a3bf913821e8ebfe56ffc7fad9f",
+  "newSha256": "294453aff51eaaf1f4461411537342749cf34184af6c343d0e18af2901e51a8b",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "294453aff51eaaf1f4461411537342749cf34184af6c343d0e18af2901e51a8b",
+  "externalSha256AfterCancel": "294453aff51eaaf1f4461411537342749cf34184af6c343d0e18af2901e51a8b",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 29924.4281,
+  "oldSearchText": "No results found for \"zzzxq\". (5 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "294453aff51eaaf1f4461411537342749cf34184af6c343d0e18af2901e51a8b",
+  "recoveredExternalSha256": "294453aff51eaaf1f4461411537342749cf34184af6c343d0e18af2901e51a8b",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ],
+  "settingsCompact": {
+    "reason": "compact-rebuild-required",
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "sourceAliasCount": 4
+  },
+  "settingsClear": {
+    "declinedReason": "confirmation-declined",
+    "started": true,
+    "terminalStatus": "completed",
+    "backupCount": 1,
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "2f0339802623cd67317fde3a345d9540fa182f4d96824b99797fe72984f929c8",
+    "backupLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "beforeGeneration": "incremental",
+    "afterGeneration": null,
+    "sourceDocumentCount": 5,
+    "sourceAliasCount": 4,
+    "sourceMetadataSha256": "ca90f349a89dd9c827f631b188ff5a27cbb5af438ff1b46ee43095deaf70f7c6",
+    "preexistingJobCount": 7
+  },
+  "settingsMaintenance": {
+    "compact": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "compact-rebuild-required"
+    },
+    "privateRebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "retry": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "rebuild": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "job-in-progress"
+    },
+    "clear": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    }
+  }
+}

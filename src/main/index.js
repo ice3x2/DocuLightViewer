@@ -2944,15 +2944,11 @@ function registerIpcHandlers() {
     if (!settingsIndexingWindow(event)) return { cancelled: false,
       reason: 'settings-only', status: getIndexingStatusPayload() };
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
-    if (ownerStatus?.active && ['rebuild', 'clear'].includes(ownerStatus.kind) && ownerStatus.jobId) {
-      return saveDocumentOwner.cancel(ownerStatus.jobId).then(result => ({
-        cancelled: result.cancelled === true, jobId: ownerStatus.jobId,
-        status: getIndexingStatusPayload()
-      }));
-    }
     if (ownerStatus?.active && ownerStatus.phase === 'index_document' && ownerStatus.jobId) {
       return saveDocumentOwner.cancel(ownerStatus.jobId);
     }
+    if (ownerStatus?.active) return { cancelled: false, reason: 'not-available',
+      status: getIndexingStatusPayload() };
     return searchEngine.cancelRebuild();
   });
 
