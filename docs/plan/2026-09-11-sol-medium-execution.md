@@ -278,3 +278,8 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S20 제품·복구 증거](../analysis/2026-09-25-s20-startup-evidence.md): 장기 owner의 독점 잠금, 종료/PID 재사용 복구, abandoned `.recovery` sidecar의 fail-closed 처리와 명시적 운영자 절차, READY 후 32개 이하 페이지로 3,101개 modern 및 3,101개 legacy 작업 재개를 확인했다. 실패·취소 때 이전 committed generation ID·논리 checksum·본문 검색 결과가 유지된다.
 - [x] [최종 실제 Electron 원시 결과](../analysis/2026-09-25-s20-s26-7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf-raw.json): 제품 시작·Settings 상태·포커스·viewer 종료·재시작에서 main 쓰기 open 0건이며 상태·포커스·종료 전후 main SQLite open 카운터가 증가하지 않았다. 활성 구형 작업의 cached status도 원장 조회 없이 기존 상태 형태를 유지한다. SourceHash `7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf`; S20 23/S21 23/S24 29/실제 S26 49 assertions 통과. 두 독립 검토의 차단 결함은 0건이다.
 - [x] #43은 `2e72de704865f84313f3e2cc6e4973ce842e8740`으로 게시하고 닫았다. #44/#45/#46 및 별도 릴리스 게이트는 남아 있으며 요구사항을 증거 없이 verified로 승급하지 않았다.
+
+## S21 사후 진행 기록 — owner 상태 UX와 복구 확인 분리
+
+- [x] [S21 실제 Renderer·IPC 증거](../analysis/2026-09-25-s21-final-ui-evidence.md): 활성 구형 작업과 owner READY의 혼합 상태에서 유지보수 버튼을 막고, owner 재구축·clear·문서 색인의 canonical 상태 및 중지 정책을 SRS에 맞췄다. private clear 취소 우회는 작업 변경 없이 거절하고, owner 작업 중 과거 실패 건수만으로 Retry가 켜지지 않게 했다. 네 locale 270개 key, 상태 ARIA·focus, S21 실제 Electron 35/S23 45/S26 49 assertions와 독립 검토를 확인했다. SourceHash `bd2209c0583a3f11ea6f70e35341dec3d8ca867d544b113297d19a68f8d65331`; 부분 게시 SHA `bb216a2c2d5a073192b1c136c1fb740b08a01cee`.
+- [ ] #44는 계속 OPEN이다. `IR-APP-013 AC-15`의 `CORRUPT_DEGRADED`·`INTERRUPTED` 전용 `retry-check`는 현재 owner 명령·복구 수명주기에 없다. 정확한 SRS 계약 변경과 구현·검증을 native 하위 이슈 [#64](https://github.com/ice3x2/DocuLightViewer/issues/64)에 순서대로 기록했다. 기존 keyword Retry를 복구 확인으로 대체하지 않으며 #44를 완료율에 넣지 않는다.
