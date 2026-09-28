@@ -184,16 +184,54 @@ function readPendingSave({ ingressRoot, storeRoot, intentId }) {
 
 // @req REL-DOC-009 FR-DOC-028
 async function publishSave(input) {
-  return withPublicationGate(input.ingressRoot, () => publishSaveLocked(input));
+  return withLocatorGate(input.ingressRoot, input.storeRoot, input.sourceRelativeLocator,
+    () => withPublicationGate(input.ingressRoot, () => publishSaveLocked(input)));
 }
 
-async function withPublicationGate(ingressRoot, action) {
+function locatorGateName(storeRoot, locator) {
+  const file = path.resolve(storeRoot, locator);
+  return `.publication-locator-${sha(process.platform === 'win32' ? file.toLowerCase() : file)}.lock`;
+}
+
+function withLocatorGate(ingressRoot, storeRoot, locator, action) {
+  return withPublicationGate(ingressRoot, action, locatorGateName(storeRoot, locator));
+}
+
+function hasUnacceptedPublishedLocatorIntent({ ingressRoot, storeRoot, locator,
+  expectedContentHash, hasReceipt }) {
+  const privateRoot = path.resolve(ingressRoot);
+  const documentRoot = path.resolve(storeRoot);
+  const destination = path.resolve(documentRoot, locator);
+  const canonical = value => process.platform === 'win32' ? value.toLowerCase() : value;
+  const names = fs.readdirSync(privateRoot)
+    .filter(name => /^[a-f0-9]{64}\.intent\.json$/.test(name));
+  if (names.length > MAX_INTENTS) return true;
+  for (const name of names) {
+    let record;
+    try { record = readRecord(path.join(privateRoot, name)); }
+    catch { continue; }
+    if (record.rootFingerprint !== sha(documentRoot)
+      || canonical(path.resolve(documentRoot, record.sourceRelativeLocator)) !== canonical(destination)
+      || hasReceipt(record.intentId)) continue;
+    if (record.provenance.aliases.length > 0
+      || Object.keys(record.provenance.metadata).length > 0) return true;
+    const pending = readPendingSave({ ingressRoot: privateRoot, storeRoot: documentRoot,
+      intentId: record.intentId });
+    if (pending?.retryable) return true;
+    if (pending?.published && `sha256:${pending.contentHash}` !== expectedContentHash) return true;
+  }
+  return false;
+}
+
+async function withPublicationGate(ingressRoot, action, lockName = '.publication.lock') {
   const privateRoot = path.resolve(ingressRoot);
   if (!fs.existsSync(privateRoot) || fs.lstatSync(privateRoot).isSymbolicLink()) throw fail('path_policy_violation');
+  if (lockName !== '.publication.lock'
+    && !/^\.publication-locator-[a-f0-9]{64}\.lock$/.test(lockName)) throw fail('path_policy_violation');
   let release;
   const deadline = Date.now() + 1000;
   while (!release) {
-    try { release = acquirePublicationGate(privateRoot); }
+    try { release = acquirePublicationGate(privateRoot, lockName); }
     catch (error) {
       if (error.code !== 'publication_busy' || Date.now() >= deadline) throw error;
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -203,10 +241,10 @@ async function withPublicationGate(ingressRoot, action) {
   finally { release(); }
 }
 
-function acquirePublicationGate(privateRoot) {
+function acquirePublicationGate(privateRoot, lockName) {
   const { processIdentity, processLiveness } = require('./process-owner-identity');
   const { acquireAtomicOwnerGate } = require('./atomic-owner-gate');
-  const lock = path.join(privateRoot, '.publication.lock');
+  const lock = path.join(privateRoot, lockName);
   const token = crypto.randomUUID();
   const temp = path.join(privateRoot, `.publication-owner-${token}.tmp`);
   const owner = { pid: process.pid, identity: processIdentity(process.pid), token };
@@ -451,5 +489,6 @@ function recordExternalRegistrationFailure({ ingressRoot, storeRoot, originLexic
   return destination;
 }
 
-module.exports = { publishSave, readPendingSave, withPublicationGate,
+module.exports = { publishSave, readPendingSave, withPublicationGate, withLocatorGate,
+  locatorGateName, hasUnacceptedPublishedLocatorIntent,
   recordExternalRegistrationFailure };

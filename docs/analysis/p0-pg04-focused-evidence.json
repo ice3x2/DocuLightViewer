@@ -1,0 +1,35 @@
+{
+  "issue": 55,
+  "requirements": ["FR-DOC-019", "REL-DOC-009", "IR-APP-013", "REL-DOC-007", "OPS-ARCH-009"],
+  "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+  "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+  "semanticRed": {
+    "abaMetadata": "test-derived-prepare-guarded-commit: exit 1, old claim writes no stale chunks or keyword after newer publication",
+    "sameBytesMetadata": "test-desired-job-publication-witness: exit 1, old claim cannot commit across same-byte newer metadata publication before ACK",
+    "independentPublication": "test-desired-job-publication-overlap: exit 1, second publication must proceed during derivation; actual publication_busy"
+  },
+  "focusedGreen": {
+    "canaryContract": "node test/test-p0-release-canaries.js exit 0",
+    "publicationOverlap": "node test/test-desired-job-publication-overlap.js exit 0",
+    "publicationWitness": "node test/test-desired-job-publication-witness.js exit 0",
+    "derivedCommit": "node test/test-derived-prepare-guarded-commit.js exit 0; unchanged, new bytes, same bytes/new metadata, same bytes/new alias, A-B-C metadata history, 10 MiB",
+    "witnessScan": "node test/test-publication-witness-scan.js exit 0; 1024 checksum-valid intent records parsed by production reader",
+    "r3Cases": ["S11 PASS", "S12 PASS", "S13 PASS", "S17 PASS", "S19 PASS", "S20 PASS", "S23 PASS", "S25 PASS"]
+  },
+  "measurements": {
+    "guardedCommit": {"fixtureBytes": 10485752, "chunks": 841, "milliseconds": 389.8181, "limitMilliseconds": 1000},
+    "capacityWitnessScan": {"intentCount": 1024, "milliseconds": 400.5029, "limitMilliseconds": 1000}
+  },
+  "logs": {
+    "r3": {"path": "docs/analysis/p0-pg04-focused-regressions.log", "sha256": "928d4512f1601dd3f9cf5e09a7fd4be3645ae7d77ba10c501c901a328cc3ce34"},
+    "derived": {"path": "docs/analysis/p0-pg04-derived-commit.log", "sha256": "b851f119ff181ed5266bf3bf4865172d523e27975036843deadba681cc8ac393"},
+    "witnessScan": {"path": "docs/analysis/p0-pg04-witness-scan.log", "sha256": "f5bde58a97cff24b8c677b7bde8480fee69ca8e48a4e14794bc39b41d054179c"}
+  },
+  "capacitySetupObservation": {
+    "realPublishedIntentCountBeforeStop": 289,
+    "approximateElapsedSeconds": 80,
+    "outcome": "The earlier all-real publication setup was stopped as too slow; it is not a measured asymptotic complexity claim. Partial temp fixture retained for #44/#65 follow-up.",
+    "optimizedFixture": "One real published seed plus 1023 checksum-valid unrelated intent records checked by readPendingSave; only guarded scan timing is a release-path measurement."
+  },
+  "limitations": ["No final packaged five-sample run at this source hash yet.", "The old failed and historical five-sample reports remain non-gating."]
+}

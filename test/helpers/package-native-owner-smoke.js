@@ -55,7 +55,7 @@ function processIsAlive(pid) {
 }
 
 // @req FR-DOC-019 AC-10 IR-APP-013 AC-13 OPS-ARCH-009 AC-2 OPS-ARCH-010 AC-3
-async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
+async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, requireProcessCold = false }) {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-native-owner-'));
   const userData = path.join(fixtureRoot, 'user-data');
   const storeRoot = path.join(fixtureRoot, 'store');
@@ -89,13 +89,18 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
   child.stdout.on('data', (chunk) => { output = (output + chunk).slice(-2048); });
   child.stderr.on('data', (chunk) => { output = (output + chunk).slice(-2048); });
   let quitAccepted = false;
+  let appPid = null;
   try {
     await until('normal packaged app IPC', 45000, async () =>
       (await privateAction(ipcPath, 'r3_test_runtime_identity').catch(() => null))?.result);
     const identity = (await privateAction(ipcPath, 'r3_test_runtime_identity')).result;
+    appPid = identity?.pid;
     evidence.runtime = { isPackaged: identity?.isPackaged, profile: identity?.profile,
       isolatedUserData: path.resolve(identity?.userDataDir || '') === path.resolve(userData),
       electronAbi: identity?.electronAbi };
+    evidence.processCold = { pid: identity?.pid, spawnPid: child.pid,
+      processStartEpochMs: identity?.processStartEpochMs,
+      profileToken: sha256(path.resolve(userData)) };
     assert(Number.isInteger(identity?.pid) && identity.pid > 0,
       'runtime identity names the actual packaged app process');
     const saved = await privateAction(ipcPath, 'save_document', { content }, 20000);
@@ -160,6 +165,7 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
       evidence.flow.activeStatusSeen = Boolean(active);
       evidence.responsiveness.workerMarker = Number.isInteger(audit?.workerThreadId)
         && audit.workerThreadId > 0 && active.jobId === activePayload.indexing.jobId;
+      evidence.processCold.workerReadyEpochMs = Date.now();
       const heartbeatStart = await privateAction(ipcPath, 'r3_test_main_heartbeat_start',
         { jobId: activePayload.indexing.jobId });
       assert(heartbeatStart.result?.started === true, 'main heartbeat starts during active owner job');
@@ -173,6 +179,73 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
         const sampled = await measure('status', 'r3_test_settings_status');
         assert(sampled.result?.sourceRootConfigured === true, 'cached Settings status is available');
       }
+      const beforeQuery = (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result;
+      const queryStartedAt = Date.now();
+      const activeQuery = await privateAction(ipcPath, 'search_documents', { query: marker, limit: 5 });
+      const queryFinishedAt = Date.now();
+      const afterQuery = (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result;
+      evidence.activeQuery = {
+        startedAtEpochMs: queryStartedAt, finishedAtEpochMs: queryFinishedAt,
+        workerJobId: activePayload.indexing.jobId,
+        activeBefore: beforeQuery?.active === true && beforeQuery.jobId === activePayload.indexing.jobId,
+        activeAfter: afterQuery?.active === true && afterQuery.jobId === activePayload.indexing.jobId,
+        queryCompleted: Array.isArray(activeQuery.result?.results),
+        queryError: Boolean(activeQuery.error || activeQuery.result?.isError),
+        resultCount: Array.isArray(activeQuery.result?.results) ? activeQuery.result.results.length : null,
+        savedDocumentId: payload.documentId,
+        foundDocumentId: activeQuery.result?.results?.find((item) =>
+          item.documentId === payload.documentId)?.documentId || null
+      };
+      assert(evidence.activeQuery.activeBefore && evidence.activeQuery.activeAfter
+        && evidence.activeQuery.queryCompleted && !evidence.activeQuery.queryError,
+      'packaged query completes while the same owner job remains active');
+      const beforeSave = (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result;
+      const secondContent = `# Active save overlap\n\n${marker}second\n`;
+      const saveStartedAt = Date.now();
+      const secondResponse = await privateAction(ipcPath, 'save_document', {
+        content: secondContent, title: 'Active overlap fixture'
+      }, 20000);
+      const saveFinishedAt = Date.now();
+      const afterSave = (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result;
+      const secondPayload = JSON.parse(secondResponse.result?.content?.[0]?.text || 'null');
+      evidence.activeSave = { startedAtEpochMs: saveStartedAt,
+        finishedAtEpochMs: saveFinishedAt, workerJobId: activePayload.indexing.jobId,
+        activeBefore: beforeSave?.active === true && beforeSave.jobId === activePayload.indexing.jobId,
+        activeAfter: afterSave?.active === true && afterSave.jobId === activePayload.indexing.jobId,
+        ownerBeforePhase: beforeSave?.phase || null,
+        ownerAfterPhase: afterSave?.phase || null,
+        ownerBeforeJobId: beforeSave?.jobId || null,
+        ownerAfterJobId: afterSave?.jobId || null,
+        saved: secondPayload?.saved === true, indexingState: secondPayload?.indexing?.state,
+        receiptJobId: secondPayload?.indexing?.jobId,
+        responseIsError: secondResponse.result?.isError === true || Boolean(secondResponse.error),
+        responseErrorCode: /^[a-z][a-z0-9_]{0,63}$/.test(
+          secondPayload?.error?.code || secondResponse.error || '')
+          ? (secondPayload?.error?.code || secondResponse.error) : null,
+        responseDiagnosticCode: /^[a-z][a-z0-9_]{0,63}$/.test(secondPayload?.error?.message || '')
+          ? secondPayload.error.message : null,
+        contentBytes: Buffer.byteLength(secondContent), contentSha256: sha256(secondContent) };
+      const secondFile = fs.readdirSync(storeRoot).filter(name => name.endsWith('.md'))
+        .map(name => path.join(storeRoot, name))
+        .find(file => fs.readFileSync(file, 'utf8').includes(`${marker}second`));
+      const secondFileHash = secondFile ? sha256(fs.readFileSync(secondFile)) : null;
+      const privateIntentDir = fs.readdirSync(fixtureRoot)
+        .find(name => name.startsWith('.doculight-save-intents-'));
+      const intentFiles = privateIntentDir
+        ? fs.readdirSync(path.join(fixtureRoot, privateIntentDir))
+          .filter(name => name.endsWith('.intent.json')) : [];
+      evidence.activeSave.publicationLockPresent = Boolean(privateIntentDir)
+        && fs.existsSync(path.join(fixtureRoot, privateIntentDir, '.publication.lock'));
+      evidence.activeSave.publicationRecoveryGatePresent = Boolean(privateIntentDir)
+        && fs.existsSync(path.join(fixtureRoot, privateIntentDir, '.publication.lock.recovery'));
+      evidence.activeSave.published = Boolean(secondFile);
+      evidence.activeSave.intentPersisted = intentFiles.some(name => {
+        const intent = JSON.parse(fs.readFileSync(path.join(fixtureRoot, privateIntentDir, name), 'utf8'));
+        return intent.contentHash === secondFileHash;
+      });
+      assert(evidence.activeSave.activeBefore && evidence.activeSave.activeAfter
+        && evidence.activeSave.saved && evidence.activeSave.receiptJobId,
+      'second save receives durable receipt while same owner job stays active');
       const measureViewer = async (kind, action, event, params) => {
         const watch = await privateAction(ipcPath, 'r3_test_viewer_event_watch', { windowId, event });
         assert(watch.result?.token, `${kind} completion observer is armed`);
@@ -224,6 +297,10 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
       const activePath = path.join(storeRoot, activePayload.sourceRelativePath);
       evidence.flow.cancelledFileRetained = fs.existsSync(activePath)
         && fs.readFileSync(activePath, 'utf8').includes(activeMarker);
+      const secondPath = path.join(storeRoot, secondPayload.sourceRelativePath);
+      const retainedBytes = fs.readFileSync(secondPath);
+      evidence.activeSave.retainedBytes = retainedBytes.length;
+      evidence.activeSave.retainedSha256 = sha256(retainedBytes);
     }
     const main = (await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot')).result;
     evidence.main = { writableOpenCount: main?.writableOpenCount,
@@ -239,13 +316,36 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
     evidence.lifecycle.exitCode = child.exitCode;
     evidence.lifecycle.appProcessGone = true;
     evidence.lifecycle.handleReleased = true;
+    const Database = require('better-sqlite3');
+    const ledger = new Database(path.join(userData, 'index', 'smart-search.sqlite3'),
+      { readonly: true, fileMustExist: true });
+    try { evidence.corpus = { fileCount: fs.readdirSync(storeRoot).filter((name) => name.endsWith('.md')).length,
+      bytes: fs.readdirSync(storeRoot).filter((name) => name.endsWith('.md'))
+        .reduce((sum, name) => sum + fs.statSync(path.join(storeRoot, name)).size, 0),
+      ledgerRows: ledger.prepare('SELECT COUNT(*) AS count FROM sources').get().count }; }
+    finally { ledger.close(); }
     safeRemoveFixture(fixtureRoot);
     evidence.lifecycle.profileRemoved = !fs.existsSync(fixtureRoot);
-    try { validateNativeOwnerEvidence(evidence); }
+    try { validateNativeOwnerEvidence(evidence, { requireProcessCold }); }
     catch (error) { error.evidence = evidence; throw error; }
     return evidence;
+  } catch (error) {
+    error.evidence = evidence;
+    throw error;
   } finally {
+    if (!quitAccepted) {
+      await privateAction(ipcPath, 'r3_test_graceful_quit', {}, 1000).catch(() => null);
+    }
     if (child.exitCode === null) child.kill();
+    if (Number.isInteger(appPid) && processIsAlive(appPid)) {
+      await until('owned app exit', 3000, async () => !processIsAlive(appPid)).catch(() => null);
+      if (processIsAlive(appPid)) {
+        try { process.kill(appPid); } catch { /* process exited between check and signal */ }
+      }
+    }
+    if (fs.existsSync(fixtureRoot) && (!Number.isInteger(appPid) || !processIsAlive(appPid))) {
+      safeRemoveFixture(fixtureRoot);
+    }
   }
 }
 

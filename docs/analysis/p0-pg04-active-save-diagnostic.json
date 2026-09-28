@@ -1,0 +1,34 @@
+{
+  "status": "diagnostic-failed",
+  "error": "second save receives durable receipt while same owner job stays active",
+  "activeQuery": {
+    "startedAtEpochMs": 1790629463816,
+    "finishedAtEpochMs": 1790629463859,
+    "workerJobId": "job_b3ae00c464862fb2ce08e66d16d35b78095a3d63cfbffb64ee14aa32ed672cd2",
+    "activeBefore": true,
+    "activeAfter": true,
+    "queryCompleted": true,
+    "queryError": false,
+    "resultCount": 1,
+    "savedDocumentId": "doc_1a3e5d36e219239bf91a1170",
+    "foundDocumentId": null
+  },
+  "activeSave": {
+    "startedAtEpochMs": 1790629463860,
+    "finishedAtEpochMs": 1790629464883,
+    "workerJobId": "job_b3ae00c464862fb2ce08e66d16d35b78095a3d63cfbffb64ee14aa32ed672cd2",
+    "activeBefore": true,
+    "activeAfter": true,
+    "ownerBeforePhase": "index_document",
+    "ownerAfterPhase": "index_document",
+    "ownerBeforeJobId": "job_b3ae00c464862fb2ce08e66d16d35b78095a3d63cfbffb64ee14aa32ed672cd2",
+    "ownerAfterJobId": "job_b3ae00c464862fb2ce08e66d16d35b78095a3d63cfbffb64ee14aa32ed672cd2",
+    "saved": false,
+    "responseIsError": true,
+    "responseErrorCode": "write_failed",
+    "contentBytes": 62,
+    "contentSha256": "858d69d4d48d8e5cfdf8343c93711a7726a6c8371f9a06ddec74a174f75514ae",
+    "published": false,
+    "intentPersisted": false
+  }
+}

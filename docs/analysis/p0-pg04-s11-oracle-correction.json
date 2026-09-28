@@ -1,0 +1,23 @@
+{
+  "requirementIds": ["REL-DOC-009", "FR-DOC-019", "REL-DOC-008"],
+  "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+  "baselineFailure": {
+    "case": "test/r3/cases/s11.cjs",
+    "assertion": "document recovery never mutates unrelated keyword rebuild indexing job",
+    "reason": "The unchanged owner startup path closes an interrupted keyword_rebuild indexing job as failed with phase interrupted and diagnostic interrupted_rebuild_restarted. The old oracle expected indexing after full owner startup."
+  },
+  "correctedChecks": [
+    "Direct document-only reconcileInterruptedDesiredPage leaves the unrelated keyword_rebuild job indexing.",
+    "After full owner startup, the keyword_rebuild job is failed with phase interrupted and diagnostic interrupted_rebuild_restarted.",
+    "Document pending/latest-wins and same-locator final-read/CAS checks remain in S11."
+  ],
+  "verification": {
+    "s11": "PASS after oracle correction",
+    "publicationOverlap": "PASS independent-locator publication, same-locator serialization, retained file/intent, dead owner recovery",
+    "s17": "PASS",
+    "s19": "PASS",
+    "s20": "PASS",
+    "s23": "PASS",
+    "s25": "PASS"
+  }
+}

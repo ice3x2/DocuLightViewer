@@ -1,0 +1,65 @@
+{
+  "issue": 55,
+  "status": "preregistered-s63-stress-complete",
+  "requirementIds": ["IR-APP-013", "REL-DOC-007", "OPS-ARCH-009", "OPS-ARCH-012", "OPS-ARCH-013", "REL-DOC-009"],
+  "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+  "frozenSourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+  "focusedEvidence": {
+    "command": "node test/test-p0-release-canaries.js",
+    "activeSaveRed": "exit 1: Missing expected exception: missing second save during active owner job fails PG-04",
+    "diagnosticRed": "exit 1: diagnostic removes /opt/project/doc.md before artifact or stderr output",
+    "activeQueryRed": "exit 1: Missing expected exception: incomplete query during active worker fails PG-04",
+    "green": "exit 0: test-p0-release-canaries: all assertions passed"
+  },
+  "priorFailedReport": {
+    "path": "docs/analysis/p0-pg04-win32-x64-1790629094399-38d5910b.json",
+    "sha256": "57ea13b2e7611c7ba151e5f04a27399f17c5d00ab70af9385f7e18f4633becbd",
+    "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+    "evidenceStatus": "failed 5/5; active owner query completed but returned no documentId match, causing an overly strict assertion before the active save"
+  },
+  "activeSaveFailedReport": {
+    "path": "docs/analysis/p0-pg04-win32-x64-1790629325101-aabea521.json",
+    "sha256": "80cfe4032f0d461b5581971bc8de81e28f494d2d7571668481e521125a3ace1e",
+    "evidenceStatus": "failed 5/5; active save returned write_failed under global publication lock"
+  },
+  "activeSaveDiagnostic": {
+    "path": "docs/analysis/p0-pg04-active-save-diagnostic-2.json",
+    "sha256": "0b293ba7bbfa4359676e27c3f6aba83f9c7acd7561f36d4f4ec0b0c2fa7cfaca",
+    "finding": "publication_busy while same index_document worker job remained active; final Markdown and intent not published"
+  },
+  "historicalReport": {
+    "path": "docs/analysis/p0-pg04-win32-x64-historical.json",
+    "sha256": "59e87888f7205801d4dc205ed5afe9dba62a5896e550a60dbc849f3ce1a47844",
+    "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+    "evidenceStatus": "historical-only; predates active-query overlap assertion and does not match frozen source"
+  },
+  "environment": {
+    "os": "win32",
+    "arch": "x64",
+    "temp": "task-specific NTFS TEMP/TMP",
+    "dist": "task-specific NTFS dist",
+    "package": "dist/DocuLight-Portable-1.0.6.exe",
+    "signing": "unsigned"
+  },
+  "commands": [
+    "node test/test-p0-release-canaries.js",
+    "node test/test-desired-job-publication-overlap.js",
+    "node test/test-desired-job-publication-witness.js",
+    "node test/test-derived-prepare-guarded-commit.js",
+    "node test/test-publication-witness-scan.js",
+    "npm run build:win -- nsis:x64 portable:x64 --config.win.signAndEditExecutable=false",
+    "node scripts/run-p0-release-canaries.js --record-build-manifest",
+    "node scripts/run-p0-release-canaries.js --samples 5 --require-packaged --pg04-only"
+  ],
+  "executionRules": [
+    "Wait for root to confirm #63 stress is complete before package build or samples.",
+    "Set TEMP and TMP to the task-specific NTFS directory for build and canary; preserve the existing task-specific dist junction.",
+    "Verify sourceHash equals frozenSourceHash before and after build and run.",
+    "Require fresh build-manifest source, package checksum, size and modification time before any sample; record Electron ABI/native versions.",
+    "Run exactly five sequential process-cold samples with unique PID, start time and profile token; retain every raw sample including failures.",
+    "Require a real owner worker and active save, query, status, focus, close and cancel overlap; retain saved files until shutdown verification.",
+    "Apply status/focus/close p95 <= 250 ms, p99 <= 500 ms, max <= 1000 ms; every cancel <= 1000 ms; heartbeat gap <= 250 ms.",
+    "Do not replace failures, select best samples or weaken thresholds. Preserve failed report and redacted diagnostics."
+  ],
+  "nextReport": "docs/analysis/p0-pg04-win32-x64-<epoch>-<nonce>.json; exclusive create, never overwrite"
+}

@@ -1,0 +1,404 @@
+{
+  "version": "p0-pg04.v1",
+  "status": "failed",
+  "package": {
+    "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+    "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+    "commitSha": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+    "artifactKind": "portable",
+    "os": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.16.0",
+    "nodeAbi": "137",
+    "packageBytes": 93519267,
+    "packageMtimeMs": 1790629062639.7,
+    "nativeVersions": {
+      "betterSqlite3": "12.11.1",
+      "hnswlibNode": "3.0.0"
+    }
+  },
+  "buildManifestSha256": "838f9b976368da92630c5284b33400519ea02071957c7d8f4b172d816236abb7",
+  "samples": [
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "c83f58cfc06ca9a26064188e6676716ca49eb1fa81f312c721e750907703e566",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {},
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true
+      },
+      "lifecycle": {},
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 168.63400000000001
+          },
+          {
+            "kind": "status",
+            "ms": 45.03719999999976
+          },
+          {
+            "kind": "status",
+            "ms": 17.338799999999537
+          }
+        ],
+        "heartbeatGaps": [],
+        "workerMarker": true
+      },
+      "processCold": {
+        "pid": 131696,
+        "spawnPid": 122708,
+        "processStartEpochMs": 1790629098164.845,
+        "profileToken": "e8d31af278773972f1f02d9b74e3d78c84fa2a999a2a49b0ef2be2d850412efa",
+        "workerReadyEpochMs": 1790629100762
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790629100995,
+        "finishedAtEpochMs": 1790629101029,
+        "workerJobId": "job_d7d9bbfd5c8dac01d563ec9f88a213c1005ec920a76e23b7c87f49c0a202bce1",
+        "activeBefore": true,
+        "activeAfter": true,
+        "savedDocumentId": "doc_1ef22f603c512814f470afd5",
+        "foundDocumentId": null
+      },
+      "sample": 1,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "45672bf2180eecd16e325da068547c6212fe3d82a6b94fddae1ec93e1579cdbf",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {},
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true
+      },
+      "lifecycle": {},
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 157.65980000000127
+          },
+          {
+            "kind": "status",
+            "ms": 44.40030000000115
+          },
+          {
+            "kind": "status",
+            "ms": 17.321799999999712
+          }
+        ],
+        "heartbeatGaps": [],
+        "workerMarker": true
+      },
+      "processCold": {
+        "pid": 109952,
+        "spawnPid": 92792,
+        "processStartEpochMs": 1790629105526.7183,
+        "profileToken": "fd69e36c9f60b14df4d51e60598edd1926419dad32d98fa83116aa940cb93951",
+        "workerReadyEpochMs": 1790629108176
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790629108396,
+        "finishedAtEpochMs": 1790629108432,
+        "workerJobId": "job_0938c23e00324da941ed1e00245f864831b98670554e206ef3dfa23dffdd9213",
+        "activeBefore": true,
+        "activeAfter": true,
+        "savedDocumentId": "doc_afafc1ba525fa3347747de96",
+        "foundDocumentId": null
+      },
+      "sample": 2,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "2a11191401c9b0d96c99753986330afe0147d3a10fe9ac70f48f57ed9dbf13e0",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {},
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true
+      },
+      "lifecycle": {},
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 155.7476999999999
+          },
+          {
+            "kind": "status",
+            "ms": 44.86249999999927
+          },
+          {
+            "kind": "status",
+            "ms": 17.749299999999494
+          }
+        ],
+        "heartbeatGaps": [],
+        "workerMarker": true
+      },
+      "processCold": {
+        "pid": 109992,
+        "spawnPid": 39296,
+        "processStartEpochMs": 1790629112844.902,
+        "profileToken": "26072210b0c8c222f7db2ca85d042b265e9728a09ad72e1becb52ec84d76e95c",
+        "workerReadyEpochMs": 1790629115457
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790629115676,
+        "finishedAtEpochMs": 1790629115709,
+        "workerJobId": "job_342738d4a847d73d39628a339ec32bce1053d95763998d2a5222d10322099c75",
+        "activeBefore": true,
+        "activeAfter": true,
+        "savedDocumentId": "doc_771114f1b6dee50433ede22c",
+        "foundDocumentId": null
+      },
+      "sample": 3,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "1f6f6c7922ea9a12944764091d3c97f5b837e07ea6284d912378c0a438542a30",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {},
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true
+      },
+      "lifecycle": {},
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 196.2696999999971
+          },
+          {
+            "kind": "status",
+            "ms": 17.959500000000844
+          },
+          {
+            "kind": "status",
+            "ms": 17.18449999999939
+          }
+        ],
+        "heartbeatGaps": [],
+        "workerMarker": true
+      },
+      "processCold": {
+        "pid": 90292,
+        "spawnPid": 114604,
+        "processStartEpochMs": 1790629120155.5303,
+        "profileToken": "6ce265c5034859028af8e1da50363642d075cc05ede10f0351e4b3f1e6174914",
+        "workerReadyEpochMs": 1790629122726
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790629122958,
+        "finishedAtEpochMs": 1790629122996,
+        "workerJobId": "job_e5ddba5a22183e4eabd339433e626a06f3745015ae4aabb43d567d4c7d7bd244",
+        "activeBefore": true,
+        "activeAfter": true,
+        "savedDocumentId": "doc_32679c1dd3aaf722ab97c57a",
+        "foundDocumentId": null
+      },
+      "sample": 4,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "8fac90fe88854d6782ce4449626d46d13f057b8140ef67f360cc73a7d9867d3a",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "d3467e96ca086a8c9caac10dd6c9a3ef7174d09568fa222ff22f45239a578a84",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "fc3fd6e5c24d8c4e203b042d45ee3b4defd1914beb5d33383bc3b257f54ba3e8",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {},
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true
+      },
+      "lifecycle": {},
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 156.82470000000467
+          },
+          {
+            "kind": "status",
+            "ms": 45.015199999994365
+          },
+          {
+            "kind": "status",
+            "ms": 19.10939999999391
+          }
+        ],
+        "heartbeatGaps": [],
+        "workerMarker": true
+      },
+      "processCold": {
+        "pid": 127248,
+        "spawnPid": 102024,
+        "processStartEpochMs": 1790629127489.484,
+        "profileToken": "b4cfcbdeaf2f572dd36fd23e85efb8a20c023b29286523694a5ede95a082603d",
+        "workerReadyEpochMs": 1790629130146
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790629130368,
+        "finishedAtEpochMs": 1790629130405,
+        "workerJobId": "job_058d7733a094ebd376cd078147d28da88b421a93c2588cedb4011504e0c621fd",
+        "activeBefore": true,
+        "activeAfter": true,
+        "savedDocumentId": "doc_a47ce02ad953ccb13e44ba93",
+        "foundDocumentId": null
+      },
+      "sample": 5,
+      "failed": true
+    }
+  ],
+  "failures": [
+    {
+      "sample": 1,
+      "code": "sample_failed",
+      "message": "packaged query finds saved document while the same owner job remains active"
+    },
+    {
+      "sample": 2,
+      "code": "sample_failed",
+      "message": "packaged query finds saved document while the same owner job remains active"
+    },
+    {
+      "sample": 3,
+      "code": "sample_failed",
+      "message": "packaged query finds saved document while the same owner job remains active"
+    },
+    {
+      "sample": 4,
+      "code": "sample_failed",
+      "message": "packaged query finds saved document while the same owner job remains active"
+    },
+    {
+      "sample": 5,
+      "code": "sample_failed",
+      "message": "packaged query finds saved document while the same owner job remains active"
+    },
+    {
+      "code": "pg04_contract_failed",
+      "message": "main writable SQLite opens\n\nundefined !== 0\n"
+    }
+  ]
+}
