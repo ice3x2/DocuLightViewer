@@ -1,0 +1,691 @@
+{
+  "version": "p0-pg04.v1",
+  "status": "passed",
+  "package": {
+    "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+    "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+    "commitSha": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+    "artifactKind": "portable",
+    "os": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.16.0",
+    "nodeAbi": "137",
+    "nativeVersions": {
+      "betterSqlite3": "12.11.1",
+      "hnswlibNode": "3.0.0"
+    }
+  },
+  "samples": [
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "50834b4256b0541d7809b1b8899aee0c825f64ac01c8a88053bb3f42e4e48ae0",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 11
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 202.29370000000017
+          },
+          {
+            "kind": "status",
+            "ms": 17.665800000000672
+          },
+          {
+            "kind": "status",
+            "ms": 17.40819999999985
+          },
+          {
+            "kind": "focus",
+            "ms": 22.729699999999866
+          },
+          {
+            "kind": "close",
+            "ms": 27.371499999999287
+          },
+          {
+            "kind": "cancel",
+            "ms": 2.077100000000428
+          }
+        ],
+        "heartbeatGaps": [
+          17.046299999999974,
+          15.242799999999988,
+          12.991899999999987,
+          15.802400000000034,
+          11.01339999999982,
+          9.10530000000017,
+          11.007900000000063,
+          10.025000000000091,
+          10.06479999999965,
+          11.35550000000012,
+          15.366300000000138,
+          37.3451,
+          26.760800000000017,
+          17.19069999999965,
+          17.431100000000242,
+          14.998700000000099,
+          18.8145999999997,
+          10.49369999999999,
+          24.606500000000324,
+          18.802099999999882,
+          2.652099999999791
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 202.29370000000017,
+            "p99": 202.29370000000017,
+            "max": 202.29370000000017
+          },
+          "focus": {
+            "count": 1,
+            "p95": 22.729699999999866,
+            "p99": 22.729699999999866,
+            "max": 22.729699999999866
+          },
+          "close": {
+            "count": 1,
+            "p95": 27.371499999999287,
+            "p99": 27.371499999999287,
+            "max": 27.371499999999287
+          }
+        },
+        "cancelMs": 2.077100000000428
+      },
+      "processCold": {
+        "pid": 3804,
+        "spawnPid": 71488,
+        "processStartEpochMs": 1790628143900.6084,
+        "profileToken": "fc13be2b1ea90130b5f5a06bffd9bca50ae98cc7c29a91d15f89b8b5f70258c1",
+        "workerReadyEpochMs": 1790628146442
+      },
+      "corpus": {
+        "fileCount": 3,
+        "bytes": 4320448,
+        "ledgerRows": 1
+      },
+      "sample": 1
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "ec94698627701bd6837e5a785ffa5c6c5e30f486b787cd9ac15f269134d394b2",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 11
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 182.21289999999863
+          },
+          {
+            "kind": "status",
+            "ms": 16.645699999999124
+          },
+          {
+            "kind": "status",
+            "ms": 17.883200000000215
+          },
+          {
+            "kind": "focus",
+            "ms": 13.266499999999724
+          },
+          {
+            "kind": "close",
+            "ms": 20.92500000000109
+          },
+          {
+            "kind": "cancel",
+            "ms": 2.728399999999965
+          }
+        ],
+        "heartbeatGaps": [
+          15.837500000000091,
+          17.680499999999938,
+          12.796800000000076,
+          15.768100000000231,
+          9.509099999999762,
+          9.752599999999802,
+          12.126100000000406,
+          10.372699999999895,
+          51.50410000000011,
+          26.820799999999963,
+          16.71499999999969,
+          17.407799999999952,
+          12.252400000000307,
+          12.598599999999806,
+          23.689600000000155,
+          20.38670000000002,
+          3.6208999999998923
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 182.21289999999863,
+            "p99": 182.21289999999863,
+            "max": 182.21289999999863
+          },
+          "focus": {
+            "count": 1,
+            "p95": 13.266499999999724,
+            "p99": 13.266499999999724,
+            "max": 13.266499999999724
+          },
+          "close": {
+            "count": 1,
+            "p95": 20.92500000000109,
+            "p99": 20.92500000000109,
+            "max": 20.92500000000109
+          }
+        },
+        "cancelMs": 2.728399999999965
+      },
+      "processCold": {
+        "pid": 57292,
+        "spawnPid": 143564,
+        "processStartEpochMs": 1790628150418.1873,
+        "profileToken": "c201f29f56159f052454d5b8d320506844cee32c1bbc2f43f12e5d1baefa3429",
+        "workerReadyEpochMs": 1790628152957
+      },
+      "corpus": {
+        "fileCount": 3,
+        "bytes": 4320448,
+        "ledgerRows": 1
+      },
+      "sample": 2
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "6fc558ebbb898f27853680de2c35e94e59022621015415bdaddf6713b757f558",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 11
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 188.29449999999997
+          },
+          {
+            "kind": "status",
+            "ms": 20.436499999999796
+          },
+          {
+            "kind": "status",
+            "ms": 16.426800000001094
+          },
+          {
+            "kind": "focus",
+            "ms": 15.919400000002497
+          },
+          {
+            "kind": "close",
+            "ms": 20.38509999999951
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.4504000000015367
+          }
+        ],
+        "heartbeatGaps": [
+          13.656599999999798,
+          19.75520000000006,
+          9.529500000000098,
+          10.466699999999946,
+          19.18679999999995,
+          21.747800000000097,
+          15.165199999999913,
+          15.6858000000002,
+          35.52039999999988,
+          27.564600000000155,
+          19.986799999999675,
+          16.56790000000001,
+          12.359600000000228,
+          14.460000000000036,
+          23.680599999999686,
+          18.451100000000224,
+          1.9717000000000553
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 188.29449999999997,
+            "p99": 188.29449999999997,
+            "max": 188.29449999999997
+          },
+          "focus": {
+            "count": 1,
+            "p95": 15.919400000002497,
+            "p99": 15.919400000002497,
+            "max": 15.919400000002497
+          },
+          "close": {
+            "count": 1,
+            "p95": 20.38509999999951,
+            "p99": 20.38509999999951,
+            "max": 20.38509999999951
+          }
+        },
+        "cancelMs": 1.4504000000015367
+      },
+      "processCold": {
+        "pid": 89084,
+        "spawnPid": 73048,
+        "processStartEpochMs": 1790628156957.673,
+        "profileToken": "b1ea99de318de75db808f90dd125b327c35629b4449d68bd7cf7d743d33cce9a",
+        "workerReadyEpochMs": 1790628159531
+      },
+      "corpus": {
+        "fileCount": 3,
+        "bytes": 4320448,
+        "ledgerRows": 1
+      },
+      "sample": 3
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "9eb3bb7f8e318cb6f82c9440c731df7e7d9aeb864fccc4fa422c9c1e60c3fd67",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 11
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 185.82970000000205
+          },
+          {
+            "kind": "status",
+            "ms": 17.379400000001624
+          },
+          {
+            "kind": "status",
+            "ms": 16.85069999999905
+          },
+          {
+            "kind": "focus",
+            "ms": 14.300799999997253
+          },
+          {
+            "kind": "close",
+            "ms": 20.878899999999703
+          },
+          {
+            "kind": "cancel",
+            "ms": 3.0656999999991967
+          }
+        ],
+        "heartbeatGaps": [
+          14.434000000000196,
+          19.025699999999688,
+          12.972800000000007,
+          9.917699999999968,
+          15.88090000000011,
+          9.614399999999932,
+          10.018300000000181,
+          10.742899999999736,
+          22.759100000000217,
+          34.69549999999981,
+          25.756600000000162,
+          17.407200000000103,
+          16.859399999999823,
+          11.322999999999865,
+          13.50019999999995,
+          23.631800000000112,
+          18.807000000000244,
+          3.8876000000000204
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 185.82970000000205,
+            "p99": 185.82970000000205,
+            "max": 185.82970000000205
+          },
+          "focus": {
+            "count": 1,
+            "p95": 14.300799999997253,
+            "p99": 14.300799999997253,
+            "max": 14.300799999997253
+          },
+          "close": {
+            "count": 1,
+            "p95": 20.878899999999703,
+            "p99": 20.878899999999703,
+            "max": 20.878899999999703
+          }
+        },
+        "cancelMs": 3.0656999999991967
+      },
+      "processCold": {
+        "pid": 138196,
+        "spawnPid": 101332,
+        "processStartEpochMs": 1790628163496.63,
+        "profileToken": "b8c879b73059497868a099f7dd3da9daa0605d64ce1ab3f9cf799cbba1a948a7",
+        "workerReadyEpochMs": 1790628166050
+      },
+      "corpus": {
+        "fileCount": 3,
+        "bytes": 4320448,
+        "ledgerRows": 1
+      },
+      "sample": 4
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "612a96c3e78148b43c99cd8784f500310a68c882b2aa838f6a4a201ae2ba621f",
+      "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+      "sourceHash": "82a4757ae5b52d164395a26c081ece28693233d4dfe222d7da49ee993777cc40",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 328,
+      "fixtureSha256": "fa0ceeca401f6d93f83342b49a2e2809a422218231a509c7e8d31d1b8e480b53",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 11
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 200.1911
+          },
+          {
+            "kind": "status",
+            "ms": 18.09059999999954
+          },
+          {
+            "kind": "status",
+            "ms": 17.381199999999808
+          },
+          {
+            "kind": "focus",
+            "ms": 13.665600000000268
+          },
+          {
+            "kind": "close",
+            "ms": 20.272499999999127
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.6484999999993306
+          }
+        ],
+        "heartbeatGaps": [
+          15.076599999999871,
+          18.600400000000263,
+          10.436400000000049,
+          10.160899999999856,
+          23.677000000000135,
+          16.12019999999984,
+          15.717000000000098,
+          15.77119999999968,
+          11.216300000000047,
+          36.88689999999997,
+          26.478900000000067,
+          17.640699999999924,
+          17.44340000000011,
+          12.81820000000016,
+          12.360599999999977,
+          24.22479999999996,
+          20.69250000000011,
+          2.652799999999843
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 200.1911,
+            "p99": 200.1911,
+            "max": 200.1911
+          },
+          "focus": {
+            "count": 1,
+            "p95": 13.665600000000268,
+            "p99": 13.665600000000268,
+            "max": 13.665600000000268
+          },
+          "close": {
+            "count": 1,
+            "p95": 20.272499999999127,
+            "p99": 20.272499999999127,
+            "max": 20.272499999999127
+          }
+        },
+        "cancelMs": 1.6484999999993306
+      },
+      "processCold": {
+        "pid": 117964,
+        "spawnPid": 91888,
+        "processStartEpochMs": 1790628170047.245,
+        "profileToken": "2fb45ec57b75365aea93a45954013c9aae948fb2fe184425243d8aa1703997ac",
+        "workerReadyEpochMs": 1790628172593
+      },
+      "corpus": {
+        "fileCount": 3,
+        "bytes": 4320448,
+        "ledgerRows": 1
+      },
+      "sample": 5
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "byKind": {
+      "status": {
+        "count": 15,
+        "p95": 202.29370000000017,
+        "p99": 202.29370000000017,
+        "max": 202.29370000000017
+      },
+      "focus": {
+        "count": 5,
+        "p95": 22.729699999999866,
+        "p99": 22.729699999999866,
+        "max": 22.729699999999866
+      },
+      "close": {
+        "count": 5,
+        "p95": 27.371499999999287,
+        "p99": 27.371499999999287,
+        "max": 27.371499999999287
+      }
+    },
+    "cancelMax": 3.0656999999991967,
+    "heartbeatGapMax": 51.50410000000011
+  }
+}

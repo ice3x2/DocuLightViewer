@@ -12,7 +12,7 @@ const { StringDecoder } = require('node:string_decoder');
 const { readPendingSave } = require('./index-ingress-store');
 const { parseFrontmatter } = require('./frontmatter');
 const { runClaimedDesiredJob } = require('./desired-job-processor');
-const { deriveValidatedDocument } = require('./derived-document-indexer');
+const { prepareValidatedDocument, commitPreparedDocument } = require('./derived-document-indexer');
 const { SearchEngine } = require('./search-engine');
 const { redactToken } = require('./redaction');
 
@@ -122,10 +122,16 @@ async function drainDesiredPage() {
       const onProgress = (current, total) => status('indexing', keywordDiagnosticCode,
         { active: true, phase: 'index_document', jobId: claim.jobId, cancelToken,
           progress: { current, total } });
+      let prepared;
       const result = await runClaimedDesiredJob({ ledger, claim, storeRoot: sourceRoot, ingressRoot,
-        onValidated: async () => shouldCancel() ? { cancelled: true } : null,
-        onFinalValidated: validated => deriveValidatedDocument({ ledger, keyword, claim,
-          storeRoot: sourceRoot, validated, shouldCancel, beginCommit, onProgress,
+        onValidated: async validated => {
+          if (shouldCancel()) return { cancelled: true };
+          prepared = await prepareValidatedDocument({ ledger, keyword, claim,
+            storeRoot: sourceRoot, validated, shouldCancel, onProgress });
+          return prepared?.cancelled ? prepared : prepared ? null : { stale: true };
+        },
+        onFinalValidated: validated => commitPreparedDocument({ ledger, keyword, claim,
+          storeRoot: sourceRoot, validated, prepared, shouldCancel, beginCommit, onProgress,
           deferKeyword: keywordDiagnosticCode === 'keyword_source_mismatch'
             || keywordDiagnosticCode === 'keyword_tokenizer_mismatch' }) });
       status('indexing', keywordDiagnosticCode, { active: false, phase: result.cancelled ? 'cancelled' :

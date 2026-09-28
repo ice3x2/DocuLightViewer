@@ -2548,7 +2548,7 @@ async function handleIpcMessage(socket, msg) {
         }
         result = { isPackaged: app.isPackaged, profile: runtimeProfile.name,
           userDataDir: app.getPath('userData'), electronAbi: process.versions.modules,
-          pid: process.pid };
+          pid: process.pid, processStartEpochMs: Date.now() - process.uptime() * 1000 };
         break;
       case 'r3_test_owner_open_audit': {
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {

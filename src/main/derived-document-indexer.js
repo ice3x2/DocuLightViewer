@@ -6,25 +6,25 @@ const { createDocumentClassifier } = require('./document-classifier');
 const { createHeadingAwareChunker } = require('./chunker');
 const { createLinkGraphIndexer } = require('./link-graph-indexer');
 
+function isCurrentClaim(db, claim, validated, row) {
+  if (!row || row.current_job_id !== claim.jobId
+    || row.desired_revision !== claim.requestedRevision
+    || row.active_requested_revision !== claim.requestedRevision
+    || row.desired_content_hash !== validated.hash) return false;
+  const job = db.prepare('SELECT status, cancel_requested FROM index_jobs WHERE job_id = ?')
+    .get(claim.jobId);
+  return job?.status === 'indexing' && job.cancel_requested === 0;
+}
+
 // @req FR-DOC-019 DR-DOC-007 DR-DOC-008 DR-DOC-014
-async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, validated,
-  deferKeyword = false, faults = {}, shouldCancel = () => false,
-  beginCommit = () => true, onProgress = () => {} }) {
+async function prepareValidatedDocument({ ledger, keyword, claim, storeRoot, validated,
+  shouldCancel = () => false, onProgress = () => {} }) {
   if (!claim || !validated || validated.documentId !== claim.documentId
     || validated.revision !== claim.requestedRevision || validated.hash !== claim.desiredContentHash) return false;
   const db = ledger.open();
   const current = () => db.prepare('SELECT * FROM documents WHERE document_id = ?').get(claim.documentId);
-  const isCurrent = row => {
-    if (!row || row.current_job_id !== claim.jobId
-      || row.desired_revision !== claim.requestedRevision
-      || row.active_requested_revision !== claim.requestedRevision
-      || row.desired_content_hash !== validated.hash) return false;
-    const job = db.prepare('SELECT status, cancel_requested FROM index_jobs WHERE job_id = ?')
-      .get(claim.jobId);
-    return job?.status === 'indexing' && job.cancel_requested === 0;
-  };
   const before = current();
-  if (!isCurrent(before)) return false;
+  if (!isCurrentClaim(db, claim, validated, before)) return false;
   const requestedBy = db.prepare('SELECT requested_by FROM index_jobs WHERE job_id = ?').get(claim.jobId)?.requested_by;
   const normalizedTextHash = `sha256:${crypto.createHash('sha256')
     .update(validated.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')).digest('hex')}`;
@@ -59,13 +59,36 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
       await new Promise(resolve => setImmediate(resolve));
     }
   }
+  const linkCandidates = createLinkGraphIndexer({ sourceRoot: storeRoot }).extractLinks(validated.content, {
+    filePath, documentId: claim.documentId
+  });
+  return { before, normalizedTextHash, preserveLedgerFacts, filePath, metadata,
+    classification, explicitCategory, category, documentTags, project, docType,
+    preparedChunks, chunksLength: chunks.length, linkCandidates };
+}
+
+function commitPreparedDocument({ ledger, keyword, claim, storeRoot, validated, prepared,
+  deferKeyword = false, faults = {}, shouldCancel = () => false,
+  beginCommit = () => true, onProgress = () => {} }) {
+  if (!prepared || prepared.cancelled || !validated || validated.hash !== claim.desiredContentHash)
+    return false;
+  const { before, normalizedTextHash, preserveLedgerFacts, filePath, metadata,
+    classification, explicitCategory, category, documentTags, project, docType,
+    preparedChunks, chunksLength, linkCandidates } = prepared;
+  const db = ledger.open();
+  const current = () => db.prepare('SELECT * FROM documents WHERE document_id = ?').get(claim.documentId);
+  const isCurrent = row => isCurrentClaim(db, claim, validated, row);
+  const now = current();
+  if (!isCurrent(now) || now.accepted_intent_id !== before.accepted_intent_id
+    || now.metadata_json !== before.metadata_json) return false;
   const sourceId = before.source_id;
-  const links = createLinkGraphIndexer({ sourceRoot: storeRoot }).extractLinks(validated.content, {
-    filePath, documentId: claim.documentId,
-    resolveDocument: ({ pathKey, sourceRelativePath }) => {
-      const target = ledger.findDocumentBySourcePath({ sourceId, pathKey, sourceRelativePath });
-      return target?.pathStatus === 'active' ? target : null;
-    }
+  const links = linkCandidates.map(link => {
+    if (link.status !== 'missing') return link;
+    const target = ledger.findDocumentBySourcePath({ sourceId,
+      pathKey: link.normalizedHref, sourceRelativePath: link.normalizedHref });
+    return target?.pathStatus === 'active'
+      ? { ...link, status: 'resolved', diagnosticCode: null, toDocumentId: target.documentId }
+      : link;
   });
   if (shouldCancel() || !beginCommit()) return { cancelled: true };
   if (faults.beforeLedgerCommit) faults.beforeLedgerCommit();
@@ -102,10 +125,9 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
     return true;
   });
   if (!committed || !isCurrent(current())) return false;
-  onProgress(chunks.length + 1, chunks.length + 2);
-  await new Promise(resolve => setImmediate(resolve));
+  onProgress(chunksLength + 1, chunksLength + 2);
   if (deferKeyword) {
-    onProgress(chunks.length + 2, chunks.length + 2);
+    onProgress(chunksLength + 2, chunksLength + 2);
     return true;
   }
   const meta = { title: metadata.title || null, project, docName: metadata.docName || null,
@@ -122,9 +144,14 @@ async function deriveValidatedDocument({ ledger, keyword, claim, storeRoot, vali
     if (isCurrent(current())) db.prepare('UPDATE documents SET keyword_dirty = 0 WHERE document_id = ?')
       .run(claim.documentId);
   });
-  onProgress(chunks.length + 2, chunks.length + 2);
-  await new Promise(resolve => setImmediate(resolve));
+  onProgress(chunksLength + 2, chunksLength + 2);
   return true;
 }
 
-module.exports = { deriveValidatedDocument };
+async function deriveValidatedDocument(options) {
+  const prepared = await prepareValidatedDocument(options);
+  if (!prepared || prepared.cancelled) return prepared;
+  return commitPreparedDocument({ ...options, prepared });
+}
+
+module.exports = { deriveValidatedDocument, prepareValidatedDocument, commitPreparedDocument };

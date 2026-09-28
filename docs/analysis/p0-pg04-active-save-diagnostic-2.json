@@ -1,0 +1,25 @@
+{
+  "status": "diagnostic-failed",
+  "error": "second save receives durable receipt while same owner job stays active",
+  "activeSave": {
+    "startedAtEpochMs": 1790629527112,
+    "finishedAtEpochMs": 1790629528614,
+    "workerJobId": "job_1798975e5b61d4bf6cf1b845265231b966f3f47c182d1e3474306fb97136525c",
+    "activeBefore": true,
+    "activeAfter": true,
+    "ownerBeforePhase": "index_document",
+    "ownerAfterPhase": "index_document",
+    "ownerBeforeJobId": "job_1798975e5b61d4bf6cf1b845265231b966f3f47c182d1e3474306fb97136525c",
+    "ownerAfterJobId": "job_1798975e5b61d4bf6cf1b845265231b966f3f47c182d1e3474306fb97136525c",
+    "saved": false,
+    "responseIsError": true,
+    "responseErrorCode": "write_failed",
+    "responseDiagnosticCode": "publication_busy",
+    "contentBytes": 62,
+    "contentSha256": "aca92f5e27c1bdb8ee7a223547a5ac3ecc29caea067a5d77fdeae93c11e3eb98",
+    "publicationLockPresent": true,
+    "publicationRecoveryGatePresent": false,
+    "published": false,
+    "intentPersisted": false
+  }
+}

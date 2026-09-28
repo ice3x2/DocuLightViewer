@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { fork } = require('node:child_process');
-const { publishSave, readPendingSave } = require('../../../src/main/index-ingress-store');
+const { publishSave, readPendingSave, locatorGateName } = require('../../../src/main/index-ingress-store');
 const { SourceLedgerStore } = require('../../../src/main/source-ledger-store');
 const { OwnerWorkerController } = require('../../../src/main/search-owner-controller');
 
@@ -148,7 +148,8 @@ module.exports = { async run(context) {
       const gapResult = await runClaimedDesiredJob({ ledger, claim: gapClaim, storeRoot, ingressRoot,
         onValidated: async () => {},
         afterFinalRead: async () => {
-          const locked = fs.existsSync(path.join(ingressRoot, '.publication.lock'));
+          const locked = fs.existsSync(path.join(ingressRoot,
+            locatorGateName(storeRoot, 'gap.md')));
           gapPublication = childMessage('published');
           const attempting = childMessage('attempting');
           gapChild.send({ type: 'publish', input: { ...gapInput, contentHash: sha(bodies.B) },
@@ -212,6 +213,16 @@ module.exports = { async run(context) {
       finalMetadata: {}, contentByteLength: bodies.D.length, contentTextLength: bodies.D.length }).jobId;
     restarted.enqueueIndexJob({ jobId: 'job_keyword_rebuild_fixture', jobType: 'keyword_rebuild',
       status: 'indexing', requestedBy: 'settings' });
+    let afterJobId = '';
+    let interruptedPage;
+    do {
+      interruptedPage = restarted.reconcileInterruptedDesiredPage({ afterJobId, limit: 32 });
+      afterJobId = interruptedPage.afterJobId;
+    } while (interruptedPage.hasMore);
+    const keywordBeforeStartup = restarted.open().prepare('SELECT status FROM index_jobs WHERE job_id = ?')
+      .get('job_keyword_rebuild_fixture');
+    context.assert(keywordBeforeStartup.status === 'indexing',
+      'document-only reconciliation does not mutate unrelated keyword rebuild work');
   } finally { restarted.close(); }
   const owner = new OwnerWorkerController({ ledgerPath: path.join(root, 'ledger.sqlite'),
     keywordPath: path.join(root, 'keyword.sqlite'), sourceRoot: storeRoot,
@@ -238,9 +249,11 @@ module.exports = { async run(context) {
       && pending.some(item => item.documentId === winnerRow.document_id)
       && oldWinner.status === 'cancelled' && fs.readFileSync(path.join(storeRoot, 'winner.md')).equals(bodies.D),
       'startup reconciliation cancels older claim without replacing latest queued winner');
-    const keywordJob = recoveredLedger.open().prepare('SELECT status FROM index_jobs WHERE job_id = ?')
+    const keywordJob = recoveredLedger.open().prepare(`SELECT status, phase, diagnostic_code
+      FROM index_jobs WHERE job_id = ?`)
       .get('job_keyword_rebuild_fixture');
-    context.assert(keywordJob.status === 'indexing',
-      'document recovery never mutates unrelated keyword rebuild indexing job');
+    context.assert(keywordJob.status === 'failed' && keywordJob.phase === 'interrupted'
+      && keywordJob.diagnostic_code === 'interrupted_rebuild_restarted',
+      'startup closes interrupted keyword rebuild without changing document pending/latest facts');
   } finally { recoveredLedger.close(); }
 } };

@@ -4,7 +4,7 @@ const assert = require('assert');
 const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
 
 // @req FR-DOC-019 AC-10 IR-APP-013 AC-13 OPS-ARCH-009 AC-2 OPS-ARCH-010 AC-3
-function validateNativeOwnerEvidence(evidence) {
+function validateNativeOwnerEvidence(evidence, { requireProcessCold = false } = {}) {
   assert.strictEqual(evidence.version, 'package-native-owner.v1');
   assert.strictEqual(evidence.directExecutable, true, 'direct selected executable launch');
   assert.match(evidence.selectedAppSha256, /^[a-f0-9]{64}$/, 'selected artifact checksum');
@@ -17,6 +17,16 @@ function validateNativeOwnerEvidence(evidence) {
   assert.strictEqual(evidence.runtime.profile, 'default', 'packaged profile');
   assert.strictEqual(evidence.runtime.isolatedUserData, true, 'isolated user data');
   assert(evidence.runtime.electronAbi, 'Electron ABI');
+  if (requireProcessCold) {
+    const cold = evidence.processCold;
+    assert(Number.isInteger(cold?.pid) && cold.pid > 0
+      && Number.isFinite(cold?.processStartEpochMs) && cold.processStartEpochMs > 0
+      && /^[a-f0-9]{64}$/.test(cold?.profileToken || '')
+      && Number.isFinite(cold?.workerReadyEpochMs)
+      && cold.workerReadyEpochMs >= cold.processStartEpochMs
+      && Number.isInteger(cold.spawnPid) && cold.spawnPid > 0,
+    'process-cold PID, start time, profile token and worker-ready time');
+  }
   assert(Number.isInteger(evidence.owner.workerThreadId) && evidence.owner.workerThreadId > 0
     && evidence.owner.openCount === 2
     && evidence.owner.ledgerOpenThreadId === evidence.owner.workerThreadId

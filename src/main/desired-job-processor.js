@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const { readValidatedMarkdownCandidate } = require('./indexed-origin-resolver');
-const { withPublicationGate } = require('./index-ingress-store');
+const { withLocatorGate, hasUnacceptedPublishedLocatorIntent } = require('./index-ingress-store');
 
 // @req FR-DOC-019 REL-DOC-009
 async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onValidated, onFinalValidated, afterFinalRead }) {
@@ -44,7 +44,11 @@ async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onV
       ledger.failClaimedJob({ claim, cancelled: true });
       return { completed: false, cancelled: true };
     }
-    return await withPublicationGate(ingressRoot, async () => {
+    if (downstream?.stale) {
+      ledger.failClaimedJob({ claim });
+      return { completed: false, retryable: true };
+    }
+    return await withLocatorGate(ingressRoot, storeRoot, target.relativePath, async () => {
       const latest = await read();
       if (!latest.ok) {
         ledger.failClaimedJob({ claim });
@@ -59,13 +63,24 @@ async function runClaimedDesiredJob({ ledger, claim, storeRoot, ingressRoot, onV
         ledger.failClaimedJob({ claim, cancelled: true });
         return { completed: false, cancelled: true };
       }
+      if (hasUnacceptedPublishedLocatorIntent({ ingressRoot, storeRoot,
+        locator: target.relativePath, expectedContentHash: claim.desiredContentHash,
+        hasReceipt: intentId => Boolean(ledger.getSaveIntentReceipt?.(intentId)) })) {
+        ledger.failClaimedJob({ claim });
+        return { completed: false, retryable: true };
+      }
       if (afterFinalRead) await afterFinalRead();
       if (onFinalValidated) {
-        const finalResult = await onFinalValidated({ ...validated, content: latest.content,
+        const candidate = onFinalValidated({ ...validated, content: latest.content,
           hash: latest.contentHash });
+        const finalResult = typeof candidate?.then === 'function' ? await candidate : candidate;
         if (finalResult?.cancelled) {
           ledger.failClaimedJob({ claim, cancelled: true });
           return { completed: false, cancelled: true };
+        }
+        if (finalResult === false || finalResult?.stale) {
+          ledger.failClaimedJob({ claim });
+          return { completed: false, retryable: true };
         }
       }
       return { completed: ledger.completeClaimedJob({ claim, actualFileHash: latest.contentHash }) };
