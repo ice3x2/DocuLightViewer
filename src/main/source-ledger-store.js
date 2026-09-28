@@ -1762,6 +1762,27 @@ class SourceLedgerStore {
         LIMIT 1
       `).get({ canonicalPathHash });
       resolvedDocumentId = identity && identity.document_id ? identity.document_id : '';
+      if (!resolvedDocumentId) {
+        // Legacy rows can predate the indexed copy's canonical-path hash.
+        // Match only their stored source root and relative copy locator.
+        const requested = normalizeInternalPath(realpathOrPath(path.resolve(String(filePath))));
+        const sources = this.open().prepare('SELECT source_id, root_path_internal FROM sources').all();
+        let legacyDocumentId = '';
+        for (const source of sources) {
+          if (!isPathWithinRoot(filePath, source.root_path_internal)) continue;
+          const relativePath = path.relative(source.root_path_internal,
+            path.resolve(String(filePath))).replace(/\\/g, '/');
+          const legacy = this.open().prepare(`SELECT document_id, relative_path FROM documents
+            WHERE source_id = ? AND relative_path = ? AND canonical_path_hash IS NULL
+            ORDER BY updated_at DESC, document_id LIMIT 1`).get(source.source_id, relativePath);
+          if (legacy && normalizeInternalPath(realpathOrPath(path.join(source.root_path_internal,
+            legacy.relative_path))) === requested) {
+            if (legacyDocumentId && legacyDocumentId !== legacy.document_id) return null;
+            legacyDocumentId = legacy.document_id;
+          }
+        }
+        resolvedDocumentId = legacyDocumentId;
+      }
     }
     if (!resolvedDocumentId) return null;
 
@@ -2512,7 +2533,6 @@ class SourceLedgerStore {
       ORDER BY d.document_id LIMIT ?`).all(sourceRoot, afterDocumentId, limit);
     db.transaction(() => {
       for (const row of rows) {
-        db.prepare('DELETE FROM links WHERE from_document_id = ?').run(row.document_id);
         db.prepare(`UPDATE ann_indexes SET status = 'stale', updated_at = ?
           WHERE status = 'committed' AND ann_index_id IN (
             SELECT m.ann_index_id FROM ann_memberships m
