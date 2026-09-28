@@ -228,10 +228,14 @@ async function withPublicationGate(ingressRoot, action, lockName = '.publication
   if (!fs.existsSync(privateRoot) || fs.lstatSync(privateRoot).isSymbolicLink()) throw fail('path_policy_violation');
   if (lockName !== '.publication.lock'
     && !/^\.publication-locator-[a-f0-9]{64}\.lock$/.test(lockName)) throw fail('path_policy_violation');
+  const { currentProcessIdentity, cachedCurrentProcessIdentity } = require('./process-owner-identity');
+  let identity = cachedCurrentProcessIdentity();
+  if (identity === undefined) identity = await currentProcessIdentity();
+  if (process.platform === 'win32' && !identity) throw fail('publication_busy');
   let release;
   const deadline = Date.now() + 1000;
   while (!release) {
-    try { release = acquirePublicationGate(privateRoot, lockName); }
+    try { release = acquirePublicationGate(privateRoot, lockName, identity); }
     catch (error) {
       if (error.code !== 'publication_busy' || Date.now() >= deadline) throw error;
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -241,13 +245,13 @@ async function withPublicationGate(ingressRoot, action, lockName = '.publication
   finally { release(); }
 }
 
-function acquirePublicationGate(privateRoot, lockName) {
-  const { processIdentity, processLiveness } = require('./process-owner-identity');
+function acquirePublicationGate(privateRoot, lockName, identity) {
+  const { processLiveness } = require('./process-owner-identity');
   const { acquireAtomicOwnerGate } = require('./atomic-owner-gate');
   const lock = path.join(privateRoot, lockName);
   const token = crypto.randomUUID();
   const temp = path.join(privateRoot, `.publication-owner-${token}.tmp`);
-  const owner = { pid: process.pid, identity: processIdentity(process.pid), token };
+  const owner = { pid: process.pid, identity, token };
   const recover = () => {
     const stat = fs.lstatSync(lock);
     if (stat.isSymbolicLink()) throw fail('publication_busy');

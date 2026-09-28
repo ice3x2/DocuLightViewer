@@ -100,6 +100,9 @@ module.exports = { async run(context) {
   let aPublicationEntered = false;
   let bPublicationEntered = false;
   let cPublicationEntered = false;
+  let bReady;
+  const bEntered = new Promise(resolve => { bReady = resolve; });
+  let bBarrierExpired = false;
   let aPublication;
   fs.renameSync = function publicationRaceRename(from, to) {
     if (from === publicationLock && !publicationInjected) {
@@ -114,22 +117,34 @@ module.exports = { async run(context) {
     return rename.call(fs, from, to);
   };
   let bPublication;
+  let cPublication;
   try {
     bPublication = withPublicationGate(ingress, () => {
       bPublicationEntered = true;
-      return new Promise(resolve => { bActionRelease = resolve; });
+      bReady();
+      return new Promise(resolve => {
+        bActionRelease = resolve;
+        if (bBarrierExpired) resolve();
+      });
     }).catch(error => ({ error }));
-  } finally { fs.renameSync = rename; }
-  const cPublication = withPublicationGate(ingress, () => { cPublicationEntered = true; })
-    .catch(error => ({ error }));
-  await new Promise(resolve => setTimeout(resolve, 50));
-  const publicationSafe = publicationInjected && !aPublicationEntered
-    && bPublicationEntered && !cPublicationEntered;
-  if (bActionRelease) bActionRelease();
-  if (aActionRelease) aActionRelease();
-  await Promise.allSettled([aPublication, bPublication, cPublication]);
-  context.assert(publicationSafe,
-    'publication recovery cannot move a new live lock or admit C while B holds it');
+    cPublication = withPublicationGate(ingress, () => { cPublicationEntered = true; })
+      .catch(error => ({ error }));
+    const bObserved = await readyBeforeBarrier(bEntered);
+    bBarrierExpired = !bObserved;
+    const publicationSafe = bObserved && publicationInjected && !aPublicationEntered
+      && bPublicationEntered && !cPublicationEntered;
+    if (bActionRelease) bActionRelease();
+    if (aActionRelease) aActionRelease();
+    await Promise.allSettled([aPublication, bPublication, cPublication]);
+    context.assert(publicationSafe,
+      `publication recovery cannot move a new live lock or admit C while B holds it: ${JSON.stringify({
+        bObserved, publicationInjected, aPublicationEntered, bPublicationEntered, cPublicationEntered
+      })}`);
+  } finally {
+    fs.renameSync = rename;
+    if (bActionRelease) bActionRelease();
+    if (aActionRelease) aActionRelease();
+  }
 
   const lock = `${config.ledgerPath}.owner.lock`;
   const abandonedGate = `${lock}.recovery`;

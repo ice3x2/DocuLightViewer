@@ -8,6 +8,7 @@ const os = require('os');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
 const { validateNativeOwnerEvidence } = require('./package-native-owner-evidence');
+const { parseFrontmatter } = require('../../src/main/frontmatter');
 const { sourceFiles, sourceHash } = require('../r3/runtime.cjs');
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -224,6 +225,7 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
           ? (secondPayload?.error?.code || secondResponse.error) : null,
         responseDiagnosticCode: /^[a-z][a-z0-9_]{0,63}$/.test(secondPayload?.error?.message || '')
           ? secondPayload.error.message : null,
+        receiptDocumentId: secondPayload?.documentId || null,
         contentBytes: Buffer.byteLength(secondContent), contentSha256: sha256(secondContent) };
       const secondFile = fs.readdirSync(storeRoot).filter(name => name.endsWith('.md'))
         .map(name => path.join(storeRoot, name))
@@ -301,6 +303,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       const retainedBytes = fs.readFileSync(secondPath);
       evidence.activeSave.retainedBytes = retainedBytes.length;
       evidence.activeSave.retainedSha256 = sha256(retainedBytes);
+      evidence.activeSave.bodyMatchesInput = parseFrontmatter(retainedBytes.toString('utf8')).body
+        === secondContent;
     }
     const main = (await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot')).result;
     evidence.main = { writableOpenCount: main?.writableOpenCount,
@@ -322,7 +326,30 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
     try { evidence.corpus = { fileCount: fs.readdirSync(storeRoot).filter((name) => name.endsWith('.md')).length,
       bytes: fs.readdirSync(storeRoot).filter((name) => name.endsWith('.md'))
         .reduce((sum, name) => sum + fs.statSync(path.join(storeRoot, name)).size, 0),
-      ledgerRows: ledger.prepare('SELECT COUNT(*) AS count FROM sources').get().count }; }
+      ledgerRows: ledger.prepare('SELECT COUNT(*) AS count FROM sources').get().count };
+      if (evidence.activeSave?.receiptDocumentId) {
+        const row = ledger.prepare(`SELECT document_id, content_hash, content_byte_length,
+          accepted_intent_id
+          FROM documents WHERE document_id = ?`).get(evidence.activeSave.receiptDocumentId);
+        evidence.activeSave.ledgerDocumentId = row?.document_id || null;
+        evidence.activeSave.ledgerBytes = row?.content_byte_length ?? null;
+        evidence.activeSave.ledgerSha256 = row?.content_hash?.replace(/^sha256:/, '') || null;
+        evidence.activeSave.acceptedIntentId = row?.accepted_intent_id || null;
+        const job = ledger.prepare(`SELECT job_id, document_id FROM index_jobs
+          WHERE job_id = ?`).get(evidence.activeSave.receiptJobId);
+        evidence.activeSave.ledgerReceiptJobId = job?.job_id || null;
+        evidence.activeSave.ledgerReceiptDocumentId = job?.document_id || null;
+        const acceptance = ledger.prepare(`SELECT intent_id, receipt_kind, job_id,
+          document_id, content_hash FROM save_intent_acceptances
+          WHERE job_id = ? AND document_id = ?`).get(evidence.activeSave.receiptJobId,
+          evidence.activeSave.receiptDocumentId);
+        evidence.activeSave.acceptanceIntentId = acceptance?.intent_id || null;
+        evidence.activeSave.acceptanceReceiptKind = acceptance?.receipt_kind || null;
+        evidence.activeSave.acceptanceJobId = acceptance?.job_id || null;
+        evidence.activeSave.acceptanceDocumentId = acceptance?.document_id || null;
+        evidence.activeSave.acceptanceSha256 = acceptance?.content_hash?.replace(/^sha256:/, '') || null;
+      }
+    }
     finally { ledger.close(); }
     safeRemoveFixture(fixtureRoot);
     evidence.lifecycle.profileRemoved = !fs.existsSync(fixtureRoot);

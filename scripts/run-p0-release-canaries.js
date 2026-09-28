@@ -122,10 +122,23 @@ function validatePg04Report(report, provenance) {
       && Number.isFinite(save.finishedAtEpochMs)
       && save.finishedAtEpochMs >= save.startedAtEpochMs
       && Number.isInteger(save.contentBytes) && save.contentBytes > 0
-      && save.retainedBytes === save.contentBytes
+      && save.bodyMatchesInput === true
+      && typeof save.receiptDocumentId === 'string' && save.receiptDocumentId.length > 0
+      && save.ledgerDocumentId === save.receiptDocumentId
+      && save.ledgerReceiptJobId === save.receiptJobId
+      && save.ledgerReceiptDocumentId === save.receiptDocumentId
+      && save.acceptanceReceiptKind === 'queued'
+      && /^[a-f0-9]{64}$/.test(save.acceptanceIntentId)
+      && save.acceptedIntentId === save.acceptanceIntentId
+      && save.acceptanceJobId === save.receiptJobId
+      && save.acceptanceDocumentId === save.receiptDocumentId
+      && Number.isInteger(save.retainedBytes) && save.retainedBytes > 0
+      && save.retainedBytes === save.ledgerBytes
       && /^[a-f0-9]{64}$/.test(save.contentSha256)
-      && save.retainedSha256 === save.contentSha256,
-    'active save follows worker marker and retains bytes with a durable receipt');
+      && /^[a-f0-9]{64}$/.test(save.retainedSha256)
+      && save.retainedSha256 === save.ledgerSha256
+      && save.retainedSha256 === save.acceptanceSha256,
+    'active save follows worker marker and its body, retained file and ledger match the durable receipt');
     assert(Number.isInteger(sample.corpus?.fileCount) && sample.corpus.fileCount > 0
       && Number.isInteger(sample.corpus?.bytes) && sample.corpus.bytes > 0
       && Number.isInteger(sample.corpus?.ledgerRows) && sample.corpus.ledgerRows > 0,

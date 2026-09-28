@@ -1,0 +1,39 @@
+{
+  "issue": 55,
+  "requirements": ["IR-APP-013", "REL-DOC-007", "REL-DOC-009", "OPS-ARCH-009"],
+  "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+  "sourceHash": "1b8554684a14f5a8b7c08fecc7d6d30cfdf6f573e5152991bbb72abc707d5d4a",
+  "failedPackageRun": {
+    "path": "docs/analysis/p0-pg04-win32-x64-1790633764365-62a0492a.json",
+    "sha256": "c6878804d4688d34a6774cd9c6bc7640fff44a95f56ab2b0a0c04d87250d229e",
+    "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+    "result": "Five of five process-cold samples failed main heartbeat, max gaps 502.936 to 566.414 ms against 250 ms. Raw samples retained without replacement."
+  },
+  "semanticRed": {
+    "gateHeartbeat": "Two real publications took 526.526 and 501.548 ms; main heartbeat max gap 1028.255 ms (limit 250).",
+    "frontmatterOracle": "Synthetic valid 64-byte input body and 144-byte saved Markdown was rejected by the former raw-byte equality assertion.",
+    "receiptOracle": "A queued receipt with the wrong ledger job ID was accepted by the former canary validator; the focused test rejected that before implementation.",
+    "s20ColdIdentityRace": "Fixed 50 ms observation raced the first asynchronous identity lookup; bounded direct S20 run timed out before the deterministic barrier correction."
+  },
+  "focusedGreen": {
+    "nodeHeartbeat": {"firstSaveMs": 289.6818, "secondSaveMs": 11.7359, "mainHeartbeatGapMaxMs": 68.0956},
+    "electron33Heartbeat": {"firstSaveMs": 274.1815, "secondSaveMs": 13.4117, "mainHeartbeatGapMaxMs": 35.7065},
+    "oracle": "Parsed saved Markdown body equals input; retained saved bytes and SHA-256 equal accepted ledger row, and the queued job and document IDs match durable index_jobs and receipt identity; queued ACK need not retain an intent file.",
+    "cases": ["S10 PASS", "S11 PASS", "S12 PASS", "S13 PASS", "S17 PASS", "S19 PASS", "S20 PASS", "S23 PASS", "S25 PASS"],
+    "contracts": ["test-publication-gate-heartbeat PASS", "test-p0-release-canaries PASS", "test-package-native-owner-evidence PASS", "test-startup-ledger-responsiveness-contract PASS"]
+  },
+  "logs": {
+    "redRegression": {"path": "docs/analysis/p0-pg04-identity-regressions-red.log", "sha256": "7385eeda21ffd753ab69013ac91c09a096e6ec7c43d5eec9e56d647ca91f1784"},
+    "greenRegression": {"path": "docs/analysis/p0-pg04-identity-regressions-green.log", "sha256": "8945066837db259d1d675cc916909a96bd13414176b684978856d74a21274868"},
+    "nodeHeartbeat": {"path": "docs/analysis/p0-pg04-identity-heartbeat-node.log", "sha256": "9038667452f48e8326d8bf67a4f60e6db642480f7462c68dfbfa132fc0363eed"},
+    "electronHeartbeat": {"path": "docs/analysis/p0-pg04-identity-heartbeat-electron.log", "sha256": "5a068c007d022282f75c2c6dfa5474bf0200f78fb164ec85c4e7c2e88a693331"}
+  },
+  "finalSourceRegressionLog": {
+    "path": "docs/analysis/p0-pg04-identity-regressions-final.log",
+    "sha256": "6cc0bd6b571819331a19036d02b3cbdff0823ab801cfe9d83a74e3aa16116d7c",
+    "sourceHash": "1b8554684a14f5a8b7c08fecc7d6d30cfdf6f573e5152991bbb72abc707d5d4a",
+    "cases": ["S10", "S11", "S12", "S13", "S17", "S19", "S20", "S23", "S25"],
+    "exitCode": 0
+  },
+  "limits": ["No new package build or five-sample run at this source hash. Independent focused review is pending."]
+}

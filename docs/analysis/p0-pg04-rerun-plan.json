@@ -3,7 +3,8 @@
   "status": "preregistered-s63-stress-complete",
   "requirementIds": ["IR-APP-013", "REL-DOC-007", "OPS-ARCH-009", "OPS-ARCH-012", "OPS-ARCH-013", "REL-DOC-009"],
   "baseCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
-  "frozenSourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+  "frozenSourceHash": "7ccf1dda9d74be2ae9c3b6be4b27c3ee9abf00bfbfe21531379036d1a2264a68",
+  "identityFixBaseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
   "focusedEvidence": {
     "command": "node test/test-p0-release-canaries.js",
     "activeSaveRed": "exit 1: Missing expected exception: missing second save during active owner job fails PG-04",

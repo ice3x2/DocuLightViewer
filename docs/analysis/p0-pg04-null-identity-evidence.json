@@ -1,0 +1,22 @@
+{
+  "issue": 55,
+  "requirements": ["REL-DOC-009", "IR-APP-013", "REL-DOC-007"],
+  "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+  "sourceHash": "7ccf1dda9d74be2ae9c3b6be4b27c3ee9abf00bfbfe21531379036d1a2264a68",
+  "semanticRed": "test-publication-null-identity.js exited 1: missing expected rejection when transient Windows self identity was null; the old gate entered and could create an owner identity:null lock.",
+  "focusedGreen": {
+    "nullIdentity": "test-publication-null-identity.js exit 0: first attempt returns publication_busy with no lock/action, second retries and acquires/releases with a real identity.",
+    "identity": "test-current-process-identity.js exit 0: successful identities are cached; transient null retries; same-PID liveness never spawns synchronous PowerShell; other-PID path remains unchanged.",
+    "canaryContract": "test-p0-release-canaries.js exit 0",
+    "packageOwnerContract": "test-package-native-owner-evidence.js exit 0",
+    "nodeHeartbeat": {"mainGapMaxMs": 44.2204, "heldGateGapMaxMs": 21.6218, "contenders": 2, "takeover": false},
+    "electron33Heartbeat": {"mainGapMaxMs": 33.7177, "heldGateGapMaxMs": 38.0452, "contenders": 2, "takeover": false},
+    "recoveryCases": ["S10 PASS", "S20 PASS"]
+  },
+  "logs": {
+    "recovery": {"path": "docs/analysis/p0-pg04-null-identity-regressions.log", "sha256": "dc5530a5b65589c6cd647b868b89d164bd5331c1e6c0b7d777d2030435daf4d0"},
+    "nodeHeartbeat": {"path": "docs/analysis/p0-pg04-null-identity-node.log", "sha256": "f954ba2cae52e6fbe467c8f44c460a2648f548bd7915254657a291f3a3db766a"},
+    "electronHeartbeat": {"path": "docs/analysis/p0-pg04-null-identity-electron.log", "sha256": "f2613ea6e1c35fb61740cf2d5c08be3b0e29add7e23dc1b3c73ea449bd5c29b9"}
+  },
+  "limits": ["The failed five-sample packaged report remains untouched. No new package build or five-sample run at this source hash; targeted independent review is pending."]
+}
