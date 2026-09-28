@@ -1,0 +1,192 @@
+{
+  "sourceHash": "2a786621bcf1c2626eb871347298a5f31b680b3eeaea5dffbe94fa8452a84619",
+  "marker": "s264fb08e7d06bff549",
+  "oldMarker": "zzzxqa3052139c4f70fc1",
+  "newMarker": "qqqjz3375b32bae18e472",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s264fb08e7d06bff549",
+  "firstSha256": "2d735359eb2692f18098f2ff86fef724fa75f12268b39b625ae58b62d2cdc280",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 48784,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "0c5de2a1ecb053575ed94c03201249a283fce6ffd3e589d6b0706a2e63b7c382",
+      "port": 32581
+    },
+    {
+      "pid": 58536,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "0c5de2a1ecb053575ed94c03201249a283fce6ffd3e589d6b0706a2e63b7c382",
+      "port": 32581
+    }
+  ],
+  "mainSqlite": {
+    "cold": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 0,
+      "ledgerAllocated": false,
+      "keywordReadOnly": null
+    },
+    "afterSearch": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 25,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    },
+    "focus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "close": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 54,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 54,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "settingsStatus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "restart": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 4,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    }
+  },
+  "documentId": "doc_a010cc7dbdfb535d658f9819",
+  "sourceRelativePath": "013630274_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_b773c13c1fdae6abfe14540c261f2fcb002fd7ec33c460c846a24d0082620b95",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_ac999422e713351d5dc8e12b",
+  "aliasCanonicalHash": "5be3cc7e5c5b3f6f7e8be844c03c49ab8d986f5344226dfde2ca4444b2e74ce0",
+  "publicToolsCalled": 8,
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "8943667bd19cf8882208c9dd054015e086d7599e40d8ac21f16a524e959415fa",
+  "containedDocumentId": "doc_25963bc82a8464fa08c5b8c7",
+  "cancelJobId": "job_a13e3fbd1d07c3bdf2699a51ba0761a764cffeb099b03d868ad568cd1408edfc",
+  "newSha256": "9625192c541faa39e5562c9cf6b149a0efc75e59c1e0892703cf0f0630b4e758",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "9625192c541faa39e5562c9cf6b149a0efc75e59c1e0892703cf0f0630b4e758",
+  "externalSha256AfterCancel": "9625192c541faa39e5562c9cf6b149a0efc75e59c1e0892703cf0f0630b4e758",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 32546.045599999998,
+  "oldSearchText": "No results found for \"zzzxq\". (5 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "9625192c541faa39e5562c9cf6b149a0efc75e59c1e0892703cf0f0630b4e758",
+  "recoveredExternalSha256": "9625192c541faa39e5562c9cf6b149a0efc75e59c1e0892703cf0f0630b4e758",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ],
+  "settingsCompact": {
+    "reason": "compact-rebuild-required",
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "sourceAliasCount": 4
+  },
+  "settingsClear": {
+    "declinedReason": "confirmation-declined",
+    "started": true,
+    "terminalStatus": "completed",
+    "backupCount": 1,
+    "beforeLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "afterLogicalSha256": "2f0339802623cd67317fde3a345d9540fa182f4d96824b99797fe72984f929c8",
+    "backupLogicalSha256": "90fb098eeee03cf827abc3f83aa548a3f1df1c0b5f7f1ff595f8e26e49149d1f",
+    "beforeGeneration": "incremental",
+    "afterGeneration": null,
+    "sourceDocumentCount": 5,
+    "sourceAliasCount": 4,
+    "sourceMetadataSha256": "c76bef88e5bf1c94bc50c8ef511673b3b6524964cd2dfafce53a8bd1f7c8fc1d",
+    "preexistingJobCount": 7
+  },
+  "settingsMaintenance": {
+    "compact": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "compact-rebuild-required"
+    },
+    "privateRebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "retry": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "rebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "clear": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    }
+  }
+}
