@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
 
 // @req FR-DOC-019 AC-10 IR-APP-013 AC-13 OPS-ARCH-009 AC-2 OPS-ARCH-010 AC-3
 function validateNativeOwnerEvidence(evidence) {
@@ -29,6 +30,28 @@ function validateNativeOwnerEvidence(evidence) {
     && evidence.flow.cancelledFileRetained, 'active owner status/cancel retains saved file');
   assert(evidence.flow.failedSaveRetained && evidence.flow.retryableIntentPresent,
     'retained save remains retryable after post-publish failure');
+  const responsive = evidence.responsiveness;
+  assert(responsive?.workerMarker === true && Array.isArray(responsive.samples)
+    && Array.isArray(responsive.heartbeatGaps), 'active maintenance worker, samples and heartbeat evidence');
+  for (const kind of ['status', 'focus', 'close']) {
+    const result = responsive.byKind?.[kind];
+    const samples = responsive.samples.filter((sample) => sample.kind === kind);
+    const values = samples.map((sample) => sample.ms);
+    assert(result?.count > 0 && result.count === samples.length
+      && samples.every((sample) => Number.isFinite(sample.ms) && sample.ms >= 0)
+      && result.p95 === percentile(values, .95) && result.p95 <= 250
+      && result.p99 === percentile(values, .99) && result.p99 <= 500
+      && result.max === Math.max(...values) && result.max <= 1000,
+    `${kind} responsiveness samples meet the packaged bounds`);
+  }
+  const cancelSamples = responsive.samples.filter((sample) => sample.kind === 'cancel');
+  assert(cancelSamples.length > 0 && cancelSamples.every((sample) =>
+    Number.isFinite(sample.ms) && sample.ms >= 0 && sample.ms <= 1000)
+    && responsive.cancelMs === Math.max(...cancelSamples.map((sample) => sample.ms)),
+  'cancel responsiveness sample meets the packaged bound');
+  assert(responsive.heartbeatGaps.length >= 2
+    && responsive.heartbeatGaps.every((gap) => Number.isFinite(gap) && gap >= 0 && gap <= 250),
+  'main heartbeat samples meet the packaged bound');
   assert(evidence.lifecycle.exited === true && evidence.lifecycle.exitCode === 0,
     'real child exit with zero status');
   assert(evidence.lifecycle.appProcessGone === true, 'actual app process exits');

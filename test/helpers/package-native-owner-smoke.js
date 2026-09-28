@@ -12,6 +12,7 @@ const { sourceFiles, sourceHash } = require('../r3/runtime.cjs');
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
 
 function privateAction(ipcPath, action, params = {}, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
@@ -74,7 +75,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
     baseCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(),
     sourceHash: sourceHash(), sourceHashScope: 'r3-source-files',
     sourceFileCount: sourceFiles().length,
-    fixtureSha256: sha256(content), runtime: {}, owner: {}, main: {}, flow: {}, lifecycle: {}
+    fixtureSha256: sha256(content), runtime: {}, owner: {}, main: {}, flow: {}, lifecycle: {},
+    responsiveness: { samples: [], heartbeatGaps: [], workerMarker: false }
   };
   const env = { ...process.env, DOCULIGHT_PROFILE: 'default',
     DOCULIGHT_DEFAULT_USER_DATA_DIR: userData, DOCULIGHT_IPC_PATH: ipcPath,
@@ -156,7 +158,38 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
           && state.jobId === activePayload.indexing.jobId ? state : null;
       });
       evidence.flow.activeStatusSeen = Boolean(active);
-      await privateAction(ipcPath, 'close_viewer', { windowId }, 20000);
+      evidence.responsiveness.workerMarker = Number.isInteger(audit?.workerThreadId)
+        && audit.workerThreadId > 0 && active.jobId === activePayload.indexing.jobId;
+      const heartbeatStart = await privateAction(ipcPath, 'r3_test_main_heartbeat_start',
+        { jobId: activePayload.indexing.jobId });
+      assert(heartbeatStart.result?.started === true, 'main heartbeat starts during active owner job');
+      const measure = async (kind, action, params) => {
+        const start = performance.now();
+        const response = await privateAction(ipcPath, action, params);
+        evidence.responsiveness.samples.push({ kind, ms: performance.now() - start });
+        return response;
+      };
+      for (let i = 0; i < 3; i += 1) {
+        const sampled = await measure('status', 'r3_test_settings_status');
+        assert(sampled.result?.sourceRootConfigured === true, 'cached Settings status is available');
+      }
+      const measureViewer = async (kind, action, event, params) => {
+        const watch = await privateAction(ipcPath, 'r3_test_viewer_event_watch', { windowId, event });
+        assert(watch.result?.token, `${kind} completion observer is armed`);
+        const start = performance.now();
+        const response = await privateAction(ipcPath, action, params);
+        const completion = await privateAction(ipcPath, 'r3_test_viewer_event_wait',
+          { token: watch.result.token });
+        evidence.responsiveness.samples.push({ kind, ms: performance.now() - start });
+        assert(completion.result?.completed === true && completion.result.event === event,
+          `${kind} completion event is observed`);
+        return response;
+      };
+      const focused = await measureViewer('focus', 'update_markdown', 'focus',
+        { windowId, foreground: true, noSave: true });
+      assert(focused.result?.title, 'viewer focus succeeds during active owner job');
+      const closed = await measureViewer('close', 'close_viewer', 'closed', { windowId });
+      assert(closed.result?.closed === 1, 'viewer close succeeds during active owner job');
       evidence.flow.closed = await until('viewer close', 10000, async () => {
         const viewers = await privateAction(ipcPath, 'list_viewers');
         return !viewers.result?.windows?.some((item) => item.windowId === windowId);
@@ -164,7 +197,24 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root }) {
       const status = await privateAction(ipcPath, 'r3_test_settings_status');
       evidence.flow.activeStatusSeen = evidence.flow.activeStatusSeen
         && status.result?.sourceRootConfigured === true;
-      const cancelled = await privateAction(ipcPath, 'r3_test_settings_cancel');
+      const cancelled = await measure('cancel', 'r3_test_settings_cancel');
+      const heartbeatStop = await privateAction(ipcPath, 'r3_test_main_heartbeat_stop',
+        { jobId: activePayload.indexing.jobId });
+      const heartbeat = heartbeatStop.result;
+      assert(heartbeat?.clock === 'electron-main' && heartbeat.activeAtStart === true
+        && heartbeat.overflow === false && Array.isArray(heartbeat.ticks)
+        && heartbeat.ticks.length > 0, 'main heartbeat spans active owner samples');
+      evidence.responsiveness.heartbeatGaps = [heartbeat.ticks[0] - heartbeat.startedAt,
+        ...heartbeat.ticks.slice(1).map((tick, i) => tick - heartbeat.ticks[i]),
+        heartbeat.stoppedAt - heartbeat.ticks.at(-1)];
+      evidence.responsiveness.byKind = Object.fromEntries(['status', 'focus', 'close'].map((kind) => {
+        const values = evidence.responsiveness.samples.filter((sample) => sample.kind === kind)
+          .map((sample) => sample.ms);
+        return [kind, { count: values.length, p95: percentile(values, .95),
+          p99: percentile(values, .99), max: Math.max(...values) }];
+      }));
+      evidence.responsiveness.cancelMs = evidence.responsiveness.samples.find((sample) =>
+        sample.kind === 'cancel').ms;
       evidence.flow.cancelAccepted = cancelled.result?.cancelled === true;
       if (evidence.flow.cancelAccepted) {
         const terminalCancel = await privateAction(ipcPath, 'r3_test_owner_wait_terminal',

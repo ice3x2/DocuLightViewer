@@ -1,0 +1,43 @@
+{
+  "issue": 54,
+  "requirements": ["OPS-ARCH-009", "OPS-ARCH-010", "OPS-ARCH-012", "OPS-ARCH-013", "IR-APP-013"],
+  "baseCommit": "d3a75458645d6167f749a2eac93dc35eb4fcce23",
+  "finalSourceHash": "a09c3d1a330b3caf1e062e4606951641d9a6de4a86f5cc1d5651aabf4a3bfdac",
+  "preImplementationSourceHash": null,
+  "preImplementationHashNote": "The exact sourceHash was not captured before the first implementation edit; the base commit and semantic RED outputs were captured.",
+  "environment": { "os": "win32", "arch": "x64", "node": "v24.16.0", "nodeAbi": "137" },
+  "red": [
+    { "command": "node test/test-release-workflow-contract.js", "exit": 1, "assertionExcerpt": "AssertionError [ERR_ASSERTION]: Release workflow contract: prepare exports the exact trigger SHA" },
+    { "command": "node test/test-startup-ledger-responsiveness-contract.js", "exit": 1, "assertionExcerpt": "AssertionError [ERR_ASSERTION]: real temp-store packaged owner fixture records main heartbeat during active maintenance" },
+    { "command": "node test/test-startup-ledger-responsiveness-contract.js", "exit": 1, "assertionExcerpt": "Missing expected exception: fabricated aggregate metrics without raw status/focus/close samples fail" },
+    { "command": "node test/test-release-evidence-contract.js", "exit": 1, "assertionExcerpt": "Missing expected exception: unpacked smoke cannot stand in for direct portable" },
+    { "command": "node test/test-release-evidence-contract.js", "exit": 1, "assertionExcerpt": "Missing expected exception.", "context": "Forged manifest ABI mutation was accepted before review repair." },
+    { "command": "node test/test-startup-ledger-responsiveness-contract.js", "exit": 1, "assertionExcerpt": "Missing expected exception: raw 2000ms status and cancel samples fail despite forged 5ms aggregates" },
+    { "command": "node test/test-startup-ledger-responsiveness-contract.js", "exit": 1, "assertionExcerpt": "AssertionError [ERR_ASSERTION]: focus and close latency includes actual viewer completion events" },
+    { "command": "node test/test-release-evidence-contract.js", "exit": 1, "assertionExcerpt": "Missing expected exception: missing Linux arm64 best-effort row fails" }
+  ],
+  "redOutputNote": "Exact failing assertion excerpts are transcribed from command output; full stack-trace stdout was not persisted as a file.",
+  "green": [
+    { "command": "node test/test-release-workflow-contract.js", "exit": 0 },
+    { "command": "node test/test-release-evidence-contract.js", "exit": 0 },
+    { "command": "node test/test-wave2-package-contract.js", "exit": 0 },
+    { "command": "node test/test-sqlite-native-packaging-contract.js", "exit": 0 },
+    { "command": "node test/test-dev-profile-runtime-isolation-contract.js", "exit": 0 },
+    { "command": "node test/test-startup-ledger-responsiveness-contract.js", "exit": 0 },
+    { "command": "node test/test-package-smoke-launch-options.js", "exit": 0 },
+    { "command": "PyYAML BaseLoader parse .github/workflows/release.yml", "exit": 0, "jobs": ["prepare", "build-windows", "build-macos", "build-linux", "release"] },
+    { "command": "git diff --check", "exit": 0 }
+  ],
+  "sourceFilesSha256": {
+    ".github/workflows/release.yml": "f4e9dd04617984bc69b4c0b9d1e41427130c9a6c9572e1ef0129a7b439ac4409",
+    "scripts/release-evidence.js": "1b7ea35583022d7312f02fb8c9fe03ab37a9d54d3ce9fd625ccf523947d6d76d",
+    "test/package-smoke.js": "814fbdac7ffc46248fbca1b194bb619cfa460a140d39371afff1d67078ef5007",
+    "test/helpers/package-native-owner-smoke.js": "2cc05f6d90566dbe21faa1f51f84127fa6e8a5efeb05ed6313eed293afedeea1",
+    "test/helpers/package-native-owner-evidence.js": "d9e2f7f4d4a08916c535068a56e10730d371a2c68abb1340a40b925caa312683",
+    "test/test-release-workflow-contract.js": "3238a7f2cd30fd80237a72b410a5a80698350b91f340ed3d88804a1ff38d23d9",
+    "test/test-release-evidence-contract.js": "b208aa32229f7c43ff7679e9295ce87d4890a0a1691e105ba1bd5b01d0a1d4ce",
+    "test/test-startup-ledger-responsiveness-contract.js": "a1af8a2d6e2da1964db563a562d290132b0d31652f266fc59a96a690dbcba435",
+    "test/test-wave2-package-contract.js": "afd45e5f4cd9d23a0fbadc6ee9df9352b05c539678f3c2b7b1dd1cc1c80c8977"
+  },
+  "limits": ["No release workflow was triggered.", "No direct Windows, macOS, or Linux package smoke was executed in this worktree; the three platform runtime gates await CI."]
+}
