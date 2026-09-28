@@ -1,0 +1,41 @@
+{
+  "issue": 63,
+  "requirements": ["FR-DOC-033 AC-11", "FR-DOC-019 AC-7", "DR-DOC-014 AC-9"],
+  "baselineCommit": "09ae23f866a87cfb7fdd1132665dbae00f656971",
+  "productCommit": "f73c458c6ef4ecf8727e91bf0d01a148ef51f1d3",
+  "sourceHash": "2051071587c5a072cb0c014b5f5aefa774adbcbb26cb3fffd7e450aab24ca0ab",
+  "runtime": "Windows x64, isolated R3 Electron ABI 130 snapshot",
+  "mode": "eight sequential cold two-PID product sessions, fresh OS-temp profile per run",
+  "command": "node test/r3/run-electron.cjs --scenario s26",
+  "seedEnvironmentVariable": "DOCULIGHT_R3_S26_SEED",
+  "timeoutMsPerRun": 180000,
+  "runOrderFixed": true,
+  "concurrentRuns": false,
+  "expected": {
+    "exitCode": 0,
+    "terminal": "PASS case=s26 assertions=49",
+    "markers": ["S26_FIRST_RUN_COMPLETE", "S26_RESTART_RECOVERED", "S26_ALL_ASSERTIONS_REACHED"],
+    "importCounts": { "imported": 2, "updated": 0, "existing": 0, "skipped": 0, "missing": 1, "external": 0, "path_policy_violation": 0, "ambiguous": 0, "stale": 0 },
+    "publicToolsCalled": 8,
+    "productPidCount": 2,
+    "productPidsDistinct": true,
+    "recoveredRevision": 2,
+    "recoveredAliasCount": 2,
+    "controlSaveTerminalStatus": "completed",
+    "cancelledJobCount": 1,
+    "restartLatestSearch": true,
+    "completedImportFilesAndIdsRetained": true,
+    "rawAbsolutePathEcho": false
+  },
+  "runs": [
+    { "order": 1, "seed": "2600010000000001", "marker": "s262600010000000001", "oldMarker": "zzzxq2600010000000001", "newMarker": "qqqjz2600010000000001" },
+    { "order": 2, "seed": "2600010000000002", "marker": "s262600010000000002", "oldMarker": "zzzxq2600010000000002", "newMarker": "qqqjz2600010000000002" },
+    { "order": 3, "seed": "2600010000000003", "marker": "s262600010000000003", "oldMarker": "zzzxq2600010000000003", "newMarker": "qqqjz2600010000000003" },
+    { "order": 4, "seed": "2600010000000004", "marker": "s262600010000000004", "oldMarker": "zzzxq2600010000000004", "newMarker": "qqqjz2600010000000004" },
+    { "order": 5, "seed": "2600010000000005", "marker": "s262600010000000005", "oldMarker": "zzzxq2600010000000005", "newMarker": "qqqjz2600010000000005" },
+    { "order": 6, "seed": "2600010000000006", "marker": "s262600010000000006", "oldMarker": "zzzxq2600010000000006", "newMarker": "qqqjz2600010000000006" },
+    { "order": 7, "seed": "2600010000000007", "marker": "s262600010000000007", "oldMarker": "zzzxq2600010000000007", "newMarker": "qqqjz2600010000000007" },
+    { "order": 8, "seed": "2600010000000008", "marker": "s262600010000000008", "oldMarker": "zzzxq2600010000000008", "newMarker": "qqqjz2600010000000008" }
+  ],
+  "failurePolicy": "Record every exit, including setup exit 2. Any semantic failure requires a deterministic fault fixture and a new committed manifest before a new eight-run series. No best-of selection."
+}
