@@ -1,0 +1,33 @@
+{
+  "issue": 50,
+  "requirements": ["FR-DOC-019", "FR-DOC-033", "FR-DOC-035", "DR-DOC-014", "IR-APP-013"],
+  "headSha": "190ee23fb6a0f5084e13ebe4d8ae7ad021d008c2",
+  "sourceHash": "bdbc098d1d4785584e4e8bf4a0f73e1678014fef7373f10d08cad15ce6b86719",
+  "environment": { "os": "win32", "arch": "x64", "node": "v24.16.0", "nodeAbi": "137", "electronAbi": "130", "runtimeRoot": "<R3_TASK_TEMP>" },
+  "runs": [
+    {
+      "case": "s25",
+      "command": "node test/r3/run-node.cjs --case s25",
+      "testBlob": "008f81aeaa153d6405fa3b92094f8a450a28fe85",
+      "start": "2026-09-29T06:10:10.2948875+09:00",
+      "end": "2026-09-29T06:10:13.4578817+09:00",
+      "exit": 0,
+      "terminal": "PASS case=s25 assertions=16",
+      "markers": ["S25_ALL_ASSERTIONS_REACHED"],
+      "privateLogSha256": "e7b8284b569e0cfe89a9556bafa486466f258445ebb38a0d5760d6b5350755ff"
+    },
+    {
+      "case": "s26",
+      "command": "node test/r3/run-electron.cjs --scenario s26",
+      "testBlob": "063e62da20da56c7f87be2b04f429e688ae05eb8",
+      "start": "2026-09-29T06:10:13.8053937+09:00",
+      "end": "2026-09-29T06:11:11.7463754+09:00",
+      "exit": 0,
+      "terminal": "PASS case=s26 assertions=49",
+      "markers": ["S26_FIRST_RUN_COMPLETE", "S26_RESTART_RECOVERED", "S26_ALL_ASSERTIONS_REACHED"],
+      "privateLogSha256": "571c10fbec447101482c7a994759808b46c4e76c0505887d26e6b23f414ca6e8"
+    }
+  ],
+  "gitDiffCheck": "PASS (clean working tree after restoring the historical S26 sample file)",
+  "privateLogLimit": "Full command logs remain under a task-specific private B: temp directory. This artifact stores bounded terminal markers and hashes; it does not assert raw path-free full logs."
+}
