@@ -1,0 +1,30 @@
+{
+  "sourceHash": "37fb09e14c6193d4f4f98bae078f70d3d19aeb46df6611f3f4cacd71bd720a03",
+  "fixtureBytes": 10484650,
+  "fixtureSha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+  "revisedBytes": 10484699,
+  "revisedSha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "node": "v24.16.0",
+  "electron": "33.4.11",
+  "platform": "win32",
+  "arch": "x64",
+  "counts": {
+    "status": 50,
+    "focus": 25,
+    "close": 25,
+    "cancel": 1
+  },
+  "limits": {
+    "p95": 250,
+    "p99": 500,
+    "max": 1000,
+    "cancel": 1000,
+    "heartbeat": 250
+  },
+  "samples": [],
+  "heartbeatClock": "electron-main",
+  "heartbeatTicks": [],
+  "heartbeatGaps": [],
+  "markers": {},
+  "warmJobId": "job_2b5f6046a79b58104157dc45e2acf1fa1275b8f0105b0b9147462d6d718c0169"
+}

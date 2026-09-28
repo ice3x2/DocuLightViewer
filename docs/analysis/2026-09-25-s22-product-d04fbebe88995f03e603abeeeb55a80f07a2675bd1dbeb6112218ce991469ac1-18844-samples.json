@@ -1,0 +1,44 @@
+{
+  "sourceHash": "d04fbebe88995f03e603abeeeb55a80f07a2675bd1dbeb6112218ce991469ac1",
+  "fixtureBytes": 10484650,
+  "fixtureSha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+  "revisedBytes": 10484699,
+  "revisedSha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "node": "v24.16.0",
+  "electron": "33.4.11",
+  "platform": "win32",
+  "arch": "x64",
+  "counts": {
+    "status": 50,
+    "focus": 25,
+    "close": 25,
+    "cancel": 1
+  },
+  "limits": {
+    "p95": 250,
+    "p99": 500,
+    "max": 1000,
+    "cancel": 1000,
+    "heartbeat": 250
+  },
+  "samples": [
+    {
+      "kind": "status",
+      "ms": 26.184300000000803,
+      "startMs": 1658.2591999999995,
+      "endMs": 1684.4435000000003,
+      "progress": 64,
+      "jobId": "job_76d29e8a92c7bbb2c67ea9c4bdd3d1a73193fdfebe831b7829f318e07ff4f0f4"
+    }
+  ],
+  "heartbeatClock": "electron-main",
+  "heartbeatTicks": [],
+  "heartbeatGaps": [],
+  "markers": {
+    "activeAck": true
+  },
+  "warmJobId": "job_9bdb86721ff7adde6f92e266892385bdfd05003eab2f60809ab97292fa6a9ed0",
+  "saveMs": 3000.7891,
+  "jobId": "job_76d29e8a92c7bbb2c67ea9c4bdd3d1a73193fdfebe831b7829f318e07ff4f0f4",
+  "progressTotal": 2528
+}

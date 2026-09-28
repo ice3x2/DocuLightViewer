@@ -1,0 +1,43 @@
+{
+  "sourceHash": "8a6467b7fd7d5304d039b650ac4888ba8718e37619b6b2beb771545dcf32cc4b",
+  "fixtureBytes": 10484650,
+  "fixtureSha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+  "revisedBytes": 10484699,
+  "revisedSha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "node": "v24.16.0",
+  "electron": "33.4.11",
+  "platform": "win32",
+  "arch": "x64",
+  "counts": {
+    "status": 50,
+    "focus": 25,
+    "close": 25,
+    "cancel": 1
+  },
+  "limits": {
+    "p95": 250,
+    "p99": 500,
+    "max": 1000,
+    "cancel": 1000,
+    "heartbeat": 250
+  },
+  "samples": [
+    {
+      "kind": "status",
+      "ms": 24.0695999999989,
+      "startMs": 0.9166000000004715,
+      "endMs": 24.98619999999937,
+      "progress": 16,
+      "jobId": "job_96e94447ea7fe02b86b16d0358cbd572fad30f98d8b32f154b32f01944cbd980"
+    }
+  ],
+  "heartbeatGaps": [
+    11.323199999998906,
+    13.985100000001694
+  ],
+  "markers": {
+    "activeAck": true
+  },
+  "saveMs": 3238.9506999999994,
+  "jobId": "job_96e94447ea7fe02b86b16d0358cbd572fad30f98d8b32f154b32f01944cbd980"
+}

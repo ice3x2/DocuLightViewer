@@ -1,0 +1,32 @@
+{
+  "sourceHash": "33447c82bc10fd11b1a5d266e939453f30b00413de43af461c18784a2c99b804",
+  "fixtureBytes": 10484650,
+  "fixtureSha256": "98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+  "revisedBytes": 10484699,
+  "revisedSha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "node": "v24.16.0",
+  "electron": "33.4.11",
+  "platform": "win32",
+  "arch": "x64",
+  "counts": {
+    "status": 50,
+    "focus": 25,
+    "close": 25,
+    "cancel": 1
+  },
+  "limits": {
+    "p95": 250,
+    "p99": 500,
+    "max": 1000,
+    "cancel": 1000,
+    "heartbeat": 250
+  },
+  "samples": [],
+  "heartbeatGaps": [],
+  "markers": {
+    "activeAck": true
+  },
+  "warmJobId": "job_9d5967d607454a5850adc572aca25893c9ab11f5ccf3c35ba4b913ad5c827715",
+  "saveMs": 3036.388000000001,
+  "jobId": "job_150d4f87f5d47e92dbe07b1a225d887c644c468e870bf899c8e8e648cf501085"
+}

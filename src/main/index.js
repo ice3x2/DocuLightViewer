@@ -129,6 +129,8 @@ let privateIndexMaintenance = null;
 let openedMarkdownRegistrar = null;
 let nativeRebuildManager = null;
 let r3SettingsProbeWindow = null;
+let r3MainHeartbeat = null;
+const r3ViewerEventWatchers = new Map();
 const mediaViewerWindowsByParent = new Map();
 const mediaViewerParentByWindowId = new Map();
 const mediaViewerWindows = new Map();
@@ -2441,6 +2443,9 @@ async function handleIpcMessage(socket, msg) {
         }
         result = { accepted: true };
         setImmediate(async () => {
+          if (r3MainHeartbeat) clearInterval(r3MainHeartbeat.timer);
+          for (const watch of r3ViewerEventWatchers.values()) watch.cancel();
+          r3ViewerEventWatchers.clear();
           if (saveDocumentOwner) await saveDocumentOwner.shutdown();
           if (r3SettingsProbeWindow && !r3SettingsProbeWindow.isDestroyed()) r3SettingsProbeWindow.destroy();
           app.quit();
@@ -2502,6 +2507,122 @@ async function handleIpcMessage(socket, msg) {
         }
         result = saveDocumentOwner ? saveDocumentOwner.getStatus() : { state: 'unavailable' };
         break;
+      case 'r3_test_runtime_identity':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        result = { isPackaged: app.isPackaged, profile: runtimeProfile.name,
+          userDataDir: app.getPath('userData') };
+        break;
+      case 'r3_test_owner_open_audit': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        if (!saveDocumentOwner?.worker || !saveDocumentOwner.ready) throw new Error('No test owner');
+        const ready = await saveDocumentOwner.ready;
+        result = { workerThreadId: ready.threadId,
+          ledgerOpenThreadId: ready.audit?.ledgerOpenThreadId,
+          keywordOpenThreadId: ready.audit?.keywordOpenThreadId,
+          openCount: ready.audit?.openCount };
+        break;
+      }
+      case 'r3_test_main_heartbeat_start': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        const status = saveDocumentOwner?.getStatus();
+        if (r3MainHeartbeat || !status?.active || status.jobId !== params?.jobId) {
+          throw new Error('No active test owner job');
+        }
+        const startedAt = performance.now();
+        const ticks = [];
+        const heartbeat = { jobId: status.jobId, startedAt, ticks, overflow: false,
+          activeAtStart: true, timer: null };
+        heartbeat.timer = setInterval(() => {
+          if (ticks.length < 60000) ticks.push(performance.now());
+          else heartbeat.overflow = true;
+        }, 10);
+        r3MainHeartbeat = heartbeat;
+        result = { started: true, clock: 'electron-main' };
+        break;
+      }
+      case 'r3_test_main_heartbeat_stop': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        const heartbeat = r3MainHeartbeat;
+        if (!heartbeat || heartbeat.jobId !== params?.jobId) throw new Error('No matching test heartbeat');
+        clearInterval(heartbeat.timer);
+        r3MainHeartbeat = null;
+        result = { clock: 'electron-main', jobId: heartbeat.jobId,
+          startedAt: heartbeat.startedAt, stoppedAt: performance.now(),
+          ticks: heartbeat.ticks, overflow: heartbeat.overflow,
+          activeAtStart: heartbeat.activeAtStart };
+        break;
+      }
+      case 'r3_test_viewer_event_watch': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        const entry = windowManager.getWindowEntry(params?.windowId);
+        const eventName = params?.event;
+        if (!entry || entry.win.isDestroyed() || !['focus', 'closed'].includes(eventName)
+          || r3ViewerEventWatchers.size !== 0) throw new Error('Invalid test viewer event');
+        if (eventName === 'focus') entry.win.minimize();
+        const token = crypto.randomUUID();
+        let complete;
+        const eventResult = new Promise(resolve => { complete = resolve; });
+        const watch = { eventResult, cancel: null };
+        const finish = completed => {
+          clearTimeout(timer);
+          entry.win.off(eventName, observed);
+          complete({ completed, event: eventName });
+        };
+        const observed = () => finish(true);
+        const timer = setTimeout(() => finish(false), 1000);
+        watch.cancel = () => finish(false);
+        entry.win.once(eventName, observed);
+        r3ViewerEventWatchers.set(token, watch);
+        result = { token };
+        break;
+      }
+      case 'r3_test_viewer_event_wait': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        const watch = r3ViewerEventWatchers.get(params?.token);
+        if (!watch) throw new Error('Unknown test viewer event');
+        result = await watch.eventResult;
+        r3ViewerEventWatchers.delete(params.token);
+        break;
+      }
+      case 'r3_test_owner_wait_terminal': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        const owner = saveDocumentOwner;
+        if (!owner?.worker || typeof params?.jobId !== 'string'
+          || !['completed', 'cancelled'].includes(params.phase)) {
+          throw new Error('Invalid test worker marker');
+        }
+        const current = owner.getStatus();
+        result = current.jobId === params.jobId && current.phase === params.phase
+          ? current : await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+              owner.worker.off('message', receive);
+              reject(new Error('Worker terminal event missing'));
+            }, 300000);
+            function receive(message) {
+              if (message.tag !== 'STATUS' || message.snapshot?.jobId !== params.jobId
+                || message.snapshot.phase !== params.phase) return;
+              clearTimeout(timer);
+              owner.worker.off('message', receive);
+              resolve(message.snapshot);
+            }
+            owner.worker.on('message', receive);
+          });
+        break;
+      }
       case 'r3_test_main_sqlite_snapshot':
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
           throw new Error('Unknown action');

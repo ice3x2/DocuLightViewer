@@ -1,0 +1,24 @@
+{
+  "sourceHash": "4f52d186f02e8e2f8e3fe73b11453ad48c60d684538347fbfe74a985921dc53d",
+  "rawSamples": "2026-09-25-s22-product-4f52d186f02e8e2f8e3fe73b11453ad48c60d684538347fbfe74a985921dc53d-47636-samples.json",
+  "readMode": "post-exit read-only better-sqlite3, both packaged-product databases",
+  "sourceSha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "publishedCopySha256": "2bfff4a19d7ae5b22c5d4089b378310e37fe37ee336f8d59e23d4614ead486b1",
+  "ledger": {
+    "documentId": "doc_4bcf3260b569cb09837686bc",
+    "desiredRevision": 2,
+    "completedRevision": 1,
+    "dirty": 1,
+    "completedJobs": 1,
+    "cancelledJobs": 1,
+    "queuedRetryJobsAfterGracefulExit": 1,
+    "quickCheck": "ok"
+  },
+  "keyword": {
+    "contentHash": "sha256:98ef6b7bcb96965ba5a455d040b864dfc88a1c3b90e044e65c21043f3783d5b6",
+    "sourceRevision": 1,
+    "priorMarkerSegments": 1,
+    "cancelledMarkerSegments": 0,
+    "quickCheck": "ok"
+  }
+}
