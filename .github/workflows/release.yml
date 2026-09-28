@@ -16,6 +16,7 @@ jobs:
     outputs:
       version: ${{ steps.info.outputs.version }}
       tag: ${{ steps.info.outputs.tag }}
+      sha: ${{ steps.info.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
 
@@ -36,6 +37,7 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG"         >> $GITHUB_OUTPUT
+          echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
 
   # ── Windows 빌드 (NSIS 설치 파일 + Portable) ────────────────────────────
   build-windows:
@@ -43,6 +45,10 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v5
+
+      - name: Verify checked-out commit
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ needs.prepare.outputs.sha }}"
 
       - uses: actions/setup-node@v5
         with:
@@ -74,11 +80,25 @@ jobs:
       - name: Package smoke
         run: npm run smoke:package
         env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-unpacked
+
+      - name: Smoke direct Windows portable and collect release evidence
+        shell: pwsh
+        run: |
+          $package = @(Get-ChildItem dist/DocuLight-Portable-*.exe)
+          if ($package.Count -ne 1) { throw 'Expected one Windows portable package' }
+          node test/package-smoke.js --app $package[0].FullName --artifact-kind portable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node test/test-startup-ledger-responsiveness-contract.js --report package-smoke-artifacts/package-smoke-win32-x64.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/release-evidence.js collect --platform win32 --arch x64 --sha "${{ needs.prepare.outputs.sha }}" --package $package[0].FullName --selected $package[0].FullName --smoke package-smoke-artifacts/package-smoke-win32-x64.json --policy package-smoke-artifacts/package-smoke-platform-policy-win32-x64.json --out release-evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
           DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-artifacts
+          name: windows-x64-artifacts
           path: |
             dist/DocuLight-Setup-*.exe
             dist/DocuLight-Portable-*.exe
@@ -86,8 +106,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-package-smoke
-          path: package-smoke-artifacts/*.json
+          name: windows-x64-release-evidence
+          path: release-evidence/*.json
           if-no-files-found: error
 
   # ── macOS 빌드 (Portable zip — Intel x64 + Apple Silicon arm64) ──────────
@@ -96,6 +116,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Verify checked-out commit
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ needs.prepare.outputs.sha }}"
 
       - uses: actions/setup-node@v5
         with:
@@ -128,18 +152,33 @@ jobs:
       - name: Package smoke
         run: npm run smoke:package
         env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-unpacked
+
+      - name: Smoke extracted arm64 app and collect release evidence
+        shell: bash
+        run: |
+          package="$PWD/dist/DocuLight-${{ needs.prepare.outputs.version }}-arm64.zip"
+          test -f "$package"
+          mkdir -p package-smoke-extracted
+          unzip -q "$package" -d package-smoke-extracted
+          selected="$PWD/package-smoke-extracted/DocuLight.app/Contents/MacOS/DocuLight"
+          test -x "$selected"
+          node test/package-smoke.js --app "$selected" --artifact-kind app
+          node test/test-startup-ledger-responsiveness-contract.js --report package-smoke-artifacts/package-smoke-darwin-arm64.json
+          node scripts/release-evidence.js collect --platform darwin --arch arm64 --sha "${{ needs.prepare.outputs.sha }}" --package "$package" --selected "$selected" --smoke package-smoke-artifacts/package-smoke-darwin-arm64.json --policy package-smoke-artifacts/package-smoke-platform-policy-darwin-arm64.json --out release-evidence
+        env:
           DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-artifacts
+          name: macos-arm64-artifacts
           path: dist/DocuLight-*.zip
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-package-smoke
-          path: package-smoke-artifacts/*.json
+          name: macos-arm64-release-evidence
+          path: release-evidence/*.json
           if-no-files-found: error
 
   # ── Linux 빌드 (AppImage + .deb — Ubuntu/Debian) ────────────────────────
@@ -148,6 +187,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Verify checked-out commit
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ needs.prepare.outputs.sha }}"
 
       - uses: actions/setup-node@v5
         with:
@@ -179,11 +222,23 @@ jobs:
       - name: Package smoke
         run: xvfb-run --auto-servernum npm run smoke:package
         env:
+          DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-unpacked
+
+      - name: Smoke direct x64 AppImage and collect release evidence
+        shell: bash
+        run: |
+          package="$PWD/dist/DocuLight-${{ needs.prepare.outputs.version }}-x64.AppImage"
+          test -f "$package"
+          chmod +x "$package"
+          xvfb-run --auto-servernum node test/package-smoke.js --app "$package" --artifact-kind appimage
+          node test/test-startup-ledger-responsiveness-contract.js --report package-smoke-artifacts/package-smoke-linux-x64.json
+          node scripts/release-evidence.js collect --platform linux --arch x64 --sha "${{ needs.prepare.outputs.sha }}" --package "$package" --selected "$package" --smoke package-smoke-artifacts/package-smoke-linux-x64.json --policy package-smoke-artifacts/package-smoke-platform-policy-linux-x64.json --out release-evidence
+        env:
           DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR: package-smoke-artifacts
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-artifacts
+          name: linux-x64-artifacts
           path: |
             dist/DocuLight-*.AppImage
             dist/DocuLight-*.deb
@@ -191,19 +246,30 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-package-smoke
-          path: package-smoke-artifacts/*.json
+          name: linux-x64-release-evidence
+          path: release-evidence/*.json
           if-no-files-found: error
 
   # ── GitHub Release 생성 및 아티팩트 업로드 ──────────────────────────────
   release:
     needs: [prepare, build-windows, build-macos, build-linux]
+    if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Require all release-gating builds
+        if: needs.prepare.result != 'success' || needs.build-windows.result != 'success' || needs.build-macos.result != 'success' || needs.build-linux.result != 'success'
+        run: exit 1
+
       - uses: actions/checkout@v5
         with:
-          sparse-checkout: docs/release-note
           fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Verify all required package and smoke artifacts
+        run: node scripts/release-evidence.js verify --sha "${{ needs.prepare.outputs.sha }}" --artifacts artifacts
 
       - name: Verify or create release tag
         shell: bash
@@ -226,13 +292,6 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: List artifacts
-        run: find artifacts -type f | sort
-
       - name: Check for release notes
         id: release-notes
         run: |
@@ -252,10 +311,10 @@ jobs:
           name: "DocuLight Viewer ${{ needs.prepare.outputs.version }}"
           body_path: ${{ steps.release-notes.outputs.path }}
           files: |
-            artifacts/windows-artifacts/*.exe
-            artifacts/macos-artifacts/*.zip
-            artifacts/linux-artifacts/*.AppImage
-            artifacts/linux-artifacts/*.deb
+            artifacts/windows-x64-artifacts/*.exe
+            artifacts/macos-arm64-artifacts/*.zip
+            artifacts/linux-x64-artifacts/*.AppImage
+            artifacts/linux-x64-artifacts/*.deb
 
       - uses: softprops/action-gh-release@v2
         if: steps.release-notes.outputs.found != 'true'
@@ -264,7 +323,7 @@ jobs:
           name: "DocuLight Viewer ${{ needs.prepare.outputs.version }}"
           generate_release_notes: true
           files: |
-            artifacts/windows-artifacts/*.exe
-            artifacts/macos-artifacts/*.zip
-            artifacts/linux-artifacts/*.AppImage
-            artifacts/linux-artifacts/*.deb
+            artifacts/windows-x64-artifacts/*.exe
+            artifacts/macos-arm64-artifacts/*.zip
+            artifacts/linux-x64-artifacts/*.AppImage
+            artifacts/linux-x64-artifacts/*.deb

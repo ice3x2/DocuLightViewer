@@ -356,19 +356,19 @@ function buildPackageSmokePlatformCoverage(hnswNativeStatus) {
     {
       platform: 'win32',
       arch: 'arm64',
-      status: platform === 'win32' && fs.existsSync(path.join(root, 'dist', 'win-arm64-unpacked', 'DocuLight.exe')) ? 'built_skipped_smoke' : 'skipped',
+      status: 'skipped',
       reason: 'Windows arm64 is built as best-effort; package smoke executes the release-gating Windows x64 unpacked app in this job.'
     },
     {
       platform: 'darwin',
       arch: 'x64',
-      status: platform === 'darwin' && fs.existsSync(path.join(root, 'dist', 'mac', 'DocuLight.app')) ? 'built_skipped_smoke' : 'skipped',
+      status: 'skipped',
       reason: 'macOS x64 is best-effort until CI capacity supports per-arch package smoke on Intel runners.'
     },
     {
       platform: 'linux',
       arch: 'arm64',
-      status: platform === 'linux' && fs.existsSync(path.join(root, 'dist', 'linux-arm64-unpacked', 'doculight')) ? 'built_skipped_smoke' : 'skipped',
+      status: 'skipped',
       reason: 'Linux arm64 is best-effort until CI capacity supports arm64 package smoke execution.'
     }
   ];

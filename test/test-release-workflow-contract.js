@@ -12,6 +12,7 @@ const prepareJob = workflow.slice(workflow.indexOf('  prepare:'), workflow.index
 const windowsJob = workflow.slice(workflow.indexOf('  build-windows:'), workflow.indexOf('  build-macos:'));
 const macosJob = workflow.slice(workflow.indexOf('  build-macos:'), workflow.indexOf('  build-linux:'));
 const linuxJob = workflow.slice(workflow.indexOf('  build-linux:'), workflow.indexOf('  release:'));
+const releaseJob = workflow.slice(workflow.indexOf('  release:'));
 
 function assertWorkflow(condition, message) {
   assert(condition, `Release workflow contract: ${message}`);
@@ -59,11 +60,34 @@ assertWorkflow(prepareJob.includes('if [ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]
 assertWorkflow(prepareJob.includes('TAG="$GITHUB_REF_NAME"') && prepareJob.includes('echo "tag=$TAG"'), 'tag-push release output preserves the triggering tag instead of silently substituting another tag');
 assertWorkflow(verifyTagIndex > workflow.indexOf('  release:'), 'release job owns tag verification/creation after all build jobs succeed');
 assertWorkflow(verifyTagIndex < releaseActionIndex, 'release tag provenance is checked before publishing GitHub Release assets');
-assertWorkflow(!workflow.slice(verifyTagIndex, workflow.indexOf('- uses: actions/download-artifact@v4')).includes("if: github.event_name == 'workflow_dispatch'"), 'release tag SHA provenance is checked for both tag-push and workflow-dispatch events');
+assertWorkflow(!workflow.slice(verifyTagIndex, workflow.indexOf('- name: Check for release notes')).includes("if: github.event_name == 'workflow_dispatch'"), 'release tag SHA provenance is checked for both tag-push and workflow-dispatch events');
 assertWorkflow(workflow.includes('git rev-list -n 1 "$TAG"'), 'existing release tag SHA is resolved explicitly');
 assertWorkflow(workflow.includes('"$TAG_SHA" != "$GITHUB_SHA"'), 'existing release tag must point to the exact hotfix commit');
 assertWorkflow(workflow.includes('if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]'), 'only workflow-dispatch may create a missing release tag');
 assertWorkflow(workflow.includes('Release tag $TAG does not exist for push event'), 'tag-push provenance check rejects a missing trigger tag instead of creating it');
 assertWorkflow(workflow.includes('exit 1'), 'tag provenance mismatch fails the release instead of silently reusing an old tag');
+
+// @req OPS-ARCH-009 AC-8 OPS-ARCH-010 AC-8 OPS-ARCH-012 AC-4 OPS-ARCH-013 AC-9 IR-APP-013 AC-13
+assertWorkflow(prepareJob.includes('sha: ${{ steps.info.outputs.sha }}')
+  && prepareJob.includes('echo "sha=$GITHUB_SHA"'), 'prepare exports the exact trigger SHA');
+for (const [platform, job, artifact] of [
+  ['Windows', windowsJob, 'windows-x64-release-evidence'],
+  ['macOS', macosJob, 'macos-arm64-release-evidence'],
+  ['Linux', linuxJob, 'linux-x64-release-evidence']
+]) {
+  assertWorkflow(job.includes('git rev-parse HEAD') && job.includes('needs.prepare.outputs.sha'),
+    `${platform} verifies checked-out HEAD against the prepare SHA`);
+  assertWorkflow(job.includes(`name: ${artifact}`) && job.includes('if-no-files-found: error'),
+    `${platform} uploads one unique required evidence artifact`);
+  assertWorkflow(job.includes('scripts/release-evidence.js collect'),
+    `${platform} validates package smoke and writes SHA/checksum/ABI evidence`);
+}
+assertWorkflow(releaseJob.includes('if: always()') && releaseJob.includes('needs.build-windows.result')
+  && releaseJob.includes('needs.build-macos.result') && releaseJob.includes('needs.build-linux.result'),
+  'release rejects skipped or failed required build jobs');
+assertWorkflow(releaseJob.includes('scripts/release-evidence.js verify')
+  && releaseJob.indexOf('scripts/release-evidence.js verify') < releaseJob.indexOf('Verify or create release tag')
+  && releaseJob.indexOf('scripts/release-evidence.js verify') < releaseJob.indexOf('softprops/action-gh-release@v2'),
+  'release verifies all three downloaded reports before tag mutation or publication');
 
 console.log('test-release-workflow-contract: all assertions passed');

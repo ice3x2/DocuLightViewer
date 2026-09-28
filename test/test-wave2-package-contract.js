@@ -190,9 +190,10 @@ wave2Assert(
 );
 wave2Assert(
   releaseWorkflow.includes('DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR') &&
-    releaseWorkflow.includes('windows-package-smoke') &&
-    releaseWorkflow.includes('macos-package-smoke') &&
-    releaseWorkflow.includes('linux-package-smoke'),
+    releaseWorkflow.includes('windows-x64-release-evidence') &&
+    releaseWorkflow.includes('macos-arm64-release-evidence') &&
+    releaseWorkflow.includes('linux-x64-release-evidence') &&
+    releaseWorkflow.includes('path: release-evidence/*.json'),
   'release workflow uploads package smoke reports for Windows, macOS, and Linux'
 );
 
@@ -286,7 +287,8 @@ wave2Assert(
   packageSmoke.includes('package-smoke-platform-policy.v1') &&
     packageSmoke.includes('releaseGating') &&
     packageSmoke.includes('bestEffort') &&
-    packageSmoke.includes('built_skipped_smoke'),
+    packageSmoke.includes("status: 'skipped'") &&
+    !packageSmoke.includes('built_skipped_smoke'),
   'package smoke emits release-gating and best-effort platform coverage reports'
 );
 
