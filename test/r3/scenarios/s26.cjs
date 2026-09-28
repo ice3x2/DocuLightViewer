@@ -353,6 +353,11 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       && sha(fs.readFileSync(path.join(store, 'completed.md'))) === sha(completedBytes),
     'S26 partial linked import keeps completed contained files');
     evidence.importCounts = imported.result.counts;
+    if (process.env.DOCULIGHT_R3_S26_SEED) {
+      const owner = (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result;
+      evidence.importOwnerStatus = { state: owner?.state || null, phase: owner?.phase || null,
+        active: owner?.active === true, diagnosticCode: owner?.diagnostic?.code || null };
+    }
     evidence.importedEntrySha256 = sha(entryBytes);
     evidence.importedCompletedSha256 = sha(completedBytes);
     const containedPath = path.join(store, 'contained-open.md');
