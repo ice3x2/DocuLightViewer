@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44). S22~S23은 검토된 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S22 #45](https://github.com/ice3x2/DocuLightViewer/issues/45) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44). S23은 검토된 부분 커밋 뒤에도 열린 상태다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `23/36` 완료(S01~S20, S24~S26)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S21~S23은 상태 UX·성능·상위 전환 게이트가 남아 열린 상태다. 다음은 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)의 남은 제품 UX 검증이다.
+실행 이슈는 `24/36` 완료(S01~S20, S22, S24~S26)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S21과 S23은 복구 확인·상위 전환 게이트가 남아 열린 상태다. 다음은 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)의 남은 `retry-check` 검증이다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -199,7 +199,7 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [UI·i18n·접근성 검토](../analysis/2026-09-25-s21-ux-review.json)와 [TDD·호환 검토](../analysis/2026-09-25-s21-tdd-review.json)는 최종 소스 해시 `324e8edff76aae5c0a25182f62da7f43bdaa1f7cdf5059d9ca5fd4836788078b`의 변경을 안전한 부분 커밋으로 판정했다.
 - [ ] #44 전체 완료 판정은 보류한다. [S24 #47](https://github.com/ice3x2/DocuLightViewer/issues/47)의 embedding registration UI 제거는 완료됐다. [S20 #43](https://github.com/ice3x2/DocuLightViewer/issues/43)의 product main DB-free status/focus/close와 실제 owner action/capacity 동작, [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46)·[S26 #49](https://github.com/ice3x2/DocuLightViewer/issues/49)의 제품 경로 검증 전에는 #44를 닫거나 완료율에 넣지 않는다.
 
-## S22 진행 기록 — owner 성능 부분 증거, 제품 경로 미완료
+## S22 당시 진행 기록 — owner 성능 부분 증거, 제품 경로 미완료
 
 - [x] 시작 SHA `a5a615baeb20fba842f8d578c84900de2983b18f`, 관련 요구사항 `REL-DOC-007`, `IR-APP-013`, `FR-DOC-019`, `IR-APP-010`. 실제 저장 상한 10 MiB 근처의 Markdown을 단일 Electron 세션에서 저장·완료 색인·측정한 뒤 새 revision을 취소하고 저장 파일과 이전 committed index를 확인했다.
 - [x] active marker, cancel receipt, chunk progress marker에 대해 각각 실제 assertion RED를 확인한 뒤 worker status/progress 및 단일 worker cancel 경계를 구현했다. terminal heartbeat tail도 assertion RED 뒤 포함했다. 소스 해시 `f7be1d510e9e697cf129a80b59f1f12d56bd73430468971d59c3219a2f9bd9c8`의 S22는 18 assertions PASS다.
@@ -271,7 +271,7 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [S23c 실제 파일·제품 감사 증거](../analysis/2026-09-25-s23c-owner-writer-audit.md): `FR-DOC-019 AC-10`, `FR-DOC-035 AC-7/13`, `DR-DOC-014`에 따라 contained 파일의 opt-in 등록을 owner의 `adopt_contained`로 전환했다. 실제 junction alias는 같은 문서 ID를 유지하고 별도 canonical 파일의 동일한 bytes는 duplicate_candidate로 처리한다. 링크 대상 교체 경쟁과 private `rebuild_index`의 구형 writer 경로를 semantic RED 뒤 수정했다. 재시작 후 문서 ID와 작업 수를 유지하고, 기존 파일은 다시 쓰지 않는다.
 - [x] [원시 SQLite open 감사](../analysis/2026-09-25-s23c-sqlite-open-raw.jsonl)와 실제 Electron S26 36 assertions: 두 제품 PID에서 source/keyword DB 쓰기 open은 장기 owner 4건, main 0건, 짧은 worker 0건이었다. Settings·viewer·linked import·8개 공개 MCP 도구·private rebuild 경로를 호출했고, 진행 중 retry는 `job-in-progress`로 거절됐다. S23 45/S19 47/S17 32/S25 16과 S20 단독 21을 확인했으며 S20 병렬 시작시간 실패도 증거에 남겼다. SourceHash `b65556251551425e41a898f1f276e21d7107a2d7bf5b2d4f037b89054c84fb15`.
 - [x] #62는 두 독립 검토에서 차단 결함 0건을 확인하고 `565a8562cc2045564519452ee57f7e4c572b115f`으로 게시한 뒤 닫았다. 구형 short worker/controller는 실제 호환·package-smoke 호출자가 남아 있어 죽은 코드로 단정하여 삭제하지 않았다.
-- [ ] #46 전체 완료는 보류한다. #60/#61/#62 하위 작업과 #43은 닫혔지만 #44/#45의 각 수용 기준과 상위 전환 조건이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
+- [ ] #46 전체 완료는 보류한다. #60/#61/#62 하위 작업과 #43/#45는 닫혔지만 #44의 수용 기준과 상위 전환 조건이 남아 있다. 상위 이슈의 완료율은 별도 gate 전까지 늘리지 않는다.
 
 ## S20 사후 완료 기록 — 제품 시작·상태·복구 경계
 
@@ -283,3 +283,8 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S21 실제 Renderer·IPC 증거](../analysis/2026-09-25-s21-final-ui-evidence.md): 활성 구형 작업과 owner READY의 혼합 상태에서 유지보수 버튼을 막고, owner 재구축·clear·문서 색인의 canonical 상태 및 중지 정책을 SRS에 맞췄다. private clear 취소 우회는 작업 변경 없이 거절하고, owner 작업 중 과거 실패 건수만으로 Retry가 켜지지 않게 했다. 네 locale 270개 key, 상태 ARIA·focus, S21 실제 Electron 35/S23 45/S26 49 assertions와 독립 검토를 확인했다. SourceHash `bd2209c0583a3f11ea6f70e35341dec3d8ca867d544b113297d19a68f8d65331`; 부분 게시 SHA `bb216a2c2d5a073192b1c136c1fb740b08a01cee`.
 - [ ] #44는 계속 OPEN이다. `IR-APP-013 AC-15`의 `CORRUPT_DEGRADED`·`INTERRUPTED` 전용 `retry-check`는 현재 owner 명령·복구 수명주기에 없다. 정확한 SRS 계약 변경과 구현·검증을 native 하위 이슈 [#64](https://github.com/ice3x2/DocuLightViewer/issues/64)에 순서대로 기록했다. 기존 keyword Retry를 복구 확인으로 대체하지 않으며 #44를 완료율에 넣지 않는다.
+
+## S22 사후 완료 기록 — 패키지 제품 응답성
+
+- [x] [S22 패키지 증거](../analysis/2026-09-25-s22-product-latency-evidence.md): B:의 unpacked Windows 패키지 앱을 기본 프로필·격리 userData로 프로세스 콜드 실행했다. 10,484,650바이트 Markdown 색인 중 실제 Settings status 50건, 일반 viewer focus/close 각 25건, Settings cancel과 Electron main heartbeat의 모든 승인 임계치를 통과했다. 100개 표본마다 같은 owner 작업의 active marker를 확인했고 단일 owner writer 외 제품 main 쓰기 open은 없었다. 취소 후 외부 원본·저장소 복사본은 새 revision을, committed keyword index는 이전 완료 revision을 유지했다. 원시 표본·패키지 executable/asar·fixture SHA는 링크된 증거에 있다.
+- [x] SourceHash `4f52d186f02e8e2f8e3fe73b11453ad48c60d684538347fbfe74a985921dc53d`의 S22 제품 시험 294 assertions가 통과했다. 같은 해시의 Node ABI 137 격리 런타임에서 `test-search-index-worker-benchmark-contract`, `test-indexing-status-performance-contract`, `test-package-smoke-launch-options`도 각각 exit 0이었다. 두 독립 검토는 차단 결함 0건이며, `530ccbf65fbb21f3767acd91180ebb8161c89e3f`으로 게시하고 [#45](https://github.com/ice3x2/DocuLightViewer/issues/45)를 닫았다. `IR-APP-013` 전체 요구사항을 이 결과만으로 verified로 올리지 않는다.
