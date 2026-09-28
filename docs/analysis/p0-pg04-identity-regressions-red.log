@@ -1,0 +1,16 @@
+PASS s10
+PASS s11
+PASS s12
+PASS s13
+PASS s17
+PASS s19
+node : AssertionError [ERR_ASSERTION]: publication recovery cannot move a new live lock or admit C while B holds it
+위치 줄:2 문자:70
++ ... -s32-temp'; node -e "const a=require('assert');const {createFixture}= ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (AssertionError ...hile B holds it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+    at Object.assert ([eval]:1:337)
+    at Object.run ([REDACTED_PATH]
+    at async [eval]:1:254

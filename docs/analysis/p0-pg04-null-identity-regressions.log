@@ -1,0 +1,9 @@
+PASS s10
+node : S20_STARTUP ready_ms=403 recovered=3101 page_limit=32
+위치 줄:2 문자:70
++ ... -s32-temp'; node -e "const a=require('assert');const {createFixture}= ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (S20_STARTUP rea...1 page_limit=32:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+PASS s20

@@ -1,0 +1,50 @@
+PASS s10
+PASS s11
+PASS s12
+PASS s13
+PASS s17
+PASS s19
+node : S20_STARTUP ready_ms=405 recovered=3101 page_limit=32
+위치 줄:2 문자:70
++ ... -s32-temp'; node -e "const a=require('assert');const {createFixture}= ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (S20_STARTUP rea...1 page_limit=32:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+PASS s20
+[doculight] SQLite search index loaded: 1 documents
+[doculight] SQLite search index loaded: 1 documents
+[doculight] SQLite search index loaded: 2 documents
+[doculight] SQLite search index saved: [REDACTED_PATH] (3 docs, generation generation-91570f7f-5cb2-4988-8416-e33c27d65c81)
+S23_EVIDENCE {"ownerThreadId":42,"ownerOpenCount":2,"beforeFault":{"generationId":"generation-83441c7b-ac44-4f2e-a81e-0
+b6c43d28df5","checksum":"a13f6514c45ab067cd18aa57ee72ea1f6b1b791caf5d100da9e112981c6390f8"},"afterFault":{"generationId
+":"generation-83441c7b-ac44-4f2e-a81e-0b6c43d28df5","checksum":"a13f6514c45ab067cd18aa57ee72ea1f6b1b791caf5d100da9e1129
+81c6390f8"},"beforeCancel":{"generationId":"generation-1ed991f2-4f70-4780-b9de-75ee70390683","checksum":"c11ab160eb11de
+f2881324c6a95c46e6addc807f31867462ccad7d5103d264e3"},"afterCancel":{"generationId":"generation-1ed991f2-4f70-4780-b9de-
+75ee70390683","checksum":"c11ab160eb11def2881324c6a95c46e6addc807f31867462ccad7d5103d264e3"},"sparse160MiB":{"bytes":16
+7772165,"completed":true}}
+PASS s23
+S25_PRE_ACK_REACHED
+S25_PRE_COMMIT_FAILURE_REACHED
+S25_LATEST_WINS_REACHED
+S25_D1_FAILURE_RETRY_REACHED
+S25_LATEST_SEARCH_REACHED
+S25_D1_IMPORT_REACHED
+S25_CONTENT_ONLY_REACHED
+S25_ALIAS_RESTART_REACHED
+S25_OWNER_STATUS_CANCEL_REACHED
+S25_ALL_ASSERTIONS_REACHED
+S25_EVIDENCE {"seed":"s25-2026-09-25-v1","fixture":"doculight-r3-FhFagt","layout":["source","store","private","ledger.s
+qlite","keyword.sqlite"],"node":"v24.16.0","abi":"137","sourceSha256":{"first":"9ca278d7327b05f4b6c2c184b359dc8763645f5
+5628e37f46872694df4995b98","latest":"476c9a22914441990b27fe6888d40d009bf62cb49abcf985b1b662457913f389","imported":"6213
+1a3324069d21f7edd1397632cdac0a1b004651f11a573f607563281d1932","generated":"81e79779d697fcf818cb564b445e2b87dee26e542b1a
+6336fc977e52c58c9e57","origin":"42c5d06e3b2974deb9a4f68ff1d66910005da76a19c014f60a7b77182f5d2dd0"},"sourceBytes":{"firs
+t":21,"latest":20,"imported":40,"generated":15,"origin":9},"documentId":{"latest":"doc_58503a4811b9e4645c23ad87","impor
+ted":"doc_a161a3e3146d42fe36bb7a4d","generated":"doc_c86ccfe0d1a84d6585e5bb35","origin":"doc_181eec97f65d6cafc09ce2a9"}
+,"aliasCount":{"generated":0,"origin":2},"desiredRevision":{"latest":2},"jobState":{"old":"cancelled","failed":"failed"
+,"retry":"queued","retried":"completed","importCancelled":"cancelled","ownerState":"indexing","ownerCancelled":true},"m
+arkers":["S25_PRE_ACK_REACHED","S25_PRE_COMMIT_FAILURE_REACHED","S25_LATEST_WINS_REACHED","S25_D1_FAILURE_RETRY_REACHED
+","S25_LATEST_SEARCH_REACHED","S25_D1_IMPORT_REACHED","S25_CONTENT_ONLY_REACHED","S25_ALIAS_RESTART_REACHED","S25_OWNER
+_STATUS_CANCEL_REACHED","S25_ALL_ASSERTIONS_REACHED"],"searchHits":{"latest":1,"old":0},"canonicalPathHash":"caac50da36
+bb65270566760f4060f4b4398f9a70db2e6bb5c7c2e5bc084a98c4","ownerStatusCancelMs":3}
+PASS s25

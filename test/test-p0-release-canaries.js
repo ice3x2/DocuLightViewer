@@ -43,7 +43,14 @@ const samples = Array.from({ length: 5 }, (_, index) => ({
     finishedAtEpochMs: 1130 + index * 1000, workerJobId: 'job-1',
     activeBefore: true, activeAfter: true, saved: true,
     indexingState: 'queued', receiptJobId: 'job-2',
-    contentBytes: 64, retainedBytes: 64, contentSha256: hash, retainedSha256: hash }
+    receiptDocumentId: 'document-2', ledgerDocumentId: 'document-2',
+    ledgerReceiptJobId: 'job-2', ledgerReceiptDocumentId: 'document-2',
+    acceptanceReceiptKind: 'queued', acceptanceIntentId: hash,
+    acceptedIntentId: hash, acceptanceJobId: 'job-2',
+    acceptanceDocumentId: 'document-2', acceptanceSha256: hash,
+    contentBytes: 64, retainedBytes: 144, ledgerBytes: 144,
+    contentSha256: 'c'.repeat(64), retainedSha256: hash, ledgerSha256: hash,
+    bodyMatchesInput: true, intentPersisted: false }
 }));
 const report = { version: 'p0-pg04.v1', samples, package: { selectedAppSha256: hash,
   sourceHash: hash, commitSha, artifactKind: 'portable', os: 'win32', arch: 'x64',
@@ -52,6 +59,26 @@ const provenance = { expectedSourceHash: hash, buildManifest: {
   version: 'p0-pg04-build.v1', sourceHash: hash, selectedAppSha256: hash,
   commitSha, packageBytes: 100, packageMtimeMs: 2000, recordedAtEpochMs: 2100 } };
 assert.doesNotThrow(() => validatePg04Report(report), 'five distinct cold packaged samples pass');
+assert.throws(() => validatePg04Report({ ...report, samples: [
+  { ...samples[0], activeSave: { ...samples[0].activeSave,
+    bodyMatchesInput: false } }, ...samples.slice(1)] }), /active save/i,
+  'saved Markdown body must equal the input after frontmatter injection');
+assert.throws(() => validatePg04Report({ ...report, samples: [
+  { ...samples[0], activeSave: { ...samples[0].activeSave,
+    ledgerSha256: 'd'.repeat(64) } }, ...samples.slice(1)] }), /active save/i,
+  'saved bytes and hash must equal the accepted ledger record');
+assert.throws(() => validatePg04Report({ ...report, samples: [
+  { ...samples[0], activeSave: { ...samples[0].activeSave,
+    ledgerReceiptJobId: 'wrong-job' } }, ...samples.slice(1)] }), /active save/i,
+  'queued receipt must identify the durable ledger job');
+assert.throws(() => validatePg04Report({ ...report, samples: [
+  { ...samples[0], activeSave: { ...samples[0].activeSave,
+    acceptanceReceiptKind: null } }, ...samples.slice(1)] }), /active save/i,
+  'missing durable queued acceptance receipt fails');
+assert.throws(() => validatePg04Report({ ...report, samples: [
+  { ...samples[0], activeSave: { ...samples[0].activeSave,
+    acceptanceSha256: 'd'.repeat(64) } }, ...samples.slice(1)] }), /active save/i,
+  'acceptance receipt content hash must match retained Markdown');
 assert.throws(() => validatePg04Report({ ...report, samples: [
   { ...samples[0], activeSave: null }, ...samples.slice(1)] }), /active save/i,
   'missing second save during active owner job fails PG-04');

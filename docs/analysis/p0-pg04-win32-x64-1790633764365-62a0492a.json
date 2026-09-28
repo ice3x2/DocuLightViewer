@@ -1,0 +1,946 @@
+{
+  "version": "p0-pg04.v1",
+  "status": "failed",
+  "package": {
+    "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+    "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+    "commitSha": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+    "artifactKind": "portable",
+    "os": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.16.0",
+    "nodeAbi": "137",
+    "packageBytes": 93520069,
+    "packageMtimeMs": 1790633728475.3008,
+    "nativeVersions": {
+      "betterSqlite3": "12.11.1",
+      "hnswlibNode": "3.0.0"
+    }
+  },
+  "buildManifestSha256": "7e18b66d9dfc866fe0e97b29d7e60ebed97b39c9fa85ca985483c5168c390c1b",
+  "samples": [
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+      "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+      "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 332,
+      "fixtureSha256": "4798a414387569bc82253cd831583ddb4ff15d12d056760e0feb260a281fadfa",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 18
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 180.45769999999993
+          },
+          {
+            "kind": "status",
+            "ms": 47.98289999999997
+          },
+          {
+            "kind": "status",
+            "ms": 20.596700000000055
+          },
+          {
+            "kind": "focus",
+            "ms": 17.54029999999875
+          },
+          {
+            "kind": "close",
+            "ms": 21.963700000000244
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.9135999999998603
+          }
+        ],
+        "heartbeatGaps": [
+          21.665199999999913,
+          24.230000000000018,
+          15.410699999999906,
+          15.946800000000167,
+          15.808999999999742,
+          15.58660000000009,
+          15.846100000000206,
+          9.339399999999841,
+          47.22069999999985,
+          26.859600000000228,
+          20.994900000000143,
+          20.709499999999935,
+          42.76249999999982,
+          538.3371000000002,
+          19.03569999999945,
+          15.9971000000005,
+          15.35400000000027,
+          11.415899999999965,
+          11.636499999999614,
+          16.715299999999843,
+          25.421900000000278,
+          24.28899999999976,
+          3.079800000000432
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 180.45769999999993,
+            "p99": 180.45769999999993,
+            "max": 180.45769999999993
+          },
+          "focus": {
+            "count": 1,
+            "p95": 17.54029999999875,
+            "p99": 17.54029999999875,
+            "max": 17.54029999999875
+          },
+          "close": {
+            "count": 1,
+            "p95": 21.963700000000244,
+            "p99": 21.963700000000244,
+            "max": 21.963700000000244
+          }
+        },
+        "cancelMs": 1.9135999999998603
+      },
+      "processCold": {
+        "pid": 90632,
+        "spawnPid": 104180,
+        "processStartEpochMs": 1790633767913.501,
+        "profileToken": "294dbb1358816c99769ecaccb7f1412a597177ea0655d70d131ef62ed0aa832b",
+        "workerReadyEpochMs": 1790633771286
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790633771537,
+        "finishedAtEpochMs": 1790633771579,
+        "workerJobId": "job_4da160ebdf2d2f7360f2796410eeb5de4cf3e92ab6a5b1c921eb8a11fe6a5872",
+        "activeBefore": true,
+        "activeAfter": true,
+        "queryCompleted": true,
+        "queryError": false,
+        "resultCount": 1,
+        "savedDocumentId": "doc_f7234c19c53ace9522649dd5",
+        "foundDocumentId": null
+      },
+      "activeSave": {
+        "startedAtEpochMs": 1790633771580,
+        "finishedAtEpochMs": 1790633772169,
+        "workerJobId": "job_4da160ebdf2d2f7360f2796410eeb5de4cf3e92ab6a5b1c921eb8a11fe6a5872",
+        "activeBefore": true,
+        "activeAfter": true,
+        "ownerBeforePhase": "index_document",
+        "ownerAfterPhase": "index_document",
+        "ownerBeforeJobId": "job_4da160ebdf2d2f7360f2796410eeb5de4cf3e92ab6a5b1c921eb8a11fe6a5872",
+        "ownerAfterJobId": "job_4da160ebdf2d2f7360f2796410eeb5de4cf3e92ab6a5b1c921eb8a11fe6a5872",
+        "saved": true,
+        "indexingState": "queued",
+        "receiptJobId": "job_035250419e6fd8c48d02e82002def4fe8f3cc742bed4c785a25e0c512ef0b218",
+        "responseIsError": false,
+        "responseErrorCode": null,
+        "responseDiagnosticCode": null,
+        "contentBytes": 62,
+        "contentSha256": "aa03fd77fc0c40549e9565840d2b7fa9f4c68bf4fe4a2e86261b00ef9e089b73",
+        "publicationLockPresent": false,
+        "publicationRecoveryGatePresent": false,
+        "published": true,
+        "intentPersisted": false,
+        "retainedBytes": 144,
+        "retainedSha256": "e4b6759f6f13948421d41ad2104832c50cae9f357287b0147701b6ba6bc0ade5"
+      },
+      "corpus": {
+        "fileCount": 4,
+        "bytes": 4320592,
+        "ledgerRows": 1
+      },
+      "sample": 1,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+      "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+      "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 332,
+      "fixtureSha256": "23519731826959fef6cd5f9a3566393152b2fdf27f7c7919ec46368246536f2e",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 18
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 206.61429999999928
+          },
+          {
+            "kind": "status",
+            "ms": 17.622200000001612
+          },
+          {
+            "kind": "status",
+            "ms": 16.73080000000118
+          },
+          {
+            "kind": "focus",
+            "ms": 14.436299999999392
+          },
+          {
+            "kind": "close",
+            "ms": 19.931700000001
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.5728999999992084
+          }
+        ],
+        "heartbeatGaps": [
+          18.27489999999989,
+          16.246200000000044,
+          12.202400000000125,
+          16.117299999999886,
+          14.69380000000001,
+          16.616199999999935,
+          15.407799999999952,
+          15.766799999999876,
+          11.68600000000015,
+          43.19190000000026,
+          26.38869999999997,
+          17.319299999999657,
+          16.74890000000005,
+          38.0924,
+          534.7564000000002,
+          15.510099999999511,
+          15.128000000000611,
+          11.301300000000083,
+          19.051499999999578,
+          13.81840000000011,
+          23.684400000000096,
+          23.466599999999744,
+          2.552099999999882
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 206.61429999999928,
+            "p99": 206.61429999999928,
+            "max": 206.61429999999928
+          },
+          "focus": {
+            "count": 1,
+            "p95": 14.436299999999392,
+            "p99": 14.436299999999392,
+            "max": 14.436299999999392
+          },
+          "close": {
+            "count": 1,
+            "p95": 19.931700000001,
+            "p99": 19.931700000001,
+            "max": 19.931700000001
+          }
+        },
+        "cancelMs": 1.5728999999992084
+      },
+      "processCold": {
+        "pid": 90140,
+        "spawnPid": 151656,
+        "processStartEpochMs": 1790633776093.053,
+        "profileToken": "ad27b4210abed525d0f82a28e8cb0e44dfdd87f40dc0a2b294f2e48cb50e89d4",
+        "workerReadyEpochMs": 1790633779492
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790633779734,
+        "finishedAtEpochMs": 1790633779771,
+        "workerJobId": "job_fba17d3a0d8bce5c116920925abf65517d4546658662ef64e795d69f5a3629e8",
+        "activeBefore": true,
+        "activeAfter": true,
+        "queryCompleted": true,
+        "queryError": false,
+        "resultCount": 1,
+        "savedDocumentId": "doc_5995dcc56f783a3102900794",
+        "foundDocumentId": null
+      },
+      "activeSave": {
+        "startedAtEpochMs": 1790633779772,
+        "finishedAtEpochMs": 1790633780348,
+        "workerJobId": "job_fba17d3a0d8bce5c116920925abf65517d4546658662ef64e795d69f5a3629e8",
+        "activeBefore": true,
+        "activeAfter": true,
+        "ownerBeforePhase": "index_document",
+        "ownerAfterPhase": "index_document",
+        "ownerBeforeJobId": "job_fba17d3a0d8bce5c116920925abf65517d4546658662ef64e795d69f5a3629e8",
+        "ownerAfterJobId": "job_fba17d3a0d8bce5c116920925abf65517d4546658662ef64e795d69f5a3629e8",
+        "saved": true,
+        "indexingState": "queued",
+        "receiptJobId": "job_6f70a8fec4e44b207cf345676e8fa704312fb277b8b937bdd3784b3af7c969dc",
+        "responseIsError": false,
+        "responseErrorCode": null,
+        "responseDiagnosticCode": null,
+        "contentBytes": 62,
+        "contentSha256": "1cccafc1731a4bebe310f71385c08e63fcfef7d9b6f320a1a65129bfd565fbcf",
+        "publicationLockPresent": false,
+        "publicationRecoveryGatePresent": false,
+        "published": true,
+        "intentPersisted": false,
+        "retainedBytes": 144,
+        "retainedSha256": "5705cc438d4e7ebb995d852a8f592733eddbd3d353a0f2f15b25b088b3731284"
+      },
+      "corpus": {
+        "fileCount": 4,
+        "bytes": 4320592,
+        "ledgerRows": 1
+      },
+      "sample": 2,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+      "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+      "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 332,
+      "fixtureSha256": "57ed1464fa2b82251829c347c9df7ec3e2b2d70fe6cba8acbd6b34c27d150931",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 18
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 203.07270000000062
+          },
+          {
+            "kind": "status",
+            "ms": 19.606400000000576
+          },
+          {
+            "kind": "status",
+            "ms": 21.54069999999774
+          },
+          {
+            "kind": "focus",
+            "ms": 23.25720000000001
+          },
+          {
+            "kind": "close",
+            "ms": 38.17710000000079
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.4927999999999884
+          }
+        ],
+        "heartbeatGaps": [
+          17.878999999999905,
+          16.278499999999894,
+          11.665899999999965,
+          16.239300000000185,
+          15.408599999999751,
+          15.783400000000256,
+          14.745499999999993,
+          15.914699999999812,
+          10.505799999999908,
+          42.289600000000064,
+          26.302000000000135,
+          16.336399999999685,
+          24.63420000000042,
+          35.03829999999971,
+          552.8043000000002,
+          25.054199999999582,
+          16.20049999999992,
+          15.714500000000044,
+          15.418000000000575,
+          15.717200000000048,
+          15.595499999999447,
+          14.72020000000066,
+          16.007399999999507,
+          15.46429999999964,
+          15.756400000000212,
+          15.69419999999991,
+          16.15940000000046,
+          15.63459999999941,
+          15.54870000000028,
+          16.403400000000147,
+          15.776600000000144,
+          16.147799999999734,
+          15.105099999999766,
+          14.691800000000512,
+          15.725800000000163,
+          14.393099999999322,
+          13.387400000000525,
+          13.340900000000147,
+          19.583799999999428,
+          24.596599999999853,
+          20.837500000000546,
+          23.73399999999947,
+          2.743800000000192
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 203.07270000000062,
+            "p99": 203.07270000000062,
+            "max": 203.07270000000062
+          },
+          "focus": {
+            "count": 1,
+            "p95": 23.25720000000001,
+            "p99": 23.25720000000001,
+            "max": 23.25720000000001
+          },
+          "close": {
+            "count": 1,
+            "p95": 38.17710000000079,
+            "p99": 38.17710000000079,
+            "max": 38.17710000000079
+          }
+        },
+        "cancelMs": 1.4927999999999884
+      },
+      "processCold": {
+        "pid": 132512,
+        "spawnPid": 92564,
+        "processStartEpochMs": 1790633784209.6575,
+        "profileToken": "b1459af327d76fa1c92def089e45b29402793dc98668de0b87c65fbc78eebcbb",
+        "workerReadyEpochMs": 1790633787619
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790633787864,
+        "finishedAtEpochMs": 1790633787898,
+        "workerJobId": "job_f3664c21869dd16a9568f3488ada36da676f89a55c0e38ebfe0aaa81d46ec61b",
+        "activeBefore": true,
+        "activeAfter": true,
+        "queryCompleted": true,
+        "queryError": false,
+        "resultCount": 1,
+        "savedDocumentId": "doc_581dcbc55a5d6d9a3a677df2",
+        "foundDocumentId": null
+      },
+      "activeSave": {
+        "startedAtEpochMs": 1790633787899,
+        "finishedAtEpochMs": 1790633788793,
+        "workerJobId": "job_f3664c21869dd16a9568f3488ada36da676f89a55c0e38ebfe0aaa81d46ec61b",
+        "activeBefore": true,
+        "activeAfter": true,
+        "ownerBeforePhase": "index_document",
+        "ownerAfterPhase": "index_document",
+        "ownerBeforeJobId": "job_f3664c21869dd16a9568f3488ada36da676f89a55c0e38ebfe0aaa81d46ec61b",
+        "ownerAfterJobId": "job_f3664c21869dd16a9568f3488ada36da676f89a55c0e38ebfe0aaa81d46ec61b",
+        "saved": true,
+        "indexingState": "queued",
+        "receiptJobId": "job_7060c965a9aeb0e4a2e8b6b79b39a2e6e275a6bee6aaef972c0e628329c73dd8",
+        "responseIsError": false,
+        "responseErrorCode": null,
+        "responseDiagnosticCode": null,
+        "contentBytes": 62,
+        "contentSha256": "b06957e0e76ed948f34d8e3b9bf411a7d8d64277b372b7a862e53df220b78097",
+        "publicationLockPresent": false,
+        "publicationRecoveryGatePresent": false,
+        "published": true,
+        "intentPersisted": false,
+        "retainedBytes": 144,
+        "retainedSha256": "1400a3da7db5a0d2339ba0d253ab9c777e0410c33ad185c2a24e7d271ae8e3bc"
+      },
+      "corpus": {
+        "fileCount": 4,
+        "bytes": 4320592,
+        "ledgerRows": 1
+      },
+      "sample": 3,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+      "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+      "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 332,
+      "fixtureSha256": "d1c26056e1703c10208038cf53917147add1f83cf8456ed3a3ff71ea9f0716fe",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 18
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 172.79039999999804
+          },
+          {
+            "kind": "status",
+            "ms": 43.0650999999998
+          },
+          {
+            "kind": "status",
+            "ms": 20.40599999999904
+          },
+          {
+            "kind": "focus",
+            "ms": 20.541799999999057
+          },
+          {
+            "kind": "close",
+            "ms": 34.74860000000626
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.3584000000046217
+          }
+        ],
+        "heartbeatGaps": [
+          17.890699999999924,
+          15.207000000000335,
+          13.523299999999836,
+          14.366599999999835,
+          17.031800000000203,
+          16.1875,
+          14.966599999999744,
+          15.786000000000058,
+          47.56410000000005,
+          43.01909999999998,
+          20.487100000000282,
+          44.98059999999987,
+          566.4139,
+          15.181399999999485,
+          16.00250000000051,
+          15.632800000000316,
+          15.3774999999996,
+          15.603799999999865,
+          15.609599999999773,
+          15.795000000000073,
+          15.927099999999882,
+          15.48620000000028,
+          15.601599999999962,
+          12.873000000000502,
+          15.189099999999598,
+          13.337199999999939,
+          19.067799999999806,
+          23.30500000000029,
+          16.652799999999843,
+          24.32549999999992,
+          2.23450000000048
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 172.79039999999804,
+            "p99": 172.79039999999804,
+            "max": 172.79039999999804
+          },
+          "focus": {
+            "count": 1,
+            "p95": 20.541799999999057,
+            "p99": 20.541799999999057,
+            "max": 20.541799999999057
+          },
+          "close": {
+            "count": 1,
+            "p95": 34.74860000000626,
+            "p99": 34.74860000000626,
+            "max": 34.74860000000626
+          }
+        },
+        "cancelMs": 1.3584000000046217
+      },
+      "processCold": {
+        "pid": 68804,
+        "spawnPid": 123812,
+        "processStartEpochMs": 1790633792901.805,
+        "profileToken": "387d4d67997299ddafbcef8e73e558e2fea2dcca3175c1b2e77dc0f5185beab1",
+        "workerReadyEpochMs": 1790633796316
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790633796553,
+        "finishedAtEpochMs": 1790633796597,
+        "workerJobId": "job_535594bd268eb67be432d4d6acf9cc3917e1e73aa219b21fa75f932ab792bf19",
+        "activeBefore": true,
+        "activeAfter": true,
+        "queryCompleted": true,
+        "queryError": false,
+        "resultCount": 1,
+        "savedDocumentId": "doc_f55b3400bdbad3d27bff2382",
+        "foundDocumentId": null
+      },
+      "activeSave": {
+        "startedAtEpochMs": 1790633796599,
+        "finishedAtEpochMs": 1790633797340,
+        "workerJobId": "job_535594bd268eb67be432d4d6acf9cc3917e1e73aa219b21fa75f932ab792bf19",
+        "activeBefore": true,
+        "activeAfter": true,
+        "ownerBeforePhase": "index_document",
+        "ownerAfterPhase": "index_document",
+        "ownerBeforeJobId": "job_535594bd268eb67be432d4d6acf9cc3917e1e73aa219b21fa75f932ab792bf19",
+        "ownerAfterJobId": "job_535594bd268eb67be432d4d6acf9cc3917e1e73aa219b21fa75f932ab792bf19",
+        "saved": true,
+        "indexingState": "queued",
+        "receiptJobId": "job_49b996c11718f1835aa0613debe394c36a59390b1d444de2120862b1075fe937",
+        "responseIsError": false,
+        "responseErrorCode": null,
+        "responseDiagnosticCode": null,
+        "contentBytes": 62,
+        "contentSha256": "08f6f0c04c4683dc08ca9bb3d465dd88f0874c1f793eca9e492b80f34ee5518a",
+        "publicationLockPresent": false,
+        "publicationRecoveryGatePresent": false,
+        "published": true,
+        "intentPersisted": false,
+        "retainedBytes": 144,
+        "retainedSha256": "b13abd7a14efe3054148a651c3a149aaa066f7eb01fea2f917f0e287efd223b5"
+      },
+      "corpus": {
+        "fileCount": 4,
+        "bytes": 4320592,
+        "ledgerRows": 1
+      },
+      "sample": 4,
+      "failed": true
+    },
+    {
+      "version": "package-native-owner.v1",
+      "artifactKind": "portable",
+      "directExecutable": true,
+      "selectedAppSha256": "0ee8f438cdcb1100dcb4053fef14f8a679c0e005599d4ce89d9b0fc77891815a",
+      "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+      "sourceHash": "0619c0f221de5c173f0c9ea0e92791dae56b60ef5079f2143cce786b6bae0066",
+      "sourceHashScope": "r3-source-files",
+      "sourceFileCount": 332,
+      "fixtureSha256": "8a4c015706812de2cb7bb420e100bb7295e26296179a41117c1061bbbcc8c9c9",
+      "runtime": {
+        "isPackaged": true,
+        "profile": "default",
+        "isolatedUserData": true,
+        "electronAbi": "130"
+      },
+      "owner": {
+        "workerThreadId": 1,
+        "ledgerOpenThreadId": 1,
+        "keywordOpenThreadId": 1,
+        "openCount": 2
+      },
+      "main": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 18
+      },
+      "flow": {
+        "saved": true,
+        "indexed": true,
+        "searchFound": true,
+        "failedSaveRetained": true,
+        "retryableIntentPresent": true,
+        "opened": true,
+        "activeStatusSeen": true,
+        "closed": true,
+        "cancelAccepted": true,
+        "cancelledFileRetained": true
+      },
+      "lifecycle": {
+        "exited": true,
+        "exitCode": 0,
+        "appProcessGone": true,
+        "handleReleased": true,
+        "profileRemoved": true
+      },
+      "responsiveness": {
+        "samples": [
+          {
+            "kind": "status",
+            "ms": 208.17429999999877
+          },
+          {
+            "kind": "status",
+            "ms": 20.184400000005553
+          },
+          {
+            "kind": "status",
+            "ms": 21.689800000000105
+          },
+          {
+            "kind": "focus",
+            "ms": 16.34820000000036
+          },
+          {
+            "kind": "close",
+            "ms": 23.706899999997404
+          },
+          {
+            "kind": "cancel",
+            "ms": 1.1693000000013853
+          }
+        ],
+        "heartbeatGaps": [
+          18.86070000000018,
+          14.893100000000231,
+          13.097699999999804,
+          15.973100000000159,
+          15.252700000000004,
+          15.448599999999715,
+          15.503900000000158,
+          15.839300000000094,
+          53.02590000000009,
+          30.228899999999612,
+          19.787700000000314,
+          22.18100000000004,
+          42.16390000000001,
+          502.93629999999985,
+          22.10900000000038,
+          14.856299999999464,
+          15.833999999999833,
+          15.729500000000371,
+          15.228900000000067,
+          15.187199999999393,
+          11.586100000000442,
+          12.704800000000432,
+          11.474499999999352,
+          15.28859999999986,
+          27.12960000000021,
+          24.03229999999985,
+          1.9165000000002692
+        ],
+        "workerMarker": true,
+        "byKind": {
+          "status": {
+            "count": 3,
+            "p95": 208.17429999999877,
+            "p99": 208.17429999999877,
+            "max": 208.17429999999877
+          },
+          "focus": {
+            "count": 1,
+            "p95": 16.34820000000036,
+            "p99": 16.34820000000036,
+            "max": 16.34820000000036
+          },
+          "close": {
+            "count": 1,
+            "p95": 23.706899999997404,
+            "p99": 23.706899999997404,
+            "max": 23.706899999997404
+          }
+        },
+        "cancelMs": 1.1693000000013853
+      },
+      "processCold": {
+        "pid": 92900,
+        "spawnPid": 59612,
+        "processStartEpochMs": 1790633801174.8904,
+        "profileToken": "14bce894a17624f15d19b0eab855798991a19f357a66103c70dccad8bc091984",
+        "workerReadyEpochMs": 1790633804594
+      },
+      "activeQuery": {
+        "startedAtEpochMs": 1790633804845,
+        "finishedAtEpochMs": 1790633804887,
+        "workerJobId": "job_28b8c800161521c7af608339b24b111821fde82d8b957405361091f85535e147",
+        "activeBefore": true,
+        "activeAfter": true,
+        "queryCompleted": true,
+        "queryError": false,
+        "resultCount": 1,
+        "savedDocumentId": "doc_f156d1002818a131211ea043",
+        "foundDocumentId": null
+      },
+      "activeSave": {
+        "startedAtEpochMs": 1790633804888,
+        "finishedAtEpochMs": 1790633805505,
+        "workerJobId": "job_28b8c800161521c7af608339b24b111821fde82d8b957405361091f85535e147",
+        "activeBefore": true,
+        "activeAfter": true,
+        "ownerBeforePhase": "index_document",
+        "ownerAfterPhase": "index_document",
+        "ownerBeforeJobId": "job_28b8c800161521c7af608339b24b111821fde82d8b957405361091f85535e147",
+        "ownerAfterJobId": "job_28b8c800161521c7af608339b24b111821fde82d8b957405361091f85535e147",
+        "saved": true,
+        "indexingState": "queued",
+        "receiptJobId": "job_bc674fd61e2ad21cda6477eb44904accf5e696aa829917f91c0f0eb277b9e7bb",
+        "responseIsError": false,
+        "responseErrorCode": null,
+        "responseDiagnosticCode": null,
+        "contentBytes": 62,
+        "contentSha256": "673d4f9fadbe1cf17e71022684b3a830c25788b3a6c8dbbc71077c798e8ac217",
+        "publicationLockPresent": false,
+        "publicationRecoveryGatePresent": false,
+        "published": true,
+        "intentPersisted": false,
+        "retainedBytes": 144,
+        "retainedSha256": "2d8e78bb48bf2f447a2e4d1a81a5bded9fcab8c3cad4a923ceff88a7957fd214"
+      },
+      "corpus": {
+        "fileCount": 4,
+        "bytes": 4320592,
+        "ledgerRows": 1
+      },
+      "sample": 5,
+      "failed": true
+    }
+  ],
+  "failures": [
+    {
+      "sample": 1,
+      "code": "sample_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    },
+    {
+      "sample": 2,
+      "code": "sample_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    },
+    {
+      "sample": 3,
+      "code": "sample_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    },
+    {
+      "sample": 4,
+      "code": "sample_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    },
+    {
+      "sample": 5,
+      "code": "sample_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    },
+    {
+      "code": "pg04_contract_failed",
+      "message": "main heartbeat samples meet the packaged bound"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"phases":[{"locator":"first.md","durationMs":274.1815},{"locator":"second.md","durationMs":13.411699999999996}],"heartbeatMaxGapMs":35.706500000000005,"tickCount":19}
+test-publication-gate-heartbeat: all assertions passed

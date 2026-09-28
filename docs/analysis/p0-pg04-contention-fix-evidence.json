@@ -1,0 +1,31 @@
+{
+  "issue": 55,
+  "requirements": ["IR-APP-013", "REL-DOC-007", "REL-DOC-009", "OPS-ARCH-009"],
+  "baseCommit": "0acaa3c425ad17b24a74251764c1a06f91954c00",
+  "sourceHash": "c19f82c00de1ed43c620b85911cfc9cf4855d3fad8e61f137d1cfaf3835f2529",
+  "failedPackageRun": {
+    "path": "docs/analysis/p0-pg04-win32-x64-1790633764365-62a0492a.json",
+    "sha256": "c6878804d4688d34a6774cd9c6bc7640fff44a95f56ab2b0a0c04d87250d229e",
+    "result": "Five of five process-cold samples failed the 250 ms main heartbeat gate; raw samples remain untouched."
+  },
+  "semanticRed": {
+    "heldGate": "Two same-PID contenders waited on a live publication lock without takeover; synchronous Windows identity recovery produced a 479.283 ms main heartbeat gap (limit 250).",
+    "transientIdentity": "A transient null self identity remained cached instead of retrying; unresolved same-PID liveness required a synchronous lookup.",
+    "startupIdentity": "A successful synchronous startup self lookup did not seed the reusable identity; same-PID recycled-lock recovery failed closed.",
+    "acceptanceReceipt": "Missing queued acceptance receipt and wrong acceptance content hash were accepted by the former canary validator."
+  },
+  "focusedGreen": {
+    "node": {"mainHeartbeatGapMaxMs": 42.5676, "heldGateGapMaxMs": 16.145, "contenders": 2, "takeover": false},
+    "electron33": {"mainHeartbeatGapMaxMs": 42.5452, "heldGateGapMaxMs": 33.5766, "contenders": 2, "takeover": false},
+    "identity": "Transient null retries asynchronously; only a successful PID-start identity is cached; same-PID liveness uses that cache or fails closed, while other-PID recovery remains synchronous.",
+    "acceptanceReceipt": "Read-only save_intent_acceptances queued receipt must match accepted intentId, returned job/document IDs and retained saved-file hash; cleaned accepted intent file is allowed.",
+    "contracts": ["test-current-process-identity PASS", "test-publication-gate-heartbeat PASS", "test-p0-release-canaries PASS", "test-package-native-owner-evidence PASS"],
+    "r3": ["S10 PASS", "S11 PASS", "S12 PASS", "S13 PASS", "S17 PASS", "S19 PASS", "S20 PASS", "S23 PASS", "S25 PASS"]
+  },
+  "logs": {
+    "regressions": {"path": "docs/analysis/p0-pg04-contention-regressions.log", "sha256": "5f1528d9d2b8f4150fa55a2a02cc69179271ac0b449cc47d80798780390517b6"},
+    "nodeHeartbeat": {"path": "docs/analysis/p0-pg04-contention-heartbeat-node.log", "sha256": "6f415ccd5646ea495b21cdb19aa3f109220c943894a42928446e724657a41df9"},
+    "electronHeartbeat": {"path": "docs/analysis/p0-pg04-contention-heartbeat-electron.log", "sha256": "4f0e3b9c6ff729aed8d1a990ce50d2d7614fbbaf0ec17670cdd334c9a3a84f67"}
+  },
+  "limits": ["No new package build or five-sample canary run at this source hash; independent focused review is pending."]
+}

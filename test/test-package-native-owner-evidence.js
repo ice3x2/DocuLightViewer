@@ -15,6 +15,10 @@ const valid = {
   flow: { saved: true, indexed: true, searchFound: true, opened: true, closed: true,
     activeStatusSeen: true, cancelAccepted: true, cancelledFileRetained: true,
     failedSaveRetained: true, retryableIntentPresent: true },
+  responsiveness: { workerMarker: true, heartbeatGaps: [10, 10], cancelMs: 5,
+    samples: ['status', 'focus', 'close', 'cancel'].map((kind) => ({ kind, ms: 5 })),
+    byKind: Object.fromEntries(['status', 'focus', 'close'].map((kind) =>
+      [kind, { count: 1, p95: 5, p99: 5, max: 5 }])) },
   lifecycle: { exited: true, exitCode: 0, appProcessGone: true,
     handleReleased: true, profileRemoved: true }
 };
