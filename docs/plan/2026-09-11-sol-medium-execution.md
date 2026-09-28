@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46), [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54). S21과 S23은 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50), [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54). 이전 섹션의 미완료 문구는 해당 시점의 기록이며 아래 최신 완료 기록이 우선한다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `27/36` 완료(S01~S20, S22, S24~S26, S28~S30)다. S30은 Windows x64 portable·unpacked 패키지의 native owner, 저장·검색·취소·정상 종료를 검증했다. S21과 S23은 상태 조합·최종 writer 감사가 남아 열려 있으며, macOS·Linux 실제 산출물과 CI 필수 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
+실행 이슈는 `28/36` 완료(S01~S20, S22~S26, S28~S30)다. S23은 통합 해시의 제품 전체 SQLite writer 감사, 실패·취소·손상 재확인, S17/S19 복구 회귀를 마치고 닫혔다. S21의 상태 조합·실제 저장 용량 정책과 S27의 독립 핵심 검토는 열려 있으며, macOS·Linux 실제 산출물과 CI 필수 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -303,10 +303,17 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S29 작성·RED/GREEN 증거](../analysis/2026-09-29-s29-forward-open-evidence-r7.json): 다섯 공개 태그 fixture를 복사한 뒤 현재 장기 owner로 세 번씩 열었다. 경로 이력·원본 별칭·사용자 metadata·작업 이력과 태그 API로 만든 파생 데이터를 색인 전후 분리해 비교했다. 두 pending 작업은 최신 revision으로 수렴했고, keyword cache 삭제·재구축 뒤에도 같은 documentId가 검색됐다. 변경된 전체 재구축은 오래된 링크·분류를 새 본문으로 갱신하면서 사용자 원장은 보존한다. 실제 pre-fix metadata/edge 손실 RED와 잘못된 fixture 벡터의 harness RED를 구분해 기록했다.
 - [x] [통합 실행 증거](../analysis/2026-09-29-s29-integration-evidence.md): 작성 커밋 `f7a8d243e5c593a05bf0b6b7bffc5d777373351b`을 `299e356e7952459e73b184b21fef86a22570bf0a`으로 통합했고, 별도 검증 worktree의 S29 exit 0과 S17 32/S19 47/S20 23/S23 45 assertions를 원시 결과와 묶었다. 두 독립 검토가 차단 지적을 고친 뒤 통과했고 [#52](https://github.com/ice3x2/DocuLightViewer/issues/52)를 닫았다. 공개 HTTP 실제 요청은 이 결과만으로 주장하지 않으며, 개별 SRS를 증거 없이 verified로 승급하지 않는다.
-- [ ] 최종 release canary는 Windows native owner smoke를 마친 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) 이후 별도 게이트다. #44/#46도 계속 OPEN이다.
+- [ ] 최종 release canary는 Windows native owner smoke를 마친 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) 이후 별도 게이트다. #44는 계속 OPEN이다.
 
 ## S30 완료 기록 — Windows x64 설치 산출물의 native owner
 
 - [x] [Windows x64 portable·unpacked 원시 보고서](../analysis/2026-09-29-s30-package-smoke-evidence.json): 선택한 portable 실행 파일과 기존 unpacked 앱을 각각 격리 프로필로 직접 실행했다. Electron ABI 130의 SQLite/HNSW native load, 장기 owner의 두 DB open, main writable open 0, 저장한 문서의 색인·검색, 색인 중 상태·취소, 취소 및 저장 후 실패에서 Markdown 보존·재시도 의도, 실제 앱 PID 종료·프로필 삭제를 확인했다. portable SHA-256 `9816a71d91ab053a0f9b2ddca1917dc2dd3e6ce970f12ade44c6ad4fe3089b7c`, unpacked 실행 파일 SHA-256 `beaf8eec757654194267eda7c1d0544989b0c2cbb95601b8c6cb557eb70e5c31`, 소스 해시 `37b359d4663f17ff8f2368ebe3d35fe4acffb6cf44747bdd5c8129cda139a781`.
 - [x] 두 독립 검토가 Windows x64 범위의 차단 결함 0건을 확인했다. 작성 커밋 `6b259a0715fc10631c6f7c86b14cfacde1e64ed8`을 통합 브랜치에 `5fb7e6fa8e40547fdc48df92fa96590358f52aed`으로 반영했다. 기존 RED 원시 로그와 사전 구현 해시는 남아 있지 않음을 증거에 명시했으며, 검증용 패키지는 서명하지 않았다.
 - [ ] macOS arm64 `.app`, Linux x64 AppImage 및 CI의 세 필수 플랫폼 직접 실행 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54)와 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남긴다. 이 Windows 결과를 릴리스 승인으로 사용하지 않는다.
+
+## S23 완료 기록 — 통합 제품의 단일 SQLite 작성자
+
+- [x] [#66 최종 콜드 감사](../analysis/2026-09-29-s23d-ecfbbd96baaf-1790626302867.json): 통합 커밋 `3dfd72fec1782d4b09bb051e8155b16c407afe66`의 sourceHash `ecfbbd96baaf33f983fbcc35981181dcc2c3628bbce5d2dcb2cced8dc8c8f679`에서 S26의 실제 Electron 두 수명주기와 추가 콜드 실행을 포함한 83 assertions가 통과했다. 원장·키워드 DB의 쓰기 open 14건과 추적 SQL 쓰기 5,315건은 장기 owner에서만 발생했고 main/short writer는 0건이었다. source·keyword 손상 재확인은 읽기 전용이며 실패·취소 재빌드는 이전 커밋 세대·논리 checksum·본문 검색·source 사실을 보존했다. 원시 추적 SHA-256은 `83a2904b52009b9d811c04843eb763450a0f32eaa4435844171cb6678d34a327`이다.
+- [x] [동일 통합 해시의 회귀 기록](../analysis/2026-09-29-s23d-integrated-regressions-ecfbbd96.json): S17/S19/S20/S23/S25는 각각 exit 0, PASS 32/47/23/45/16이었다. [호출 목록](../analysis/2026-09-29-s23d-caller-inventory.md)은 아직 사용되는 짧은 worker·S17/S19 독자를 보존하고 존재하지 않는 saga/grant/coordinator를 no-op으로 판정한다. #66의 실패 보고 거짓 성공을 재현·수정한 뒤 두 독립 검토와 통합 검토에서 차단 결함 0건을 확인했다.
+- [x] 작성 커밋 `2a242b9faa273a5d03476cf44de4aaf73d272251`을 통합 커밋 `3dfd72fec1782d4b09bb051e8155b16c407afe66`으로 반영하고, 증거만 추가한 `804d58edf35faa13551ed760ba19c9a08bf992ae`에서 상위 [#46](https://github.com/ice3x2/DocuLightViewer/issues/46)의 여섯 완료 조건을 독립 감사한 뒤 닫았다. 사용자 명시 삭제 동작은 실패 롤백과 구분해 유지했다. 관련 SRS를 근거 없이 일괄 verified로 올리지 않았다.
+- [ ] [#44 S21](https://github.com/ice3x2/DocuLightViewer/issues/44)의 저장·상태 UX와 [#50 S27](https://github.com/ice3x2/DocuLightViewer/issues/50)의 독립 핵심 검토는 별도 완료 조건으로 남는다.
