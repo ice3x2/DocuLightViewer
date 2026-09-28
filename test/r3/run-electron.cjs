@@ -5,7 +5,7 @@ const { createRequire } = require('node:module');
 const { spawnSync } = require('node:child_process');
 const { sourceRoot, sourceHash, validateRoot, PREPARE, electronAppEnv, electronExitCode } = require('./runtime.cjs');
 
-const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs'), require('./cases/s22.cjs'), require('./cases/s24-electron.cjs'), require('./scenarios/s26.cjs'), require('./scenarios/s22-product.cjs')];
+const cases = [require('./cases/harness-self.cjs'), require('./cases/s06.cjs'), require('./cases/s07-electron.cjs'), require('./cases/s21.cjs'), require('./cases/s22.cjs'), require('./cases/s24-electron.cjs'), require('./scenarios/s26.cjs'), require('./scenarios/s23d.cjs'), require('./scenarios/s22-product.cjs')];
 const name = process.argv.length === 4 && process.argv[2] === '--scenario' ? process.argv[3] : '';
 const names = cases.map(item => item.name);
 if (new Set(names).size !== names.length || !names.includes(name)) {
@@ -26,7 +26,7 @@ if (new Set(names).size !== names.length || !names.includes(name)) {
         throw new Error('packaged S22 executable or app.asar missing');
       }
       const executable = packagedExecutable || createRequire(path.join(root, 'package.json'))('electron');
-      if (name === 's26' || name === 's22-product') {
+      if (name === 's26' || name === 's23d' || name === 's22-product') {
         const { run } = require('./dispatch.cjs');
         run(cases, name, { setup: async () => ({ executable, root,
           sourceHash: check.manifest.sourceHash, packaged: Boolean(packagedExecutable) }) })

@@ -104,8 +104,13 @@ function keywordSnapshot(executable, root, keywordPath, store, marker) {
     const db=index.open();const generation=index.getCommittedGeneration();
     const hitCount=index.search(process.env.DOCULIGHT_R3_MARKER).length;
     const documentCount=db.prepare('SELECT COUNT(*) AS count FROM keyword_documents').get().count;
+    const rows=db.prepare('SELECT file_path, content_hash FROM keyword_documents ORDER BY file_path').all();
+    const segments=db.prepare('SELECT file_path, search_text FROM keyword_segments ORDER BY file_path, ordinal').all();
+    const logicalChecksum=require('node:crypto').createHash('sha256')
+      .update(JSON.stringify({rows,segments})).digest('hex');
     const integrity=db.pragma('quick_check(1)',{simple:true});
-    console.log(JSON.stringify({generation:generation?.generationId||null,hitCount,documentCount,integrity}));
+    console.log(JSON.stringify({generation:generation?.generationId||null,logicalChecksum,
+      hitCount,documentCount,integrity}));
     index.close();`;
   const result = spawnSync(executable, ['-e', code], { cwd: root, encoding: 'utf8', timeout: 5000,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DOCULIGHT_R3_KEYWORD_READ_PATH: keywordPath,
@@ -129,6 +134,7 @@ async function openExternal(executable, root, env, filePath) {
     stdio: ['ignore', 'pipe', 'pipe'] });
   const code = await waitForExit(child, 10000);
   if (code !== 0) throw new Error(`S26_SETUP_OPEN_EXTERNAL exit=${code}`);
+  return child.pid;
 }
 
 function redactedCommandLine(commandLine, root) {
@@ -165,12 +171,18 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     oldQuery, newQuery,
     fixtureSeed: marker, firstSha256: sha(firstBytes),
     firstBytes: firstBytes.length, electronVersion: require(path.join(root, 'node_modules/electron/package.json')).version,
-    nodeVersion: process.version, platform: process.platform, arch: process.arch, runs: [] };
+    nodeVersion: process.version, platform: process.platform, arch: process.arch, runs: [], secondaryPids: [] };
   let child;
   try {
     const env = { ...process.env, DOCULIGHT_PROFILE: 'dev',
       DOCULIGHT_DEV_USER_DATA_DIR: userData, DOCULIGHT_DEV_IPC_PATH: ipcPath,
       DOCULIGHT_R3_TEST_LIFECYCLE: '1', DOCULIGHT_LOCALE: 'en' };
+    if (process.env.DOCULIGHT_S23D_PRODUCT_TRACE) {
+      env.DOCULIGHT_S23D_TRACE = process.env.DOCULIGHT_S23D_PRODUCT_TRACE;
+      env.DOCULIGHT_S23D_SOURCE_HASH = sourceHash;
+      env.NODE_OPTIONS = `${env.NODE_OPTIONS || ''} --require=${path.join(root, 'test/r3/sqlite-audit-preload.cjs')}`.trim();
+      delete env.DOCULIGHT_S23D_PRODUCT_TRACE;
+    }
     delete env.ELECTRON_RUN_AS_NODE;
     child = spawn(executable, [root, '--profile=dev', '--r3-test-lifecycle'], { cwd: root, env,
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
@@ -227,7 +239,7 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     assert(controlTerminal?.status === 'completed',
       'S26 durable queued save reaches a separate terminal indexing job');
     evidence.controlSave.terminalStatus = controlTerminal.status;
-    await openExternal(executable, root, env, externalAFile);
+    evidence.secondaryPids.push(await openExternal(executable, root, env, externalAFile));
     const opened = await until('opened original indexed', 15000, async () => {
       const snapshot = ledgerSnapshot(executable, root, ledgerPath);
       return snapshot.docs.find(doc => doc.relative_path.startsWith('.opened/') && doc.completed_revision > 0) || null;
@@ -235,7 +247,7 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     evidence.openedDocumentId = opened.document_id;
     const oldIndexed = await tool(port, 'search_documents', { query: oldQuery });
     assert(hasSearchHit(oldIndexed, old), 'S26 first-run public keyword search finds OLD original');
-    await openExternal(executable, root, env, externalBFile);
+    evidence.secondaryPids.push(await openExternal(executable, root, env, externalBFile));
     const aliases = await until('two original aliases', 15000, async () => {
       const snapshot = ledgerSnapshot(executable, root, ledgerPath);
       const rows = snapshot.aliases.filter(alias => alias.document_id === opened.document_id);
@@ -256,7 +268,7 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     const viewerId = /windowId: ([^\s]+)/.exec(searchText(openedViewer))?.[1];
     assert(viewerId, 'S26 real open_markdown returns a viewer identity');
     const beforeFocus = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
-    await openExternal(executable, root, env);
+    evidence.secondaryPids.push(await openExternal(executable, root, env));
     const afterFocus = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
     evidence.mainSqlite.focus = { before: beforeFocus.result, after: afterFocus.result };
     assert(afterFocus.result?.sqliteOpenCalls === beforeFocus.result?.sqliteOpenCalls,
@@ -269,6 +281,17 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       'S26 real search_projects route is available');
     assert((await tool(port, 'smart_search', { query: marker })).content?.length > 0,
       'S26 real smart_search route is available');
+    if (process.env.DOCULIGHT_S23D_PRODUCT_TRACE) {
+      const matching = await tool(port, 'smart_search', { query: `${marker}seed`,
+        mode: 'keyword', filters: { project: 's26-project', category: 's26-category',
+          documentTags: ['s26-tag'] } });
+      const excluded = await tool(port, 'smart_search', { query: `${marker}seed`,
+        mode: 'keyword', filters: { project: 's26-unmatched' } });
+      assert(JSON.stringify(matching).includes(payload.documentId)
+        && !JSON.stringify(excluded).includes(payload.documentId),
+      'S23d public smart_search accepts matching filters and excludes an unmatched project');
+      evidence.smartSearchFilters = { matchingDocument: true, unmatchedProjectExcluded: true };
+    }
     const beforeClose = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
     await tool(port, 'close_viewer', { windowId: viewerId });
     const closedMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
@@ -280,6 +303,14 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     evidence.publicToolsCalled = 8;
     const settingsReady = await privateAction(ipcPath, 'r3_test_settings_probe');
     assert(settingsReady.result?.ready === true, 'S26 real Settings renderer and preload are ready');
+    if (process.env.DOCULIGHT_S23D_PRODUCT_TRACE) {
+      const retryCheck = await privateAction(ipcPath, 'r3_test_settings_retry_check');
+      assert(retryCheck.result?.started === false && retryCheck.result?.scheduled === false
+        && retryCheck.result?.reason === 'check-not-available',
+      'S23d healthy Settings retry-check is denied without a writable DB open');
+      evidence.settingsRetryCheck = { started: retryCheck.result.started,
+        scheduled: retryCheck.result.scheduled, reason: retryCheck.result.reason };
+    }
     const importRoot = path.join(fixture, 'linked-import');
     fs.mkdirSync(importRoot);
     const entryBytes = Buffer.from('# Import entry\n\n[Completed](./completed.md)\n[Missing](./missing.md)\n');
@@ -319,7 +350,7 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     const containedPath = path.join(store, 'contained-open.md');
     const containedBytes = Buffer.from(`# S26 contained open\n\n${marker}contained\n`);
     fs.writeFileSync(containedPath, containedBytes);
-    await openExternal(executable, root, env, containedPath);
+    evidence.secondaryPids.push(await openExternal(executable, root, env, containedPath));
     const contained = await eventually(10000, () => {
       const snapshot = ledgerSnapshot(executable, root, ledgerPath);
       return snapshot.docs.find(doc => doc.relative_path === 'contained-open.md') || null;
@@ -336,7 +367,7 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     assert(updatedBytes.length < 10 * 1024 * 1024 && !updatedText.includes(old),
       'S26 NEW revision is within supported save bound and excludes OLD');
     fs.writeFileSync(externalAFile, updatedBytes);
-    await openExternal(executable, root, env, externalAFile);
+    evidence.secondaryPids.push(await openExternal(executable, root, env, externalAFile));
     const active = await until('owner active NEW revision', 15000, async () => {
       const response = await privateAction(ipcPath, 'r3_test_owner_snapshot');
       return response.result?.active && response.result?.phase === 'index_document' ? response.result : null;
@@ -545,9 +576,13 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
       const commandLine = processCommandLine(child.pid);
       if (commandLine.includes(path.basename(executable)) && commandLine.includes(root)) child.kill();
     }
-    const artifact = path.resolve(__dirname, '../../../docs/analysis/2026-09-25-s26-electron-integration-samples.json');
+    const artifact = process.env.DOCULIGHT_S23D_ROUTE_EVIDENCE
+      || path.resolve(__dirname, '../../../docs/analysis/2026-09-25-s26-electron-integration-samples.json');
     fs.mkdirSync(path.dirname(artifact), { recursive: true });
     fs.writeFileSync(artifact, `${JSON.stringify(evidence, null, 2)}\n`);
     console.error(`S26_EVIDENCE ${JSON.stringify(evidence)}`);
   }
-} };
+  return { fixture, userData, store, marker, newMarker: newer, newQuery,
+    openedDocumentId: evidence.openedDocumentId };
+}, helpers: { rpc, tool, privateAction, ledgerSnapshot, keywordSnapshot,
+  waitForExit, until, eventually, hasSearchHit, searchText } };

@@ -1,0 +1,136 @@
+{
+  "sourceHash": "664d10d939176aebed18f2443094ef0bd0162957da24f9b3a534084069add7a0",
+  "headSha": "422fdd1360ecb2597184bb30b8ef321132abf474",
+  "status": "routes_completed",
+  "attemptedRoute": "complete",
+  "attemptedOutcome": "passed",
+  "productPids": [
+    106672,
+    135100,
+    153792,
+    116284,
+    129980,
+    71124,
+    147408,
+    115716,
+    82112,
+    135088,
+    138852,
+    133280,
+    81336
+  ],
+  "counts": {
+    "checker:open:ro": 3,
+    "checker:open_attempt:ro": 3,
+    "main:open:ro": 59,
+    "main:open_attempt:ro": 59,
+    "main:pragma_assignment:ro": 1,
+    "owner:open:ro": 15,
+    "owner:open:rw": 14,
+    "owner:open_attempt:ro": 15,
+    "owner:open_attempt:rw": 14,
+    "owner:pragma_assignment:ro": 1,
+    "owner:pragma_assignment:rw": 70,
+    "owner:write:rw": 5315
+  },
+  "readOnlyPragmaAssignments": [
+    {
+      "role": "owner",
+      "dbBasename": "search-index.sqlite3",
+      "pragmaName": "journal_mode"
+    },
+    {
+      "role": "main",
+      "dbBasename": "search-index.sqlite3",
+      "pragmaName": "journal_mode"
+    }
+  ],
+  "publicToolsCalled": 8,
+  "routeEvidence": "2026-09-29-s23d-664d10d93917-1790625742644-routes.json",
+  "extraRoutes": {
+    "baseline": {
+      "generation": "generation-6693d965-0ff6-4444-a8f2-1cd2dc59b407",
+      "logicalChecksum": "05f8ca687790a5ca945e8330137a8d765f0294a14eed3e601496f2770abae63b",
+      "bodyHit": 4,
+      "compactReason": "compact-rebuild-required",
+      "sourceFactsSha256": "923b9868d7de0dd0c629592d53e112a63ff778b78218d2e433971627dd84bef1",
+      "publicSearchHit": true
+    },
+    "incrementalCompact": {
+      "reason": "compact-deferred",
+      "logicalChecksum": "05f8ca687790a5ca945e8330137a8d765f0294a14eed3e601496f2770abae63b"
+    },
+    "precommitFault": {
+      "jobStatus": "failed",
+      "generation": "generation-6693d965-0ff6-4444-a8f2-1cd2dc59b407",
+      "logicalChecksum": "05f8ca687790a5ca945e8330137a8d765f0294a14eed3e601496f2770abae63b",
+      "bodyHit": 4
+    },
+    "retry": {
+      "jobStatus": "completed",
+      "generation": "generation-047706c3-f7e1-4c14-9f92-7aa143b2dcc9",
+      "logicalChecksum": "05f8ca687790a5ca945e8330137a8d765f0294a14eed3e601496f2770abae63b",
+      "bodyHit": 4
+    },
+    "rebuildCancel": {
+      "jobStatus": "cancelled",
+      "generation": "generation-047706c3-f7e1-4c14-9f92-7aa143b2dcc9",
+      "logicalChecksum": "05f8ca687790a5ca945e8330137a8d765f0294a14eed3e601496f2770abae63b",
+      "bodyHit": 4
+    },
+    "sourceRetryCheck": {
+      "started": true,
+      "terminalState": "CORRUPT_DEGRADED",
+      "diagnosticCode": "source_ledger_corrupt"
+    },
+    "keywordRetryCheck": {
+      "started": true,
+      "terminalState": "INTERRUPTED",
+      "diagnosticCode": "keyword_index_corrupt",
+      "sourceFactsSha256": "923b9868d7de0dd0c629592d53e112a63ff778b78218d2e433971627dd84bef1",
+      "sourceBytesSha256": "c41de32f7b73928a16d59adb9dbf54dd482147f08cbe6d8af31f8eafe0f06065",
+      "keywordCorruptSha256": "11626154acb504b3d0f0358f9e67e428cd1abcd10671466137e2f78ba761576c",
+      "publicSearchHit": false
+    }
+  },
+  "extraRuns": [
+    {
+      "name": "baseline",
+      "pid": 153792,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "incremental-compact",
+      "pid": 116284,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "precommit-fault",
+      "pid": 129980,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "retry-success",
+      "pid": 71124,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "rebuild-cancel",
+      "pid": 147408,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "source-corrupt-check",
+      "pid": 115716,
+      "port": 32581,
+      "expectedWriter": false
+    }
+  ],
+  "rawJsonl": "2026-09-29-s23d-664d10d93917-1790625742644.jsonl",
+  "rawSha256": "a8f0dc70841fc1657099a54cac1178bbd7f84b2b910547dbaab068daffde78e8"
+}
