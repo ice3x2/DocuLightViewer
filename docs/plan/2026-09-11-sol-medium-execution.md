@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S29 #52](https://github.com/ice3x2/DocuLightViewer/issues/52) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46), [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53). S21과 S23은 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46), [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54). S21과 S23은 부분 커밋 뒤에도 열린 상태다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `26/36` 완료(S01~S20, S22, S24~S26, S28~S29)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S29는 다섯 공개 태그의 원장 forward-open·재시작·cache 재구축을 확인했다. S21과 S23은 상태 조합·최종 writer 감사가 남아 열려 있으며, 다음 릴리스 단계는 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53)이다.
+실행 이슈는 `27/36` 완료(S01~S20, S22, S24~S26, S28~S30)다. S30은 Windows x64 portable·unpacked 패키지의 native owner, 저장·검색·취소·정상 종료를 검증했다. S21과 S23은 상태 조합·최종 writer 감사가 남아 열려 있으며, macOS·Linux 실제 산출물과 CI 필수 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -303,4 +303,10 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S29 작성·RED/GREEN 증거](../analysis/2026-09-29-s29-forward-open-evidence-r7.json): 다섯 공개 태그 fixture를 복사한 뒤 현재 장기 owner로 세 번씩 열었다. 경로 이력·원본 별칭·사용자 metadata·작업 이력과 태그 API로 만든 파생 데이터를 색인 전후 분리해 비교했다. 두 pending 작업은 최신 revision으로 수렴했고, keyword cache 삭제·재구축 뒤에도 같은 documentId가 검색됐다. 변경된 전체 재구축은 오래된 링크·분류를 새 본문으로 갱신하면서 사용자 원장은 보존한다. 실제 pre-fix metadata/edge 손실 RED와 잘못된 fixture 벡터의 harness RED를 구분해 기록했다.
 - [x] [통합 실행 증거](../analysis/2026-09-29-s29-integration-evidence.md): 작성 커밋 `f7a8d243e5c593a05bf0b6b7bffc5d777373351b`을 `299e356e7952459e73b184b21fef86a22570bf0a`으로 통합했고, 별도 검증 worktree의 S29 exit 0과 S17 32/S19 47/S20 23/S23 45 assertions를 원시 결과와 묶었다. 두 독립 검토가 차단 지적을 고친 뒤 통과했고 [#52](https://github.com/ice3x2/DocuLightViewer/issues/52)를 닫았다. 공개 HTTP 실제 요청은 이 결과만으로 주장하지 않으며, 개별 SRS를 증거 없이 verified로 승급하지 않는다.
-- [ ] 설치 패키지의 native owner smoke와 최종 release canary는 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) 이후 별도 게이트다. #44/#46도 계속 OPEN이다.
+- [ ] 최종 release canary는 Windows native owner smoke를 마친 [S30 #53](https://github.com/ice3x2/DocuLightViewer/issues/53) 이후 별도 게이트다. #44/#46도 계속 OPEN이다.
+
+## S30 완료 기록 — Windows x64 설치 산출물의 native owner
+
+- [x] [Windows x64 portable·unpacked 원시 보고서](../analysis/2026-09-29-s30-package-smoke-evidence.json): 선택한 portable 실행 파일과 기존 unpacked 앱을 각각 격리 프로필로 직접 실행했다. Electron ABI 130의 SQLite/HNSW native load, 장기 owner의 두 DB open, main writable open 0, 저장한 문서의 색인·검색, 색인 중 상태·취소, 취소 및 저장 후 실패에서 Markdown 보존·재시도 의도, 실제 앱 PID 종료·프로필 삭제를 확인했다. portable SHA-256 `9816a71d91ab053a0f9b2ddca1917dc2dd3e6ce970f12ade44c6ad4fe3089b7c`, unpacked 실행 파일 SHA-256 `beaf8eec757654194267eda7c1d0544989b0c2cbb95601b8c6cb557eb70e5c31`, 소스 해시 `37b359d4663f17ff8f2368ebe3d35fe4acffb6cf44747bdd5c8129cda139a781`.
+- [x] 두 독립 검토가 Windows x64 범위의 차단 결함 0건을 확인했다. 작성 커밋 `6b259a0715fc10631c6f7c86b14cfacde1e64ed8`을 통합 브랜치에 `5fb7e6fa8e40547fdc48df92fa96590358f52aed`으로 반영했다. 기존 RED 원시 로그와 사전 구현 해시는 남아 있지 않음을 증거에 명시했으며, 검증용 패키지는 서명하지 않았다.
+- [ ] macOS arm64 `.app`, Linux x64 AppImage 및 CI의 세 필수 플랫폼 직접 실행 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54)와 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남긴다. 이 Windows 결과를 릴리스 승인으로 사용하지 않는다.
