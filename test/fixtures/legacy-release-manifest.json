@@ -1,0 +1,280 @@
+{
+  "formatVersion": 1,
+  "releases": [
+    {
+      "tag": "v1.0.0",
+      "commitSha": "ed8234b6a50e6983b87b9f01860c9a8acdb0209b",
+      "inputs": [
+        {
+          "path": "src/main/source-ledger-store.js",
+          "sha256": "0f5e29d53d8565897c06a4a4dba78d5d7de3d7a8d9c3fad14137e4e4798653e1"
+        },
+        {
+          "path": "src/main/redaction.js",
+          "sha256": "1c21f8fd1738625831aa15042e4a988d8a1e3aec423f79b48f355a2855878605"
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "sha256": "3e79596dd67c0b1081b0a2cceafbd70dde976166631f83433c44b4ffbdf394ec"
+        },
+        {
+          "path": "src/main/search-tokenizer.js",
+          "sha256": "b02b241266da95245dde96b0097a3547d0fa43531c724a0bfaec0f09772d655e"
+        },
+        {
+          "path": "src/main/tokenizer.js",
+          "sha256": "ffa097a9dcdca6190f0a311910582915cbc43ddc225eb981d15a47426b5ccc10"
+        }
+      ],
+      "syntheticInputSha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+      "generator": "node scripts/build-legacy-release-fixtures.js",
+      "generatorVersion": 1,
+      "schemaVersion": 1,
+      "sanitization": "synthetic fixed paths and content; no private input",
+      "supportedScope": [
+        "documents",
+        "hash-only source aliases",
+        "index jobs",
+        "link edges",
+        "keyword derived cache"
+      ],
+      "outputs": [
+        {
+          "path": "legacy-release/v1.0.0/source-ledger.sqlite",
+          "sha256": "da29daedebbfb411b7e199c8ddf217f12f655e3132ff56b66e059b8829af538e",
+          "size": 184320
+        },
+        {
+          "path": "legacy-release/v1.0.0/search-index.sqlite3",
+          "sha256": "ff2f3f4735c2cefcd1f9a6d0bfd1ca3d1699df0015cb750ef75400e78e3f59b7",
+          "size": 77824
+        },
+        {
+          "path": "legacy-release/v1.0.0/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+          "size": 42
+        }
+      ]
+    },
+    {
+      "tag": "v1.0.2",
+      "commitSha": "d0ca7fee4b70fc5beb8d427b4d7dac3fcde0f93b",
+      "inputs": [
+        {
+          "path": "src/main/source-ledger-store.js",
+          "sha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92"
+        },
+        {
+          "path": "src/main/redaction.js",
+          "sha256": "1c21f8fd1738625831aa15042e4a988d8a1e3aec423f79b48f355a2855878605"
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "sha256": "3e79596dd67c0b1081b0a2cceafbd70dde976166631f83433c44b4ffbdf394ec"
+        },
+        {
+          "path": "src/main/search-tokenizer.js",
+          "sha256": "b02b241266da95245dde96b0097a3547d0fa43531c724a0bfaec0f09772d655e"
+        },
+        {
+          "path": "src/main/tokenizer.js",
+          "sha256": "ffa097a9dcdca6190f0a311910582915cbc43ddc225eb981d15a47426b5ccc10"
+        }
+      ],
+      "syntheticInputSha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+      "generator": "node scripts/build-legacy-release-fixtures.js",
+      "generatorVersion": 1,
+      "schemaVersion": 1,
+      "sanitization": "synthetic fixed paths and content; no private input",
+      "supportedScope": [
+        "documents",
+        "hash-only source aliases",
+        "index jobs",
+        "link edges",
+        "keyword derived cache"
+      ],
+      "outputs": [
+        {
+          "path": "legacy-release/v1.0.2/source-ledger.sqlite",
+          "sha256": "5721517dbbeade5787b219a562fdfb212b9ddaa205a4cd229b34c9953d6b5cc7",
+          "size": 188416
+        },
+        {
+          "path": "legacy-release/v1.0.2/search-index.sqlite3",
+          "sha256": "74a7679b60c85a620bbd7c88c4ad449f38ed786b851198f1272a5658627f49a0",
+          "size": 77824
+        },
+        {
+          "path": "legacy-release/v1.0.2/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+          "size": 42
+        }
+      ]
+    },
+    {
+      "tag": "v1.0.3",
+      "commitSha": "821b130b9f72d428766e85483687f9f260dfb0b5",
+      "inputs": [
+        {
+          "path": "src/main/source-ledger-store.js",
+          "sha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92"
+        },
+        {
+          "path": "src/main/redaction.js",
+          "sha256": "1c21f8fd1738625831aa15042e4a988d8a1e3aec423f79b48f355a2855878605"
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "sha256": "3e79596dd67c0b1081b0a2cceafbd70dde976166631f83433c44b4ffbdf394ec"
+        },
+        {
+          "path": "src/main/search-tokenizer.js",
+          "sha256": "b02b241266da95245dde96b0097a3547d0fa43531c724a0bfaec0f09772d655e"
+        },
+        {
+          "path": "src/main/tokenizer.js",
+          "sha256": "ffa097a9dcdca6190f0a311910582915cbc43ddc225eb981d15a47426b5ccc10"
+        }
+      ],
+      "syntheticInputSha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+      "generator": "node scripts/build-legacy-release-fixtures.js",
+      "generatorVersion": 1,
+      "schemaVersion": 1,
+      "sanitization": "synthetic fixed paths and content; no private input",
+      "supportedScope": [
+        "documents",
+        "hash-only source aliases",
+        "index jobs",
+        "link edges",
+        "keyword derived cache"
+      ],
+      "outputs": [
+        {
+          "path": "legacy-release/v1.0.3/source-ledger.sqlite",
+          "sha256": "c8d3411556398ff05a524fee506165d96fe4469af25a6f96823c52361ba0d551",
+          "size": 188416
+        },
+        {
+          "path": "legacy-release/v1.0.3/search-index.sqlite3",
+          "sha256": "c6ec4d87ddda2289d90cb56f38a2096b3a6cd38681a7566d85f588063f05bfa0",
+          "size": 77824
+        },
+        {
+          "path": "legacy-release/v1.0.3/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+          "size": 42
+        }
+      ]
+    },
+    {
+      "tag": "v1.0.4",
+      "commitSha": "6fd7f97e5717bfeb5926ad29401b447c245911a0",
+      "inputs": [
+        {
+          "path": "src/main/source-ledger-store.js",
+          "sha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92"
+        },
+        {
+          "path": "src/main/redaction.js",
+          "sha256": "1c21f8fd1738625831aa15042e4a988d8a1e3aec423f79b48f355a2855878605"
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "sha256": "3e79596dd67c0b1081b0a2cceafbd70dde976166631f83433c44b4ffbdf394ec"
+        },
+        {
+          "path": "src/main/search-tokenizer.js",
+          "sha256": "b02b241266da95245dde96b0097a3547d0fa43531c724a0bfaec0f09772d655e"
+        },
+        {
+          "path": "src/main/tokenizer.js",
+          "sha256": "ffa097a9dcdca6190f0a311910582915cbc43ddc225eb981d15a47426b5ccc10"
+        }
+      ],
+      "syntheticInputSha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+      "generator": "node scripts/build-legacy-release-fixtures.js",
+      "generatorVersion": 1,
+      "schemaVersion": 1,
+      "sanitization": "synthetic fixed paths and content; no private input",
+      "supportedScope": [
+        "documents",
+        "hash-only source aliases",
+        "index jobs",
+        "link edges",
+        "keyword derived cache"
+      ],
+      "outputs": [
+        {
+          "path": "legacy-release/v1.0.4/source-ledger.sqlite",
+          "sha256": "18e723c45fa107001464781a7257fcf21d4736c16a1cbd6d73aaa3000e5e9ebc",
+          "size": 188416
+        },
+        {
+          "path": "legacy-release/v1.0.4/search-index.sqlite3",
+          "sha256": "9cce9608902b08b6bdbfaed1f9767c66983384590af6df7d6440da60bfdfa938",
+          "size": 77824
+        },
+        {
+          "path": "legacy-release/v1.0.4/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+          "size": 42
+        }
+      ]
+    },
+    {
+      "tag": "v1.0.5",
+      "commitSha": "c7acda83366b6fe4c9fc14b75cab3398584b2c00",
+      "inputs": [
+        {
+          "path": "src/main/source-ledger-store.js",
+          "sha256": "2d2e2f1a637a59c8eecff7e5d896d9b95ffec4e2fccdf48ef9b367423667a3e6"
+        },
+        {
+          "path": "src/main/redaction.js",
+          "sha256": "1c21f8fd1738625831aa15042e4a988d8a1e3aec423f79b48f355a2855878605"
+        },
+        {
+          "path": "src/main/search-sqlite-store.js",
+          "sha256": "3e79596dd67c0b1081b0a2cceafbd70dde976166631f83433c44b4ffbdf394ec"
+        },
+        {
+          "path": "src/main/search-tokenizer.js",
+          "sha256": "b02b241266da95245dde96b0097a3547d0fa43531c724a0bfaec0f09772d655e"
+        },
+        {
+          "path": "src/main/tokenizer.js",
+          "sha256": "ffa097a9dcdca6190f0a311910582915cbc43ddc225eb981d15a47426b5ccc10"
+        }
+      ],
+      "syntheticInputSha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+      "generator": "node scripts/build-legacy-release-fixtures.js",
+      "generatorVersion": 1,
+      "schemaVersion": 1,
+      "sanitization": "synthetic fixed paths and content; no private input",
+      "supportedScope": [
+        "documents",
+        "origin-path source aliases",
+        "index jobs",
+        "link edges",
+        "keyword derived cache"
+      ],
+      "outputs": [
+        {
+          "path": "legacy-release/v1.0.5/source-ledger.sqlite",
+          "sha256": "df6df21d9b24f38c4530a0fcc83e6b5747226819dd7f216c3bd5f1f0301d1f56",
+          "size": 188416
+        },
+        {
+          "path": "legacy-release/v1.0.5/search-index.sqlite3",
+          "sha256": "4ceb84886e0de99022b74346e5d7b948922b12eaf06579d909d70e6ce7dba51e",
+          "size": 77824
+        },
+        {
+          "path": "legacy-release/v1.0.5/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb",
+          "size": 42
+        }
+      ]
+    }
+  ]
+}
