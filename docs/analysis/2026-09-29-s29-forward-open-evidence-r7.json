@@ -1,0 +1,381 @@
+{
+  "head": "0eec1242094d822b53147ec1033feb8fdd729d56",
+  "finalCommit": "PENDING_UNCOMMITTED",
+  "runtime": {
+    "nodeVersion": "v24.16.0",
+    "platform": "win32",
+    "arch": "x64",
+    "sourceHash": "08bd593a154206eb27386e213f273bd28221cabf208d1a50f5c0d447838a6500",
+    "changedFileSetHash": "7f6f769f741951d04de9cc0f3947b49aecac6d8673f6c6fdb8e44da7fa40730b",
+    "inputHashes": {
+      "src/main/source-ledger-store.js": "d4daa31cd0468bff1465c3161ac3c271eaadde11663d0bf0daa3fc8e34e4f1d4",
+      "src/main/derived-document-indexer.js": "dce9935d607238aec6780aabb956c9bbf213e49532a070293a12cb30e2e3bba4",
+      "test/test-s29-forward-open-contract.js": "a0535c8821cabcd8d19f982c6540c0b94556be52e285d9a6c287d45c7e96f542"
+    }
+  },
+  "harnessRedRun": {
+    "command": "node test/test-s29-forward-open-contract.js",
+    "exitCode": 1,
+    "assertion": "DR-DOC-014 v1.0.0 pinned vector matches model dimensions",
+    "artifact": "docs/analysis/2026-09-29-s29-pinned-augmentation-red.txt",
+    "artifactSha256": "0008199e962feb6b02715e53ef81a1c04a0dafbe99ed625ccce35fa8fbc1457d"
+  },
+  "behaviorRedReplay": {
+    "kind": "pre-fix replay",
+    "baseCommit": "0eec1242094d822b53147ec1033feb8fdd729d56",
+    "sourceHash": "208406fde95f7e0f9dd925a1d086e7db7d8d5ec43aeaf62127e1c732b8a4ed8b",
+    "command": "node test/test-s29-forward-open-contract.js",
+    "exitCode": 1,
+    "assertion": "DR-DOC-014 v1.0.0 authoritative source/alias/edge/metadata/path history after open 1",
+    "artifact": "docs/analysis/2026-09-29-s29-semantic-red-replay.json",
+    "artifactSha256": "f870108e3045900948f7a59542515399ed9ede129069351c972289fe8443084d"
+  },
+  "greenRun": {
+    "sourceHash": "08bd593a154206eb27386e213f273bd28221cabf208d1a50f5c0d447838a6500",
+    "command": "node test/test-s29-forward-open-contract.js",
+    "exitCode": 0,
+    "endMarker": "S29 five-release worker forward-open, reopen and rebuild passed",
+    "staticAssertionSites": 56,
+    "note": "Static assertion sites are not an executed assertion count; the named end marker proves the five-release path completed.",
+    "artifact": "docs/analysis/2026-09-29-s29-green-08bd593a-raw.txt",
+    "artifactSha256": "3f793867c551db28d96d33c004800306162994d6c1c51c0ed3e323227846b4bc"
+  },
+  "releases": [
+    {
+      "tag": "v1.0.0",
+      "commitSha": "ed8234b6a50e6983b87b9f01860c9a8acdb0209b",
+      "taggedApiSourceSha256": "0f5e29d53d8565897c06a4a4dba78d5d7de3d7a8d9c3fad14137e4e4798653e1",
+      "outputSha256": [
+        {
+          "path": "legacy-release/v1.0.0/source-ledger.sqlite",
+          "sha256": "da29daedebbfb411b7e199c8ddf217f12f655e3132ff56b66e059b8829af538e"
+        },
+        {
+          "path": "legacy-release/v1.0.0/search-index.sqlite3",
+          "sha256": "ff2f3f4735c2cefcd1f9a6d0bfd1ca3d1699df0015cb750ef75400e78e3f59b7"
+        },
+        {
+          "path": "legacy-release/v1.0.0/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb"
+        }
+      ],
+      "schemaBefore": "1",
+      "schemaAfter": "1",
+      "reopenCount": 3,
+      "keywordCacheDeletedAndRebuilt": true,
+      "authoritativeSnapshotBeforeSha256": "0b497b0bc2ac490952d77cd1a5fa2cb74e65f8fec8174a55fc6f433a198c360c",
+      "authoritativeSnapshotAfterSha256": "0b497b0bc2ac490952d77cd1a5fa2cb74e65f8fec8174a55fc6f433a198c360c",
+      "derivedBeforeMigrationSha256": "c99b664546b874f3de7ea28baa3760f91752419ee670c70aad06c4c855a15247",
+      "derivedAfterMigrationSha256": "c99b664546b874f3de7ea28baa3760f91752419ee670c70aad06c4c855a15247",
+      "documentId": "doc_v1_0_0",
+      "aliasCount": 2,
+      "jobStatuses": [
+        "completed",
+        "completed",
+        "cancelled",
+        "completed",
+        "completed"
+      ],
+      "keywordDocumentId": "doc_v1_0_0",
+      "sourceUsed": [
+        "indexed_copy"
+      ],
+      "redactedSearchResults": [
+        {
+          "score": 0.943662,
+          "title": "Release fixture",
+          "project": null,
+          "docName": null,
+          "docType": null,
+          "category": null,
+          "documentTags": [],
+          "description": null,
+          "date": null,
+          "snippet": "# Release fixture Synthetic origin text.",
+          "filePath": "[INDEXED_COPY]"
+        }
+      ],
+      "handlerOpenResponses": [
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded"
+      ],
+      "diagnostics": [
+        "legacy_migrated"
+      ]
+    },
+    {
+      "tag": "v1.0.2",
+      "commitSha": "d0ca7fee4b70fc5beb8d427b4d7dac3fcde0f93b",
+      "taggedApiSourceSha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92",
+      "outputSha256": [
+        {
+          "path": "legacy-release/v1.0.2/source-ledger.sqlite",
+          "sha256": "5721517dbbeade5787b219a562fdfb212b9ddaa205a4cd229b34c9953d6b5cc7"
+        },
+        {
+          "path": "legacy-release/v1.0.2/search-index.sqlite3",
+          "sha256": "74a7679b60c85a620bbd7c88c4ad449f38ed786b851198f1272a5658627f49a0"
+        },
+        {
+          "path": "legacy-release/v1.0.2/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb"
+        }
+      ],
+      "schemaBefore": "1",
+      "schemaAfter": "1",
+      "reopenCount": 3,
+      "keywordCacheDeletedAndRebuilt": true,
+      "authoritativeSnapshotBeforeSha256": "1384f1652583f3a5ff827a073f1f9c2353332996a346db6a78904be51a00e0a2",
+      "authoritativeSnapshotAfterSha256": "1384f1652583f3a5ff827a073f1f9c2353332996a346db6a78904be51a00e0a2",
+      "derivedBeforeMigrationSha256": "2ab9854dd288eb4a867082c39a251bc048622448d3314b592489a8862ba52520",
+      "derivedAfterMigrationSha256": "2ab9854dd288eb4a867082c39a251bc048622448d3314b592489a8862ba52520",
+      "documentId": "doc_v1_0_2",
+      "aliasCount": 2,
+      "jobStatuses": [
+        "completed",
+        "completed",
+        "cancelled",
+        "completed",
+        "completed"
+      ],
+      "keywordDocumentId": "doc_v1_0_2",
+      "sourceUsed": [
+        "indexed_copy"
+      ],
+      "redactedSearchResults": [
+        {
+          "score": 0.943662,
+          "title": "Release fixture",
+          "project": null,
+          "docName": null,
+          "docType": null,
+          "category": null,
+          "documentTags": [],
+          "description": null,
+          "date": null,
+          "snippet": "# Release fixture Synthetic origin text.",
+          "filePath": "[INDEXED_COPY]"
+        }
+      ],
+      "handlerOpenResponses": [
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded"
+      ],
+      "diagnostics": [
+        "legacy_migrated"
+      ]
+    },
+    {
+      "tag": "v1.0.3",
+      "commitSha": "821b130b9f72d428766e85483687f9f260dfb0b5",
+      "taggedApiSourceSha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92",
+      "outputSha256": [
+        {
+          "path": "legacy-release/v1.0.3/source-ledger.sqlite",
+          "sha256": "c8d3411556398ff05a524fee506165d96fe4469af25a6f96823c52361ba0d551"
+        },
+        {
+          "path": "legacy-release/v1.0.3/search-index.sqlite3",
+          "sha256": "c6ec4d87ddda2289d90cb56f38a2096b3a6cd38681a7566d85f588063f05bfa0"
+        },
+        {
+          "path": "legacy-release/v1.0.3/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb"
+        }
+      ],
+      "schemaBefore": "1",
+      "schemaAfter": "1",
+      "reopenCount": 3,
+      "keywordCacheDeletedAndRebuilt": true,
+      "authoritativeSnapshotBeforeSha256": "c72a2f765def42fc954abedf87c2ce792085f8759a4ac2c22879f03beb22667f",
+      "authoritativeSnapshotAfterSha256": "c72a2f765def42fc954abedf87c2ce792085f8759a4ac2c22879f03beb22667f",
+      "derivedBeforeMigrationSha256": "e19f959be2e227c00a8e7b51fb99c7f71fda86d852c8e7a292d9f70bf4bb01b8",
+      "derivedAfterMigrationSha256": "e19f959be2e227c00a8e7b51fb99c7f71fda86d852c8e7a292d9f70bf4bb01b8",
+      "documentId": "doc_v1_0_3",
+      "aliasCount": 2,
+      "jobStatuses": [
+        "completed",
+        "completed",
+        "cancelled",
+        "completed",
+        "completed"
+      ],
+      "keywordDocumentId": "doc_v1_0_3",
+      "sourceUsed": [
+        "indexed_copy"
+      ],
+      "redactedSearchResults": [
+        {
+          "score": 0.943662,
+          "title": "Release fixture",
+          "project": null,
+          "docName": null,
+          "docType": null,
+          "category": null,
+          "documentTags": [],
+          "description": null,
+          "date": null,
+          "snippet": "# Release fixture Synthetic origin text.",
+          "filePath": "[INDEXED_COPY]"
+        }
+      ],
+      "handlerOpenResponses": [
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded"
+      ],
+      "diagnostics": [
+        "legacy_migrated"
+      ]
+    },
+    {
+      "tag": "v1.0.4",
+      "commitSha": "6fd7f97e5717bfeb5926ad29401b447c245911a0",
+      "taggedApiSourceSha256": "29fcbe8ec7b07619d1a89479a58556af8460728d4b8b1b8c53dc2bd94aec5e92",
+      "outputSha256": [
+        {
+          "path": "legacy-release/v1.0.4/source-ledger.sqlite",
+          "sha256": "18e723c45fa107001464781a7257fcf21d4736c16a1cbd6d73aaa3000e5e9ebc"
+        },
+        {
+          "path": "legacy-release/v1.0.4/search-index.sqlite3",
+          "sha256": "9cce9608902b08b6bdbfaed1f9767c66983384590af6df7d6440da60bfdfa938"
+        },
+        {
+          "path": "legacy-release/v1.0.4/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb"
+        }
+      ],
+      "schemaBefore": "1",
+      "schemaAfter": "1",
+      "reopenCount": 3,
+      "keywordCacheDeletedAndRebuilt": true,
+      "authoritativeSnapshotBeforeSha256": "ac72f109df404e2b25c54a5ad6b2ed39f28f0140abe61d7fd759f599ecdcdcc5",
+      "authoritativeSnapshotAfterSha256": "ac72f109df404e2b25c54a5ad6b2ed39f28f0140abe61d7fd759f599ecdcdcc5",
+      "derivedBeforeMigrationSha256": "2bc262ec82ca50f95a5885ce9c1c7053f86f6b04e3c7376b1a178d6036b15223",
+      "derivedAfterMigrationSha256": "2bc262ec82ca50f95a5885ce9c1c7053f86f6b04e3c7376b1a178d6036b15223",
+      "documentId": "doc_v1_0_4",
+      "aliasCount": 2,
+      "jobStatuses": [
+        "completed",
+        "completed",
+        "cancelled",
+        "completed",
+        "completed"
+      ],
+      "keywordDocumentId": "doc_v1_0_4",
+      "sourceUsed": [
+        "indexed_copy"
+      ],
+      "redactedSearchResults": [
+        {
+          "score": 0.943662,
+          "title": "Release fixture",
+          "project": null,
+          "docName": null,
+          "docType": null,
+          "category": null,
+          "documentTags": [],
+          "description": null,
+          "date": null,
+          "snippet": "# Release fixture Synthetic origin text.",
+          "filePath": "[INDEXED_COPY]"
+        }
+      ],
+      "handlerOpenResponses": [
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: not_recorded"
+      ],
+      "diagnostics": [
+        "legacy_migrated"
+      ]
+    },
+    {
+      "tag": "v1.0.5",
+      "commitSha": "c7acda83366b6fe4c9fc14b75cab3398584b2c00",
+      "taggedApiSourceSha256": "2d2e2f1a637a59c8eecff7e5d896d9b95ffec4e2fccdf48ef9b367423667a3e6",
+      "outputSha256": [
+        {
+          "path": "legacy-release/v1.0.5/source-ledger.sqlite",
+          "sha256": "df6df21d9b24f38c4530a0fcc83e6b5747226819dd7f216c3bd5f1f0301d1f56"
+        },
+        {
+          "path": "legacy-release/v1.0.5/search-index.sqlite3",
+          "sha256": "4ceb84886e0de99022b74346e5d7b948922b12eaf06579d909d70e6ce7dba51e"
+        },
+        {
+          "path": "legacy-release/v1.0.5/release.md",
+          "sha256": "d1cb890fcf3b9e3ca2e8512c37ab4472ffc7b9f53b9256c8bdd3d099c7a20eeb"
+        }
+      ],
+      "schemaBefore": "1",
+      "schemaAfter": "1",
+      "reopenCount": 3,
+      "keywordCacheDeletedAndRebuilt": true,
+      "authoritativeSnapshotBeforeSha256": "ab734c072a295bfb5f532738373ccd762ec51a351e137ce3bd1c3cd504ed93d5",
+      "authoritativeSnapshotAfterSha256": "ab734c072a295bfb5f532738373ccd762ec51a351e137ce3bd1c3cd504ed93d5",
+      "derivedBeforeMigrationSha256": "9c4bec262eee6d013586ed9e604279dbbd74b89aeaf0fc62a28710c386a754aa",
+      "derivedAfterMigrationSha256": "9c4bec262eee6d013586ed9e604279dbbd74b89aeaf0fc62a28710c386a754aa",
+      "documentId": "doc_v1_0_5",
+      "aliasCount": 2,
+      "jobStatuses": [
+        "completed",
+        "completed",
+        "cancelled",
+        "completed",
+        "completed"
+      ],
+      "keywordDocumentId": "doc_v1_0_5",
+      "sourceUsed": [
+        "origin",
+        "indexed_copy"
+      ],
+      "redactedSearchResults": [
+        {
+          "score": 0.943662,
+          "title": "Release fixture",
+          "project": null,
+          "docName": null,
+          "docType": null,
+          "category": null,
+          "documentTags": [],
+          "description": null,
+          "date": null,
+          "snippet": "# Release fixture Synthetic origin text.",
+          "filePath": "[INDEXED_COPY]"
+        }
+      ],
+      "handlerOpenResponses": [
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: origin\n  originStatus: readable",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: missing",
+        "Opened viewer window.\n  windowId: fixture-window\n  title: Fixture\n  sourceUsed: indexed_copy\n  originStatus: missing"
+      ],
+      "diagnostics": [
+        "legacy_migrated"
+      ]
+    }
+  ],
+  "changedFullReset": {
+    "documentId": "doc_v1_0_5",
+    "metadataRetained": true,
+    "categoryBefore": "reference",
+    "categoryAfter": "general",
+    "edgeBefore": "missing.md",
+    "edgeAfter": "changed.md"
+  },
+  "twoPendingWinner": {
+    "documentId": "doc_v1_0_5",
+    "desiredRevision": 1,
+    "priorStatus": "cancelled",
+    "priorDiagnostic": "legacy_superseded",
+    "latestStatus": "cancelled",
+    "latestDiagnostic": "legacy_migrated",
+    "desiredContentHash": "sha256:d4ae732858b012930d0f8cf5e5a0c913abd8a27b5c68a157aee3bea9e0f3c21d"
+  },
+  "nestedRoots": {
+    "legacyNullHashNestedRootsFailClosed": true
+  }
+}
