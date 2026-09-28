@@ -1,0 +1,208 @@
+{
+  "sourceHash": "664d10d939176aebed18f2443094ef0bd0162957da24f9b3a534084069add7a0",
+  "marker": "s26a723587a84acbc9b",
+  "oldMarker": "zzzxq05a7ab5388c107d3",
+  "newMarker": "qqqjz3543f90802e24403",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s26a723587a84acbc9b",
+  "firstSha256": "c35baf449f4b0fd699cf22bb3c4ed375ebdbb62727c71ddaab722bb4a9d3aa09",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 106672,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "7db8d476280d53564c463da14866b9487f9562a25365beaaa7d7112d0ef8de30",
+      "port": 32581
+    },
+    {
+      "pid": 135100,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "7db8d476280d53564c463da14866b9487f9562a25365beaaa7d7112d0ef8de30",
+      "port": 32581
+    }
+  ],
+  "secondaryPids": [
+    82112,
+    135088,
+    138852,
+    133280,
+    81336
+  ],
+  "mainSqlite": {
+    "cold": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 0,
+      "ledgerAllocated": false,
+      "keywordReadOnly": null
+    },
+    "afterSearch": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 25,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    },
+    "focus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "close": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 68,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 68,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "settingsStatus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 75,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 75,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "restart": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 4,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    }
+  },
+  "documentId": "doc_ba6a99b375aadffffe4fe82d",
+  "sourceRelativePath": "050109518_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_cd73f6c63a1accf793e5fbfa8f930aaac1c1e2482986b06f7c16247144b6d9ec",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_9586526c10a92e48fff77591",
+  "aliasCanonicalHash": "4b349e8fada3b16537c074bfd8f553ae48d2821509f212b7615c3dbd43757772",
+  "smartSearchFilters": {
+    "matchingDocument": true,
+    "unmatchedProjectExcluded": true
+  },
+  "publicToolsCalled": 8,
+  "settingsRetryCheck": {
+    "started": false,
+    "scheduled": false,
+    "reason": "check-not-available"
+  },
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "fa165162fc2ab7e5746f336890710b5fb377c0b929dd581e02e6388735a1aea9",
+  "containedDocumentId": "doc_71beddf8d79ebc58fe25acad",
+  "cancelJobId": "job_6a348566bccea78e682cfa0d62f08aff910019c831e1af54fbb9b1a6bcddedd4",
+  "newSha256": "9032228968705ff982c7edb9a3711fb001a6d69cf384cc1ac438e38ba0572d78",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "9032228968705ff982c7edb9a3711fb001a6d69cf384cc1ac438e38ba0572d78",
+  "externalSha256AfterCancel": "9032228968705ff982c7edb9a3711fb001a6d69cf384cc1ac438e38ba0572d78",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 29682.527000000002,
+  "oldSearchText": "No results found for \"zzzxq\". (5 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "9032228968705ff982c7edb9a3711fb001a6d69cf384cc1ac438e38ba0572d78",
+  "recoveredExternalSha256": "9032228968705ff982c7edb9a3711fb001a6d69cf384cc1ac438e38ba0572d78",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ],
+  "settingsCompact": {
+    "reason": "compact-rebuild-required",
+    "beforeLogicalSha256": "1c379c315dc1a22916bfe767adbab4da1623868f076ebdd0344e4fe9907b48d5",
+    "afterLogicalSha256": "1c379c315dc1a22916bfe767adbab4da1623868f076ebdd0344e4fe9907b48d5",
+    "sourceAliasCount": 4
+  },
+  "settingsClear": {
+    "declinedReason": "confirmation-declined",
+    "started": true,
+    "terminalStatus": "completed",
+    "backupCount": 1,
+    "beforeLogicalSha256": "1c379c315dc1a22916bfe767adbab4da1623868f076ebdd0344e4fe9907b48d5",
+    "afterLogicalSha256": "2d1b1e43c8be1842404dcce42cafa9e53269507c395e6a5e6f4c286a27702897",
+    "backupLogicalSha256": "1c379c315dc1a22916bfe767adbab4da1623868f076ebdd0344e4fe9907b48d5",
+    "beforeGeneration": "incremental",
+    "afterGeneration": null,
+    "sourceDocumentCount": 5,
+    "sourceAliasCount": 4,
+    "sourceMetadataSha256": "f6b9cf4afed96cfe4fa26bb2ad4ab4e47d936da0b38bc137c50564b17c6571dc",
+    "preexistingJobCount": 7
+  },
+  "settingsMaintenance": {
+    "compact": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "compact-rebuild-required"
+    },
+    "privateRebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "retry": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "job-in-progress"
+    },
+    "rebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "clear": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    }
+  }
+}

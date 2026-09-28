@@ -1,0 +1,38 @@
+{
+  "requirementIds": ["FR-DOC-019 AC-6", "FR-DOC-019 AC-10"],
+  "sourceHash": "664d10d939176aebed18f2443094ef0bd0162957da24f9b3a534084069add7a0",
+  "baseCommit": "422fdd1360ecb2597184bb30b8ef321132abf474",
+  "semanticRed": {
+    "command": "node test/test-s23d-audit-finalization.js",
+    "exitCode": 1,
+    "assertion": "expected status scenario_failed, actual routes_completed",
+    "fixture": "runtime-injected main writable SQLite open after otherwise successful S23d routes"
+  },
+  "green": [
+    { "command": "node test/test-s23d-audit-finalization.js", "exitCode": 0, "terminal": "test-s23d-audit-finalization: all assertions passed" },
+    { "command": "node test/test-s23d-failure-evidence-contract.js", "exitCode": 0, "terminal": "test-s23d-failure-evidence-contract: all assertions passed" },
+    { "command": "node test/r3/run-electron.cjs --scenario s23d", "exitCode": 0, "terminal": "PASS case=s23d assertions=83", "runtime": "<R3_ELECTRON_ROOT>" }
+  ],
+  "coldAudit": {
+    "summary": "2026-09-29-s23d-664d10d93917-1790625742644.json",
+    "routes": "2026-09-29-s23d-664d10d93917-1790625742644-routes.json",
+    "raw": "2026-09-29-s23d-664d10d93917-1790625742644.jsonl",
+    "rawSha256": "a8f0dc70841fc1657099a54cac1178bbd7f84b2b910547dbaab068daffde78e8",
+    "status": "routes_completed",
+    "attemptedRoute": "complete",
+    "attemptedOutcome": "passed"
+  },
+  "nodeRegressionRuntime": {
+    "snapshot": "<R3_NODE_ROOT>",
+    "nodeAbi": "137",
+    "sourceHash": "664d10d939176aebed18f2443094ef0bd0162957da24f9b3a534084069add7a0"
+  },
+  "nodeRegressions": [
+    { "command": "node test/r3/run-node.cjs --case s17", "exitCode": 0, "terminal": "PASS case=s17 assertions=32" },
+    { "command": "node test/r3/run-node.cjs --case s19", "exitCode": 0, "terminal": "PASS case=s19 assertions=47" },
+    { "command": "node test/r3/run-node.cjs --case s20", "exitCode": 0, "marker": "S20_STARTUP ready_ms=378 recovered=3101 page_limit=32", "terminal": "PASS case=s20 assertions=23" },
+    { "command": "node test/r3/run-node.cjs --case s23", "exitCode": 0, "marker": "S23_EVIDENCE", "terminal": "PASS case=s23 assertions=45" },
+    { "command": "node test/r3/run-node.cjs --case s25", "exitCode": 0, "marker": "S25_ALL_ASSERTIONS_REACHED", "terminal": "PASS case=s25 assertions=16" }
+  ],
+  "earlierRegressionEvidence": "2026-09-29-s23d-final-regressions-7f89269e.json"
+}

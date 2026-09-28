@@ -1,0 +1,19 @@
+# S23d SQLite writer and short-worker caller inventory
+
+Base commit: `422fdd1360ecb2597184bb30b8ef321132abf474`
+Audited sourceHash: `664d10d939176aebed18f2443094ef0bd0162957da24f9b3a534084069add7a0`
+Requirements: FR-DOC-019 AC-6/10, DR-DOC-014, FR-DOC-035, REL-DOC-009, IR-APP-013 AC-13/15.
+
+| Candidate | Exists and reachable caller | Product replacement or boundary | Legacy reader needed | Decision |
+|---|---|---|---|---|
+| Long owner and source/keyword stores | `index.js` creates `OwnerWorkerController`; `search-owner-controller.js` starts `search-owner-worker.js`, which opens `SourceLedgerStore` and `SQLiteKeywordIndex`. | Product save and Settings maintenance use owner `accept_save`, `adopt_contained`, `query_keyword`, `manage_index`, status and cancel commands. | Owner startup calls `assertLegacyMigrationMarker`, `migrateLegacyIndexJobsPage`, and private-intent replay. | Retain; it is the sole intended product writer. |
+| Main `SearchEngine` SQLite view | `index.js` constructs `SearchEngine` with `ownerManaged: true`; search/status/origin callers still reach it. | Main keyword cache and source-ledger lookups open read-only; product maintenance routes through the owner. | Compatible keyword cache and indexed-origin/legacy lookup still need read access. | Retain the read-only view. |
+| `search-index-worker-controller.js` | Imported and constructed by `SearchEngine` unless explicitly disabled. `startRebuild`, `retryFailures`, `compact`, `clear`, cancel, semantic enqueue and status still call the controller API; tests and package smoke exercise the short worker. | Current product Settings rebuild/retry/compact/clear use owner `manage_index`; the cold product route records no short-worker writable open. | Compatibility and package-smoke worker behavior still have callers; semantic callbacks are not proven dead. | Retain. No import or message removal is justified. |
+| `search-index-worker.js` | Controller `_startJob` spawns it with `workerData.kind` for rebuild, compact, clear and semantic-document. Controller sends `cancel`; worker sends status, completed, cancelled or failed. | Long owner replaces product source/keyword mutations on the audited routes. | Worker-local `SearchEngine` and compatibility tests/package smoke still execute its document and index paths. | Retain. |
+| S19 recovery adapter | `source-ledger-store.js` reads the public-v1 `legacy_index_jobs_schema` marker and migrates old jobs in bounded pages; owner startup invokes it. | No replacement removes the legacy reader. | Yes: old journal/job rows and their original document facts remain readable. | Retain. |
+| S17 partial-import replay | Owner startup schedules private-intent replay and keeps completed imported files. | No replacement proven. | Yes: interrupted linked-import/save intents still need replay. | Retain. |
+| Candidate saga owner, candidate IO worker, indexing-worker runtime, graph coordinator, cross-worker root grant | `git ls-tree`/`rg --files` find no matching module under `src/main`; no import or message caller exists in this checkout. | No replacement needed. | None for these absent modules. | Absent/no-op; create no deletion diff. |
+
+The short controller is constructed but is not proven dead. The product cold audit, package smoke caller, and S17/S19 recovery checks are the evidence boundary for retaining it. The inventory does not authorize deleting user Markdown, SQLite files, sidecars, recovery intents or historical evidence.
+
+The final cold product audit exercised source-corrupt `CORRUPT_DEGRADED` retry-check, then restored the source DB offline while the app remained open, corrupted the keyword DB offline, and used real Settings `retry_check` to reach `INTERRUPTED/keyword_index_corrupt` through the read-only checker. Source facts, source bytes, and corrupt keyword bytes were preserved; public keyword search had no hit. The exact-hash report is `2026-09-29-s23d-664d10d93917-1790625742644.json`.

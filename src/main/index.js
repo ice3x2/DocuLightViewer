@@ -269,6 +269,12 @@ searchEngine.getSaveDocumentOwner = async (storeRoot) => {
       ledgerPath: path.join(runtimeProfile.indexDataDir, 'smart-search.sqlite3'),
       keywordPath: path.join(runtimeProfile.indexDataDir, SQLITE_INDEX_FILENAME),
       sourceRoot, publicationRoot, ingressRoot, deriveDocuments: true,
+      r3MaintenanceFaultBeforeCommit: process.env.DOCULIGHT_R3_TEST_LIFECYCLE === '1'
+        && process.argv.includes('--r3-test-lifecycle')
+        && process.env.DOCULIGHT_S23D_FAULT_PRECOMMIT === '1',
+      r3MaintenancePageDelayMs: process.env.DOCULIGHT_R3_TEST_LIFECYCLE === '1'
+        && process.argv.includes('--r3-test-lifecycle')
+        ? Math.min(100, Math.max(0, Number(process.env.DOCULIGHT_S23D_PAGE_DELAY_MS) || 0)) : 0,
       onStatus: snapshot => searchEngine.onOwnerStatus(snapshot)
     });
   }
@@ -2476,6 +2482,7 @@ async function handleIpcMessage(socket, msg) {
       case 'r3_test_settings_import':
       case 'r3_test_settings_rebuild':
       case 'r3_test_settings_retry':
+      case 'r3_test_settings_retry_check':
       case 'r3_test_settings_compact':
       case 'r3_test_settings_clear':
       case 'r3_test_settings_clear_decline':
@@ -2516,6 +2523,7 @@ async function handleIpcMessage(socket, msg) {
               r3_test_settings_cancel: 'window.doclight.cancelIndexingJob()',
               r3_test_settings_rebuild: 'window.doclight.startIndexingRebuild()',
               r3_test_settings_retry: 'window.doclight.retryIndexingFailures()',
+              r3_test_settings_retry_check: 'window.doclight.retryIndexHealthCheck()',
               r3_test_settings_compact: 'window.doclight.compactSearchIndex()'
             }[action]);
         }
@@ -3097,7 +3105,8 @@ function registerIpcHandlers() {
       return saveDocumentOwner.cancelRetryCheck().then(result => ({ ...result,
         status: getIndexingStatusPayload() }));
     }
-    if (ownerStatus?.active && ownerStatus.phase === 'index_document' && ownerStatus.jobId) {
+    if (ownerStatus?.active && ownerStatus.jobId
+      && (ownerStatus.phase === 'index_document' || ownerStatus.kind === 'rebuild')) {
       return saveDocumentOwner.cancel(ownerStatus.jobId);
     }
     if (ownerStatus?.active) return { cancelled: false, reason: 'not-available',
