@@ -1,0 +1,263 @@
+{
+  "issue": 63,
+  "order": 2,
+  "seed": "2600010000000002",
+  "manifestCommit": "a58a5b08741a3edaa76a66e9ba306f295ba95a58",
+  "sourceHash": "42e4e6187a28de0a2d5cbf970a83036b189a2184cf0fc52a8a84d135842ec571",
+  "startedAt": "2026-09-28T20:49:16.812Z",
+  "endedAt": "2026-09-28T20:50:14.824Z",
+  "timeoutMs": 180000,
+  "exitCode": 0,
+  "executionClass": "pass",
+  "terminal": "PASS case=s26 assertions=49",
+  "markers": [
+    "S26_FIRST_RUN_COMPLETE",
+    "S26_RESTART_RECOVERED",
+    "S26_ALL_ASSERTIONS_REACHED"
+  ],
+  "checks": {
+    "exactCounts": true,
+    "exactMarkers": true,
+    "twoPids": true,
+    "sourceHash": true,
+    "terminal": true,
+    "markers": true,
+    "ownerPhaseRecorded": true,
+    "restart": true,
+    "publicTools": true,
+    "retainedFiles": true,
+    "sqliteRows": true
+  },
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "ownerStatus": {
+    "state": "indexing",
+    "phase": "index_document",
+    "active": true,
+    "diagnosticCode": null
+  },
+  "productPids": [
+    74120,
+    154612
+  ],
+  "productCommandLines": [
+    "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+    "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle"
+  ],
+  "fileChecksums": {
+    "original": "3f25acc78a81f362900bede0f8ffcbc4f6f01411bd01c8cb002871b2fa96bb43",
+    "importedEntry": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+    "importedCompleted": "9042a9ab2ec50b93fadfe86867ffa4bfcae4a10968284711914944fe3fa1e9d3",
+    "latest": "95342014721c6d067c8233505fb6d3458d511d0f201fe451b44a401d9b661223",
+    "recoveredStoreCopy": "95342014721c6d067c8233505fb6d3458d511d0f201fe451b44a401d9b661223",
+    "recoveredExternal": "95342014721c6d067c8233505fb6d3458d511d0f201fe451b44a401d9b661223"
+  },
+  "sqlite": {
+    "receipts": [
+      {
+        "intent_id": "704ce773f230893cf14b1c6d520c19ec71fcd762956401d0593fc172c764638c",
+        "document_id": "doc_a30d2214ca9aee171f057bce",
+        "desired_revision": 1,
+        "job_id": "job_704ce773f230893cf14b1c6d520c19ec71fcd762956401d0593fc172c764638c",
+        "receipt_kind": "queued"
+      },
+      {
+        "intent_id": "03ecab322749e01d5c147d78cd18f5a32d47600213cae3dd013830fcaa873063",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "desired_revision": 1,
+        "job_id": "job_03ecab322749e01d5c147d78cd18f5a32d47600213cae3dd013830fcaa873063",
+        "receipt_kind": "queued"
+      },
+      {
+        "intent_id": "8b4b25c9c038f4edb89a79ed6852060d4575f8dfa6eb66ef7ffd3d643df140a9",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "desired_revision": null,
+        "job_id": null,
+        "receipt_kind": "provenance_only"
+      },
+      {
+        "intent_id": "e8f229ef83dc207935978f09189ab367895b3908f65ec7cb84f680d9ab704b6b",
+        "document_id": "doc_8797bc9da4b7397fd1d1e547",
+        "desired_revision": 1,
+        "job_id": "job_e8f229ef83dc207935978f09189ab367895b3908f65ec7cb84f680d9ab704b6b",
+        "receipt_kind": "queued"
+      },
+      {
+        "intent_id": "81348f76fce8563f4aab56b202601fcbb4ced949b11003cc9ead26774f21462d",
+        "document_id": "doc_dc033077fa62a4f957b0eaeb",
+        "desired_revision": 1,
+        "job_id": "job_81348f76fce8563f4aab56b202601fcbb4ced949b11003cc9ead26774f21462d",
+        "receipt_kind": "queued"
+      },
+      {
+        "intent_id": "d2ee687cf6b5b3d2330b1a767ed2fb2b2bf065befb1bf7e3bb89f150f317b5ef",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "desired_revision": 2,
+        "job_id": "job_d2ee687cf6b5b3d2330b1a767ed2fb2b2bf065befb1bf7e3bb89f150f317b5ef",
+        "receipt_kind": "queued"
+      }
+    ],
+    "jobs": [
+      {
+        "job_id": "job_704ce773f230893cf14b1c6d520c19ec71fcd762956401d0593fc172c764638c",
+        "document_id": "doc_a30d2214ca9aee171f057bce",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "job_03ecab322749e01d5c147d78cd18f5a32d47600213cae3dd013830fcaa873063",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "job_e8f229ef83dc207935978f09189ab367895b3908f65ec7cb84f680d9ab704b6b",
+        "document_id": "doc_8797bc9da4b7397fd1d1e547",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "job_81348f76fce8563f4aab56b202601fcbb4ced949b11003cc9ead26774f21462d",
+        "document_id": "doc_dc033077fa62a4f957b0eaeb",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "job_48bbcfdc6654194064b15548",
+        "document_id": "doc_40aca36734693c42256ac98e",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "job_d2ee687cf6b5b3d2330b1a767ed2fb2b2bf065befb1bf7e3bb89f150f317b5ef",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "job_type": "index_document",
+        "status": "cancelled",
+        "phase": null
+      },
+      {
+        "job_id": "job_d2ee687cf6b5b3d2330b1a767ed2fb2b2bf065befb1bf7e3bb89f150f317b5ef_retry_1",
+        "document_id": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "job_type": "index_document",
+        "status": "completed",
+        "phase": null
+      },
+      {
+        "job_id": "keyword-clear-e1c9041f-b953-4ebb-9d9a-6f1cbaa54e01",
+        "document_id": null,
+        "job_type": "keyword_clear",
+        "status": "completed",
+        "phase": "completed"
+      },
+      {
+        "job_id": "keyword-rebuild-add62a0c-e62e-48bc-a0e4-da273cea3c04",
+        "document_id": null,
+        "job_type": "keyword_rebuild",
+        "status": "completed",
+        "phase": "completed"
+      },
+      {
+        "job_id": "keyword-rebuild-09702010-b2aa-425e-8e40-a856600a8761",
+        "document_id": null,
+        "job_type": "keyword_rebuild",
+        "status": "completed",
+        "phase": "completed"
+      }
+    ],
+    "aliases": [
+      {
+        "documentId": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "canonicalPathHash": "90719d234a6cfb17f5214c05f7c7a6c530f94905826178fe6a608b1bbf91011c",
+        "lexicalHash": "0f2a7847ce72d1f9eb6ef86372890c184027da9548e79d721bb33c50b2acd770",
+        "originHash": "5089baccff9939466dc19b65fc8033bc3eca9874d5f8587183c7149675ea35b8"
+      },
+      {
+        "documentId": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "canonicalPathHash": "90719d234a6cfb17f5214c05f7c7a6c530f94905826178fe6a608b1bbf91011c",
+        "lexicalHash": "5089baccff9939466dc19b65fc8033bc3eca9874d5f8587183c7149675ea35b8",
+        "originHash": "5089baccff9939466dc19b65fc8033bc3eca9874d5f8587183c7149675ea35b8"
+      },
+      {
+        "documentId": "doc_8797bc9da4b7397fd1d1e547",
+        "canonicalPathHash": "164c96eae4d943aa855a1d3b45d65c406af93ec3c7c19d652ad7fd8f59cb7ad1",
+        "lexicalHash": "d6e18da5b8a6cc7ab1023c38edabed6cd8e3bbfec13318281d84030e832ffd08",
+        "originHash": "d6e18da5b8a6cc7ab1023c38edabed6cd8e3bbfec13318281d84030e832ffd08"
+      },
+      {
+        "documentId": "doc_dc033077fa62a4f957b0eaeb",
+        "canonicalPathHash": "413b7eadd44c97a3b67384619ab31911cf3677eb8a5d4f30601810ac20559c1c",
+        "lexicalHash": "ab449f7d1ce9131588acd2ada6f9a95c914544d9bc830ffa2188d716ca2e759a",
+        "originHash": "ab449f7d1ce9131588acd2ada6f9a95c914544d9bc830ffa2188d716ca2e759a"
+      }
+    ],
+    "documents": [
+      {
+        "documentId": "doc_40aca36734693c42256ac98e",
+        "relativePathHash": "c626e8e7bfa133a8e05c7e7abca965bbf95de5d8397d40bdd5a6013da3512f84",
+        "desiredRevision": 1,
+        "completedRevision": 1,
+        "dirty": 0,
+        "project": null,
+        "category": "general",
+        "tags": "[]"
+      },
+      {
+        "documentId": "doc_5fdbd3d01ee1e4ed68fa191e",
+        "relativePathHash": "3387b1f4b8aceeb7ca1db2da801055471c899bae6cfe3377270cb2bbc736a16d",
+        "desiredRevision": 2,
+        "completedRevision": 2,
+        "dirty": 0,
+        "project": "s26-project",
+        "category": "s26-category",
+        "tags": "[\"s26-tag\"]"
+      },
+      {
+        "documentId": "doc_8797bc9da4b7397fd1d1e547",
+        "relativePathHash": "efefc506592e68721c511523d31affed863578aeb7f8fe8d830afc18f892e367",
+        "desiredRevision": 1,
+        "completedRevision": 1,
+        "dirty": 0,
+        "project": null,
+        "category": "general",
+        "tags": "[]"
+      },
+      {
+        "documentId": "doc_a30d2214ca9aee171f057bce",
+        "relativePathHash": "83a872904e5a11129e0109fb240adb9024b68b5c203203b4742e448a970fb669",
+        "desiredRevision": 1,
+        "completedRevision": 1,
+        "dirty": 0,
+        "project": "s26-project",
+        "category": "s26-category",
+        "tags": "[\"s26-tag\"]"
+      },
+      {
+        "documentId": "doc_dc033077fa62a4f957b0eaeb",
+        "relativePathHash": "ffdf01d2bd06b3248f499c66b084139d8a7ba7a5de14dc215a8516bbd8549405",
+        "desiredRevision": 1,
+        "completedRevision": 1,
+        "dirty": 0,
+        "project": null,
+        "category": "general",
+        "tags": "[]"
+      }
+    ]
+  },
+  "rawArtifact": "2026-09-29-s26r-run-02.json",
+  "rawSha256": "3874bcd209bb294c13337a1ef608370d99c482b7be62e86484461b85e9a505be",
+  "logArtifact": "2026-09-29-s26r-run-02-log.txt"
+}
