@@ -46,6 +46,9 @@ wave2Assert(packageJson.scripts.start === 'electron .', 'normal npm start remain
 wave2Assert(packageJson.scripts.dev === 'node scripts/run-dev.js', 'npm run dev remains the dev Electron startup path');
 wave2Assert(packageJson.scripts.mcp === 'node src/main/mcp-server.mjs', 'npm run mcp remains the source stdio MCP startup path');
 wave2Assert(packageJson.scripts.prestart === 'npm run check:runtime-free', 'prestart runtime-free guard remains active for normal startup');
+// @req OPS-ARCH-010 AC-2 AC-3
+wave2Assert(packageJson.scripts['prebuild:win'].includes('rebuild:native:electron'),
+  'Windows native modules are rebuilt for Electron before portable artifact assembly');
 
 wave2Assert(
   packageJson.optionalDependencies && Object.prototype.hasOwnProperty.call(packageJson.optionalDependencies, 'hnswlib-node'),

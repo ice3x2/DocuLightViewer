@@ -18,7 +18,7 @@
     "repair:package:native": "node scripts/repair-packaged-native.js",
     "prebuild": "npm run bundle:mcp",
     "postbuild": "npm run repair:package:native && npm run rebuild:native:node",
-    "prebuild:win": "npm run bundle:mcp",
+    "prebuild:win": "npm run rebuild:native:electron && npm run bundle:mcp",
     "postbuild:win": "npm run repair:package:native && npm run rebuild:native:node",
     "prebuild:mac": "npm run bundle:mcp",
     "postbuild:mac": "npm run repair:package:native && npm run rebuild:native:node",

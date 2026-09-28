@@ -1,0 +1,45 @@
+{
+  "version": "package-smoke-platform-policy.v1",
+  "current": {
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "releaseGating": [
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "status": "smoked"
+    },
+    {
+      "platform": "darwin",
+      "arch": "arm64",
+      "status": "gated_by_release_workflow"
+    },
+    {
+      "platform": "linux",
+      "arch": "x64",
+      "status": "gated_by_release_workflow"
+    }
+  ],
+  "bestEffort": [
+    {
+      "platform": "win32",
+      "arch": "arm64",
+      "status": "skipped",
+      "reason": "Windows arm64 is built as best-effort; package smoke executes the release-gating Windows x64 unpacked app in this job."
+    },
+    {
+      "platform": "darwin",
+      "arch": "x64",
+      "status": "skipped",
+      "reason": "macOS x64 is best-effort until CI capacity supports per-arch package smoke on Intel runners."
+    },
+    {
+      "platform": "linux",
+      "arch": "arm64",
+      "status": "skipped",
+      "reason": "Linux arm64 is best-effort until CI capacity supports arm64 package smoke execution."
+    }
+  ],
+  "hnswNativeStatus": "runtime_checked"
+}

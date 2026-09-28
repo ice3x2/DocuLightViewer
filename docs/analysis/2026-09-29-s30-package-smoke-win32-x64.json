@@ -1,0 +1,267 @@
+{
+  "ok": true,
+  "backend": "sqlite-fts5",
+  "tokenizer": {
+    "provider": "garu-ko",
+    "version": "0.9.6",
+    "available": true,
+    "degradedReason": null,
+    "maxAnalysisChars": 1200
+  },
+  "resultCount": 2,
+  "koreanResultCount": 1,
+  "saveToSearch": {
+    "saved": true,
+    "documentId": "doc_da59883188803cfec8bcca47",
+    "sourceRelativePath": "042340363_Package Save Search.md",
+    "indexingState": "queued",
+    "indexingJobIdPresent": true,
+    "indexingJobIdDiagnosticOnly": true,
+    "queuedBooleanPresent": false,
+    "searchDocumentsFound": 1,
+    "smartSearchFound": 1,
+    "identityMatched": true,
+    "degraded": true,
+    "degradationReasons": [
+      "embedding_disabled"
+    ]
+  },
+  "saveDocumentInvalid": {
+    "forbiddenFieldRejected": true,
+    "unknownFieldRejected": true,
+    "multipleUnknownFieldsRejected": true,
+    "gitContextPathRejected": true,
+    "canonicalErrorEnvelope": true,
+    "rawEchoFree": true,
+    "writeFailedCode": "write_failed",
+    "responseCodes": [
+      "validation_failed",
+      "validation_failed",
+      "validation_failed",
+      "validation_failed",
+      "write_failed"
+    ],
+    "redactedWriteFailurePath": "[REDACTED_PATH:abead97afe15fece]"
+  },
+  "nativeFailure": {
+    "loadReason": "native_unavailable",
+    "smartSearchDegradationReasons": [
+      "native_unavailable"
+    ]
+  },
+  "workerNative": {
+    "runtime": "worker_threads search-index-worker compatible",
+    "betterSqlite3": {
+      "state": "loaded",
+      "code": null,
+      "message": null,
+      "moduleVersion": "130"
+    },
+    "hnswlibNode": {
+      "state": "loaded",
+      "code": null,
+      "message": null,
+      "moduleVersion": "130"
+    },
+    "electronAbi": "130",
+    "nodeAbi": "130",
+    "searchIndexWorkerJob": {
+      "queued": true,
+      "jobIdPresent": true,
+      "completed": true,
+      "documentIndexed": true,
+      "diagnosticCode": null
+    }
+  },
+  "redactionFixture": {
+    "classes": [
+      "windowsDrivePath",
+      "uncPath",
+      "posixAbsolutePath",
+      "userHomePath",
+      "appUserDataIndexPath",
+      "credentialBearingUrl",
+      "rawGitContextPath",
+      "embeddingEndpointFailure",
+      "saveDocumentWriteFailure",
+      "nativeLoadFailure",
+      "keywordOnlyDegradedResponse",
+      "smartSearchRedactedResponse"
+    ],
+    "allClassesCovered": true,
+    "rawEchoFree": true,
+    "redacted": {
+      "windowsDrivePath": "[REDACTED_PATH:a2cfd239228d766f]",
+      "uncPath": "[REDACTED_PATH:ecc380966cb2953d]",
+      "posixAbsolutePath": "[REDACTED_PATH:fda88d663013fb49]",
+      "userHomePath": "[REDACTED_PATH:7727ade0940c35c2]\\doculight-secret.md",
+      "appUserDataIndexPath": "[REDACTED_PATH:85f50011b0d9c67e]",
+      "credentialBearingUrl": "https://[REDACTED]@example.test/v1/embeddings?api_key=[REDACTED]",
+      "rawGitContextPath": "[REDACTED_PATH:90239976c3df2ef6]\\git-context-raw",
+      "embeddingEndpointFailure": "embedding provider failed at https://[REDACTED]@example.test/v1?token=[REDACTED]",
+      "saveDocumentWriteFailure": "write failed for [REDACTED_PATH:90239976c3df2ef6]\\not-a-directory.md",
+      "nativeLoadFailure": "hnsw native load failed from [REDACTED_PATH:42ffa3c380d454e2] token=[REDACTED]",
+      "keywordOnlyDegradedResponse": "smart_search degraded keyword_only embedding_disabled",
+      "smartSearchRedactedResponse": "smart_search diagnostics [REDACTED_PATH:8e33b143275225ab] [REDACTED_PATH:174f6c392b06b5a7] bearer=[REDACTED]"
+    }
+  },
+  "clientProfileOracle": {
+    "version": "wave2-client-profile-oracles.v1",
+    "count": 9,
+    "defaultSerializedBytes": 65536
+  },
+  "packagedCliStdio": {
+    "status": "passed",
+    "runtimeProfile": "explicit-ipc",
+    "redactedEndpointClass": "[REDACTED_MCP_IPC:explicit]",
+    "stdoutPurity": "mcp_jsonrpc_only",
+    "stdoutJsonRpcMessageCount": 2,
+    "stdoutNonJsonLineCount": 0,
+    "stdoutNonJsonLineSamples": [],
+    "stderrDiagnostics": "stderr_or_mcp_error_only",
+    "stderrByteCount": 120,
+    "initializeHandshake": true,
+    "initializedNotification": true,
+    "toolNames": [
+      "close_viewer",
+      "list_viewers",
+      "open_markdown",
+      "save_document",
+      "search_documents",
+      "search_projects",
+      "smart_search",
+      "update_markdown"
+    ],
+    "httpToolNames": [
+      "close_viewer",
+      "list_viewers",
+      "open_markdown",
+      "save_document",
+      "search_documents",
+      "search_projects",
+      "smart_search",
+      "update_markdown"
+    ],
+    "noIndexingControls": true,
+    "saveDocument": {
+      "saved": true,
+      "documentId": "doc_d44a71e17e141b07df947a59",
+      "sourceRelativePath": "042342147_Package CLI Stdio.md",
+      "indexingJobIdPresent": true
+    },
+    "smartSearch": {
+      "found": true,
+      "resultCount": 3,
+      "matchedBy": "identity",
+      "firstResultIdentity": {
+        "documentId": null,
+        "sourceRelativePath": "042342147_Package CLI Stdio.md",
+        "markerPresent": true
+      },
+      "degraded": true,
+      "degradationReasons": [
+        "embedding_disabled"
+      ]
+    },
+    "invalidSaveDocument": {
+      "rejected": true,
+      "rawEchoFree": true
+    },
+    "invalidSmartSearch": {
+      "pathPrefixRejected": true,
+      "rawEchoFree": true
+    },
+    "crossTransportMarkerIdentity": {
+      "markerSavedBy": "cli-stdio",
+      "markerSearchedBy": "http-search_documents",
+      "matched": true
+    },
+    "launchMode": "windows-electron-run-as-node-asar-index",
+    "rawProbeToolNames": [
+      "close_viewer",
+      "list_viewers",
+      "open_markdown",
+      "save_document",
+      "search_documents",
+      "search_projects",
+      "smart_search",
+      "update_markdown"
+    ],
+    "httpSmartSearch": {
+      "found": true,
+      "resultCount": 3,
+      "queryToken": "xopsarch013cli1790623421474134408z",
+      "expectedIdentity": {
+        "documentId": "doc_d44a71e17e141b07df947a59",
+        "sourceRelativePath": "042342147_Package CLI Stdio.md"
+      },
+      "firstResultIdentity": {
+        "documentId": null,
+        "sourceRelativePath": "042342147_Package CLI Stdio.md",
+        "title": "Package CLI Stdio",
+        "snippet": {
+          "text": "# Package CLI Stdio Unique marker: xopsarch013cli1790623421474134408z",
+          "headingPath": [],
+          "lineRange": null
+        },
+        "redactedPathPresent": false
+      },
+      "degraded": true,
+      "degradationReasons": [
+        "embedding_disabled"
+      ]
+    },
+    "httpSearchDocuments": {
+      "found": true,
+      "resultCountTextPresent": true,
+      "sourceRelativePathMatched": true
+    }
+  },
+  "indexPath": "[REDACTED_PATH:85f50011b0d9c67e]",
+  "nativeOwner": {
+    "version": "package-native-owner.v1",
+    "artifactKind": "portable",
+    "directExecutable": true,
+    "selectedAppSha256": "9816a71d91ab053a0f9b2ddca1917dc2dd3e6ce970f12ade44c6ad4fe3089b7c",
+    "baseCommit": "422fdd1360ecb2597184bb30b8ef321132abf474",
+    "sourceHash": "37b359d4663f17ff8f2368ebe3d35fe4acffb6cf44747bdd5c8129cda139a781",
+    "sourceHashScope": "r3-source-files",
+    "sourceFileCount": 318,
+    "fixtureSha256": "b5225b47e987b3c62a0ad941be1a433977440e450f0ec8a0da9745a4dfa0663e",
+    "runtime": {
+      "isPackaged": true,
+      "profile": "default",
+      "isolatedUserData": true,
+      "electronAbi": "130"
+    },
+    "owner": {
+      "workerThreadId": 1,
+      "ledgerOpenThreadId": 1,
+      "keywordOpenThreadId": 1,
+      "openCount": 2
+    },
+    "main": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 11
+    },
+    "flow": {
+      "saved": true,
+      "indexed": true,
+      "searchFound": true,
+      "failedSaveRetained": true,
+      "retryableIntentPresent": true,
+      "opened": true,
+      "activeStatusSeen": true,
+      "closed": true,
+      "cancelAccepted": true,
+      "cancelledFileRetained": true
+    },
+    "lifecycle": {
+      "exited": true,
+      "exitCode": 0,
+      "appProcessGone": true,
+      "handleReleased": true,
+      "profileRemoved": true
+    }
+  }
+}
