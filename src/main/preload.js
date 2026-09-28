@@ -140,6 +140,7 @@ contextBridge.exposeInMainWorld('doclight', {
   startIndexingRebuild: () => ipcRenderer.invoke('indexing:start-rebuild'),
   cancelIndexingJob: () => ipcRenderer.invoke('indexing:cancel-job'),
   retryIndexingFailures: () => ipcRenderer.invoke('indexing:retry-failures'),
+  retryIndexHealthCheck: () => ipcRenderer.invoke('indexing:retry-check'),
   compactSearchIndex: () => ipcRenderer.invoke('indexing:compact'),
   clearSearchIndex: () => ipcRenderer.invoke('indexing:clear'),
   openIndexDataDir: () => ipcRenderer.invoke('indexing:open-data-dir'),

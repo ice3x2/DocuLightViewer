@@ -34,7 +34,7 @@ if (!safeTempRoot(nodeRoot) || !safeTempRoot(electronRoot) || path.resolve(nodeR
         const installedElectron = path.join(root, 'node_modules/electron');
         const sourceElectron = path.join(sourceRoot, 'node_modules/electron');
         if (!fs.existsSync(path.join(installedElectron, 'path.txt'))) {
-        const install = spawnSync(process.execPath, [path.join(installedElectron, 'install.js')], { cwd: root, stdio: 'inherit', windowsHide: true });
+          const install = spawnSync(process.execPath, [path.join(installedElectron, 'install.js')], { cwd: root, stdio: 'inherit', windowsHide: true });
           if (!fs.existsSync(path.join(installedElectron, 'path.txt')) && fs.existsSync(path.join(sourceElectron, 'path.txt'))) {
             const expected = require(path.join(installedElectron, 'package.json')).version;
             const sourceVersion = require(path.join(sourceElectron, 'package.json')).version;

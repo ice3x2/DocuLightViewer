@@ -89,6 +89,7 @@
   const indexingRebuildBtn = document.getElementById('indexing-rebuild-btn');
   const indexingCancelBtn = document.getElementById('indexing-cancel-btn');
   const indexingRetryBtn = document.getElementById('indexing-retry-btn');
+  const indexingRetryCheckBtn = document.getElementById('indexing-retry-check-btn');
   const indexingCompactBtn = document.getElementById('indexing-compact-btn');
   const indexingOpenDirBtn = document.getElementById('indexing-open-dir-btn');
   const registerOpenedMarkdownCheckbox = document.getElementById('registerOpenedMarkdown-checkbox');
@@ -446,7 +447,8 @@
   }
 
   function setIndexingActionsBusy(busy) {
-    for (const button of [indexingRebuildBtn, indexingCancelBtn, indexingRetryBtn, indexingCompactBtn, indexingOpenDirBtn]) {
+    for (const button of [indexingRebuildBtn, indexingCancelBtn, indexingRetryBtn,
+      indexingRetryCheckBtn, indexingCompactBtn, indexingOpenDirBtn]) {
       if (button) button.disabled = Boolean(busy) && button !== document.activeElement;
     }
   }
@@ -537,7 +539,8 @@
     const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive &&
       (state === 'clearing' || Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild'));
     const legacyRetryAvailable = status.ledgerOwnerActive !== true && !active
-      && sourceRootConfigured && (status.failedCount || 0) > 0;
+      && sourceRootConfigured && (status.failedCount || 0) > 0
+      && (!ledgerState || ['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState));
     const ownerCancelAvailable = status.ledgerOwnerActive === true && ledgerState === 'KEYWORD_REPAIRING'
       && !rebuildActive && status.cancelRequested !== true;
     const ownerRetryAvailable = ledgerState === 'READY_KEYWORD_DEGRADED'
@@ -545,12 +548,14 @@
     if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
     if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement)
-      || !(legacyCancelAvailable || ownerCancelAvailable);
+      || !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING');
     if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
     if (indexingRetryBtn) indexingRetryBtn.disabled = (busy && indexingRetryBtn !== document.activeElement)
       || !(legacyRetryAvailable || ownerRetryAvailable);
+    if (indexingRetryCheckBtn) indexingRetryCheckBtn.disabled = busy
+      || !['CORRUPT_DEGRADED', 'INTERRUPTED'].includes(ledgerState);
     if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
@@ -648,6 +653,9 @@
   }
   if (indexingRetryBtn) {
     indexingRetryBtn.addEventListener('click', () => runIndexingAction(() => window.doclight.retryIndexingFailures()));
+  }
+  if (indexingRetryCheckBtn) {
+    indexingRetryCheckBtn.addEventListener('click', () => runIndexingAction(() => window.doclight.retryIndexHealthCheck()));
   }
   if (indexingCompactBtn) {
     indexingCompactBtn.addEventListener('click', () => {

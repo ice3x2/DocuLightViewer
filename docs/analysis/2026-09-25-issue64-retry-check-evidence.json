@@ -1,0 +1,36 @@
+{
+  "requirements": ["FR-DOC-019 AC-10", "IR-APP-013 AC-13", "IR-APP-013 AC-15", "REL-DOC-008 AC-3", "REL-DOC-008 AC-4", "REL-DOC-008 AC-5"],
+  "sourceHash": "46a5d57bbc8c610c0c261ee9552fb44d500ec51ace38b714c2ed99095123c80b",
+  "baselineCommit": "6b2d489473e73be401f7e7fea1faa69b392d70e8",
+  "semanticRed": [
+    { "assertion": "checked source-ledger corruption has an actionable state", "actual": "OWNER_EXIT_BLOCKED", "expected": "CORRUPT_DEGRADED" },
+    { "assertion": "read-only checker remains independently active", "actual": "CORRUPT_DEGRADED", "expected": "CHECKING" },
+    { "assertion": "extra private IPC payload is rejected", "actual": "started:true", "expected": "started:false" },
+    { "assertion": "close ends its own read-only checker", "actual": "active Worker", "expected": "null" },
+    { "assertion": "closed controller cannot schedule another check", "actual": "started:true", "expected": "started:false" },
+    { "assertion": "public keyword search fails closed when owner rejects corrupt keyword cache", "actual": "one cached hit", "expected": "no hits" },
+    { "assertion": "keyword corruption does not erase an interrupted recovery action", "actual": "OWNER_EXIT_BLOCKED", "expected": "INTERRUPTED" },
+    { "assertion": "full integrity failure is classified when quick_check reports ok", "actual": "failed", "expected": "CORRUPT_DEGRADED" },
+    { "assertion": "repaired source with corrupt keyword no longer claims source corruption", "actual": "CORRUPT_DEGRADED", "expected": "INTERRUPTED" },
+    { "assertion": "full-only corrupt keyword index is classified before writable owner open", "actual": "owner_start_failed", "expected": "keyword_index_corrupt" },
+    { "assertion": "corrupt keyword preflight opens no production SQLite writer", "actual": "no failure-path open audit; owner opened source before keyword diagnosis", "expected": "zero production opens and unchanged source/keyword DB and sidecars" },
+    { "assertion": "retry-check has its own localized health guidance", "actual": "failed-document retry description under health-check button", "expected": "separate health-check description in four locales", "redMarker": "ASSERTION_FAIL case=s21 assertions=11" },
+    { "assertion": "checker audit includes process and thread ownership", "actual": "no audit", "expected": "read-only role audit" }
+  ],
+  "green": [
+    { "command": "node test/test-retry-check-contract.js", "result": "passed", "coverage": "real SQLite corruption, full-only source and keyword integrity mismatch before production DB open, unchanged DB bytes and sidecars, interruption, cancellation, retry, source preservation, keyword fail-closed, read-only checker audit" },
+    { "command": "node test/test-retry-check-ipc-contract.js", "result": "passed", "coverage": "Settings sender and exact private IPC payload" },
+    { "command": "node test/test-owner-managed-keyword-refresh-contract.js", "result": "passed", "coverage": "public cached keyword/project/semantic fail-closed and read fault fallback guard" },
+    { "command": "node test/test-settings-indexing-contract.js", "result": "passed" },
+    { "command": "node test/test-ledger-status-registry.js", "result": "passed" },
+    { "command": "node test/test-mcp-tool-parity.js", "result": "passed" },
+    { "command": "node test/test-wave2-mcp-contract.js", "result": "passed" },
+    { "command": "node test/r3/run-node.cjs --case s20", "result": "PASS case=s20 assertions=23" },
+    { "command": "node test/r3/run-node.cjs --case s23", "result": "PASS case=s23 assertions=45", "generationAndChecksumPreservedAcrossFaultAndCancel": true, "sparseFixtureBytes": 167772165 },
+    { "command": "node test/r3/run-electron.cjs --scenario s21", "result": "PASS case=s21 assertions=37" },
+    { "command": "node test/r3/run-electron.cjs --scenario s26", "result": "PASS case=s26 assertions=49", "processCount": 2, "mainWritableSqliteOpens": 0, "rawArtifact": "docs/analysis/2026-09-29-issue64-s26-46a5d57b-raw.json", "rawArtifactSha256": "9216fc8e9ac8e0457cab771467fa0d29287623eb77f0727292e8a42af4866b61" }
+  ],
+  "runtime": { "filesystem": "NTFS", "nodeAbi": "137", "electronAbi": "130", "isolatedRoots": true },
+  "publicMcpToolCountChanged": false,
+  "commitOrPush": false
+}

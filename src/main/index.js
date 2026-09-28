@@ -247,7 +247,8 @@ removeLegacyEmbeddingSettings(store);
 searchEngine = new SearchEngine(store, {
   indexBackend: 'sqlite',
   indexDataDir: runtimeProfile.indexDataDir,
-  ownerManaged: true
+  ownerManaged: true,
+  ownerHealthProvider: () => saveDocumentOwner?.getStatus() || null
 });
 // @req FR-DOC-028 REL-DOC-009 FR-DOC-019
 searchEngine.getSaveDocumentOwner = async (storeRoot) => {
@@ -3065,6 +3066,10 @@ function registerIpcHandlers() {
     if (!settingsIndexingWindow(event)) return { cancelled: false,
       reason: 'settings-only', status: getIndexingStatusPayload() };
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
+    if (ownerStatus?.state === 'CHECKING') {
+      return saveDocumentOwner.cancelRetryCheck().then(result => ({ ...result,
+        status: getIndexingStatusPayload() }));
+    }
     if (ownerStatus?.active && ownerStatus.phase === 'index_document' && ownerStatus.jobId) {
       return saveDocumentOwner.cancel(ownerStatus.jobId);
     }
@@ -3077,6 +3082,18 @@ function registerIpcHandlers() {
     if (!settingsIndexingWindow(event)) return { started: false, scheduled: false,
       reason: 'settings-only', status: getIndexingStatusPayload() };
     return startOwnerIndexMaintenance('retry');
+  });
+
+  ipcMain.handle('indexing:retry-check', async (event, ...args) => {
+    const denied = reason => ({ started: false, scheduled: false, reason,
+      status: getIndexingStatusPayload() });
+    if (!settingsIndexingWindow(event)) return denied('settings-only');
+    if (args.length !== 0) return denied('invalid-payload');
+    if (!isDocumentStoreSourceRootConfigured() || !saveDocumentOwner) {
+      return denied('check-not-available');
+    }
+    const result = await saveDocumentOwner.command('manage_index', { operation: 'retry_check' });
+    return { ...result, status: getIndexingStatusPayload() };
   });
 
   ipcMain.handle('indexing:compact', async (event) => {
