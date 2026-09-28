@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50), [S32 #55](https://github.com/ice3x2/DocuLightViewer/issues/55). 이전 섹션의 미완료 문구는 해당 시점의 기록이며 아래 최신 완료 기록이 우선한다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S32 #55](https://github.com/ice3x2/DocuLightViewer/issues/55) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50), [S33 #56](https://github.com/ice3x2/DocuLightViewer/issues/56). 이전 섹션의 미완료 문구는 해당 시점의 기록이며 아래 최신 완료 기록이 우선한다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `29/36` 완료(S01~S20, S22~S26, S28~S31)다. S31은 정확한 커밋·세 플랫폼 직접 패키지·체크섬·원시 응답성 증거가 누락되면 릴리스 게시 전에 실패하는 CI 계약을 구현했다. S21의 상태 조합·실제 저장 용량 정책과 S27의 독립 핵심 검토는 열려 있으며, 실제 Windows/macOS/Linux CI 실행과 릴리스 판정은 [S32 #55](https://github.com/ice3x2/DocuLightViewer/issues/55) 이후 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
+실행 이슈는 `30/36` 완료(S01~S20, S22~S26, S28~S32)다. S32는 정확한 커밋의 Windows x64 portable에서 PG-04 다섯 콜드 표본과 원래 응답성 기준을 통과했다. S21의 상태 조합·실제 저장 용량 정책과 S27의 독립 핵심 검토는 열려 있으며, PG-09 [S33 #56](https://github.com/ice3x2/DocuLightViewer/issues/56)과 실제 Windows/macOS/Linux CI·릴리스 판정은 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -329,4 +329,11 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [#63 사전 등록 8회 결과](../analysis/2026-09-29-s26r-eight-run-result.json): manifest를 첫 실행 전에 커밋하고 고정 seed·순서·timeout으로 실제 S26 콜드 세션을 순차 실행했다. 8/8 exit 0/PASS49, 매회 import 2/누락 1·재시작 최신 revision 2·alias 2였다. 독립 검토가 24개 원시/로그/결과 해시를 대조한 뒤 [#50에 제한적 재현 감사로 수용](https://github.com/ice3x2/DocuLightViewer/issues/50#issuecomment-5878632103)했고 #63을 닫았다. 간헐 원인은 미상이며 8회 통과를 릴리스 안정성 증명으로 해석하지 않는다.
 - [x] [현재 통합 해시의 S25/S26](../analysis/2026-09-29-s27-current-core-runs.json): sourceHash `bdbc098d1d4785584e4a0f73e1678014fef7373f10d08cad15ce6b86719`에서 각각 exit 0/PASS16·PASS49였다. [공개 기준 diff 목록·통계](../analysis/2026-09-29-s27-baseline-diff-stat.txt)는 314개 파일, 102,960 insertions/2,883 deletions이며 `git diff --check`가 통과했다. 55/100/180분 점검표는 당시 실시간 기록이라고 주장하지 않고 Git 커밋 시각에서 사후 복원했다.
 - [x] [5개 REQ의 60개 AC별 간극 표](../analysis/2026-09-29-s27-ac-matrix.md)를 작성하고 독립 검토로 누락 행·잘못된 코드 위치·과도한 import fixture 주장·원본 경로 누출을 점검했다. 이 표의 `부분/미검증`은 완료 증거가 아니며 SRS Status를 승급하지 않았다.
-- [ ] [#50](https://github.com/ice3x2/DocuLightViewer/issues/50)은 문자 그대로의 AC별 구현·실행 증거 1:1 게이트가 남아 OPEN이다. 특히 #44/#65 실제 저장 용량·상태/접근성, #55 활성 저장·PG-04, #56 PG-09 및 #21 세 플랫폼 릴리스 게이트를 별도로 해결해야 한다. 다음 독립 검토는 간극을 채운 AC만 다시 판정한다.
+- [ ] [#50](https://github.com/ice3x2/DocuLightViewer/issues/50)은 문자 그대로의 AC별 구현·실행 증거 1:1 게이트가 남아 OPEN이다. #55 Windows PG-04는 완료됐지만 #44/#65 실제 저장 용량·상태/접근성, #56 PG-09 및 #21 세 플랫폼 릴리스 게이트는 별도로 해결해야 한다. 다음 독립 검토는 간극을 채운 AC만 다시 판정한다.
+
+## S32 완료 기록 — Windows PG-04 패키지 콜드 응답성
+
+- [x] [작성 브랜치의 계획과 실패 이력](./p0-pg04-same-locator-split.md): 게시 잠금의 긴 파생 계산과 동기 Windows 신원 조회를 실제 RED로 재현한 뒤 준비/보호 커밋 분리, 같은 원본 위치의 최신 intent 검사, 비동기 현재-PID 신원 확인, 영수증·frontmatter 판정을 test-first로 수정했다. 앞선 실패 5회 보고서는 삭제·교체하지 않았다.
+- [x] [최종 다섯 원시 표본](../analysis/p0-pg04-win32-x64-1790636912067-7f9c817e.json): 작성 제품 커밋 `fd03b5ecf4f40742eedec3f6f2f6dca5b606d865`, sourceHash `7ccf1dda9d74be2ae9c3b6be4b27c3ee9abf00bfbfe21531379036d1a2264a68`, portable SHA-256 `9d393897a5d666f0ec8f77b27225389c8d7a6da4d25bc97ecb047b8c34f962fa`에서 5/5 통과했다. status p95/p99/max 203.047ms(15개), focus 최대 16.818ms, close 최대 44.817ms, cancel 최대 2.041ms, main heartbeat 최대 58.803ms였다. 각 표본의 새 PID·프로필, 활성 worker 중 query/두 번째 save, queued 영수증·파일·원장 일치, 취소 후 파일 보존을 확인했다.
+- [x] [통합 근거](../analysis/2026-09-29-s32-integration-evidence.md): 작성 커밋 `0acaa3c425ad17b24a74251764c1a06f91954c00`/`fd03b5ecf4f40742eedec3f6f2f6dca5b606d865`/증거 `04ac8728d776b61f60ace42bb54bc25477d702f2`를 통합 커밋 `a2edd18`/`1de5716`/`c37b0d5`로 반영했다. 관련 Git blob은 같고 통합 sourceHash `324b6f7fdcba043438916b72d47373b9a97a297c62446b221b8fd4dd1394567e`에서 집중 테스트 9개와 S11/S20/S23/S25가 통과했다. 두 독립 코드 검토와 최종 패키지 원시 검토 후 [#55](https://github.com/ice3x2/DocuLightViewer/issues/55)를 Windows PG-04 범위로 닫았다.
+- [ ] `ledgerRows=1`은 source 행 수이며 문서·job 행 수를 수집하지 않았다. 같은 원본 위치의 near-capacity 게시 비용·실제 ingress 용량 UX는 [#44/#65](https://github.com/ice3x2/DocuLightViewer/issues/44), 다중 플랫폼 CI와 릴리스 승인은 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남긴다. Windows 통과를 전체 릴리스 PASS로 사용하지 않는다.
