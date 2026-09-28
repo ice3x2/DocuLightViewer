@@ -1,0 +1,81 @@
+﻿{
+    "issue":  66,
+    "requirements":  [
+                         "FR-DOC-019",
+                         "DR-DOC-014",
+                         "FR-DOC-035",
+                         "IR-APP-013"
+                     ],
+    "headSha":  "3dfd72fec1782d4b09bb051e8155b16c407afe66",
+    "sourceHash":  "ecfbbd96baaf33f983fbcc35981181dcc2c3628bbce5d2dcb2cced8dc8c8f679",
+    "environment":  {
+                        "os":  "win32",
+                        "arch":  "x64",
+                        "node":  "v24.16.0",
+                        "nodeAbi":  "137",
+                        "runtimeRoot":  "\u003cR3_NODE_ROOT\u003e"
+                    },
+    "regressions":  [
+                        {
+                            "case":  "s17",
+                            "command":  "node test/r3/run-node.cjs --case s17",
+                            "start":  "2026-09-29T05:14:11.8878411+09:00",
+                            "end":  "2026-09-29T05:14:23.6152358+09:00",
+                            "exitCode":  0,
+                            "terminal":  "PASS case=s17 assertions=32",
+                            "markers":  [
+
+                                        ],
+                            "privateRawLogSha256":  "fc8b4c42cf662f8ec4543d2777b9be85175feb7ff9fbd56da85d9642bec5812d"
+                        },
+                        {
+                            "case":  "s19",
+                            "command":  "node test/r3/run-node.cjs --case s19",
+                            "start":  "2026-09-29T05:14:23.6873595+09:00",
+                            "end":  "2026-09-29T05:14:30.0963259+09:00",
+                            "exitCode":  0,
+                            "terminal":  "PASS case=s19 assertions=47",
+                            "markers":  [
+
+                                        ],
+                            "privateRawLogSha256":  "233e5a06c5b7377061764446d0f679893abbe99492e858198bf70772e2efeaff"
+                        },
+                        {
+                            "case":  "s20",
+                            "command":  "node test/r3/run-node.cjs --case s20",
+                            "start":  "2026-09-29T05:14:30.0993281+09:00",
+                            "end":  "2026-09-29T05:14:48.4315113+09:00",
+                            "exitCode":  0,
+                            "terminal":  "PASS case=s20 assertions=23",
+                            "markers":  [
+                                            "S20_STARTUP ready_ms=411 recovered=3101 page_limit=32"
+                                        ],
+                            "privateRawLogSha256":  "73cc71773ba29c7a087dbc5b2b65855336a682e495f31232adc70fa8fa65fd4d"
+                        },
+                        {
+                            "case":  "s23",
+                            "command":  "node test/r3/run-node.cjs --case s23",
+                            "start":  "2026-09-29T05:14:48.4345116+09:00",
+                            "end":  "2026-09-29T05:14:59.2898542+09:00",
+                            "exitCode":  0,
+                            "terminal":  "PASS case=s23 assertions=45",
+                            "markers":  [
+                                            "S23_EVIDENCE"
+                                        ],
+                            "privateRawLogSha256":  "5157df0374ba670f96219aed73028c820e84f2ceb25b860a4999900ca789978e"
+                        },
+                        {
+                            "case":  "s25",
+                            "command":  "node test/r3/run-node.cjs --case s25",
+                            "start":  "2026-09-29T05:14:59.2918564+09:00",
+                            "end":  "2026-09-29T05:15:02.3570782+09:00",
+                            "exitCode":  0,
+                            "terminal":  "PASS case=s25 assertions=16",
+                            "markers":  [
+                                            "S25_ALL_ASSERTIONS_REACHED"
+                                        ],
+                            "privateRawLogSha256":  "77e287f4e0c0ee57a5cdb7b5cde3e1a3cdc76d9231ba98abb73ae9d923a4aaab"
+                        }
+                    ],
+    "note":  "Private full logs are retained outside the repository; only terminal marker names and full-log hashes are persisted. PowerShell stderr prefixes were removed when extracting PASS tokens."
+}

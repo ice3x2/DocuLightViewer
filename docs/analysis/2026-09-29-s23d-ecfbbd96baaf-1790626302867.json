@@ -1,0 +1,136 @@
+{
+  "sourceHash": "ecfbbd96baaf33f983fbcc35981181dcc2c3628bbce5d2dcb2cced8dc8c8f679",
+  "headSha": "3dfd72fec1782d4b09bb051e8155b16c407afe66",
+  "status": "routes_completed",
+  "attemptedRoute": "complete",
+  "attemptedOutcome": "passed",
+  "productPids": [
+    112932,
+    102804,
+    92252,
+    150664,
+    77152,
+    34124,
+    136992,
+    140548,
+    70016,
+    106536,
+    114136,
+    91712,
+    94228
+  ],
+  "counts": {
+    "checker:open:ro": 3,
+    "checker:open_attempt:ro": 3,
+    "main:open:ro": 58,
+    "main:open_attempt:ro": 58,
+    "main:pragma_assignment:ro": 1,
+    "owner:open:ro": 15,
+    "owner:open:rw": 14,
+    "owner:open_attempt:ro": 15,
+    "owner:open_attempt:rw": 14,
+    "owner:pragma_assignment:ro": 1,
+    "owner:pragma_assignment:rw": 70,
+    "owner:write:rw": 5315
+  },
+  "readOnlyPragmaAssignments": [
+    {
+      "role": "owner",
+      "dbBasename": "search-index.sqlite3",
+      "pragmaName": "journal_mode"
+    },
+    {
+      "role": "main",
+      "dbBasename": "search-index.sqlite3",
+      "pragmaName": "journal_mode"
+    }
+  ],
+  "publicToolsCalled": 8,
+  "routeEvidence": "2026-09-29-s23d-ecfbbd96baaf-1790626302867-routes.json",
+  "extraRoutes": {
+    "baseline": {
+      "generation": "generation-84981f76-bcdb-473d-949d-1a308b3f68b6",
+      "logicalChecksum": "702a36191b5b215544d3638d0265cf32a79072eb90cbf17803aa8dbf036443f0",
+      "bodyHit": 4,
+      "compactReason": "compact-rebuild-required",
+      "sourceFactsSha256": "cc9780857471982d404399f7a2a6fa2a4ed0a911fcf8abc30fe423d6863f6b28",
+      "publicSearchHit": true
+    },
+    "incrementalCompact": {
+      "reason": "compact-deferred",
+      "logicalChecksum": "702a36191b5b215544d3638d0265cf32a79072eb90cbf17803aa8dbf036443f0"
+    },
+    "precommitFault": {
+      "jobStatus": "failed",
+      "generation": "generation-84981f76-bcdb-473d-949d-1a308b3f68b6",
+      "logicalChecksum": "702a36191b5b215544d3638d0265cf32a79072eb90cbf17803aa8dbf036443f0",
+      "bodyHit": 4
+    },
+    "retry": {
+      "jobStatus": "completed",
+      "generation": "generation-9372c87e-11ca-4c88-87eb-654bdd8435cd",
+      "logicalChecksum": "702a36191b5b215544d3638d0265cf32a79072eb90cbf17803aa8dbf036443f0",
+      "bodyHit": 4
+    },
+    "rebuildCancel": {
+      "jobStatus": "cancelled",
+      "generation": "generation-9372c87e-11ca-4c88-87eb-654bdd8435cd",
+      "logicalChecksum": "702a36191b5b215544d3638d0265cf32a79072eb90cbf17803aa8dbf036443f0",
+      "bodyHit": 4
+    },
+    "sourceRetryCheck": {
+      "started": true,
+      "terminalState": "CORRUPT_DEGRADED",
+      "diagnosticCode": "source_ledger_corrupt"
+    },
+    "keywordRetryCheck": {
+      "started": true,
+      "terminalState": "INTERRUPTED",
+      "diagnosticCode": "keyword_index_corrupt",
+      "sourceFactsSha256": "cc9780857471982d404399f7a2a6fa2a4ed0a911fcf8abc30fe423d6863f6b28",
+      "sourceBytesSha256": "1fdc3dea4c6778b4b8df50ad0f6a52ee313eb9cd4ea56ffbf0960ef179c1605d",
+      "keywordCorruptSha256": "11626154acb504b3d0f0358f9e67e428cd1abcd10671466137e2f78ba761576c",
+      "publicSearchHit": false
+    }
+  },
+  "extraRuns": [
+    {
+      "name": "baseline",
+      "pid": 92252,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "incremental-compact",
+      "pid": 150664,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "precommit-fault",
+      "pid": 77152,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "retry-success",
+      "pid": 34124,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "rebuild-cancel",
+      "pid": 136992,
+      "port": 32581,
+      "expectedWriter": true
+    },
+    {
+      "name": "source-corrupt-check",
+      "pid": 140548,
+      "port": 32581,
+      "expectedWriter": false
+    }
+  ],
+  "rawJsonl": "2026-09-29-s23d-ecfbbd96baaf-1790626302867.jsonl",
+  "rawSha256": "83a2904b52009b9d811c04843eb763450a0f32eaa4435844171cb6678d34a327"
+}
