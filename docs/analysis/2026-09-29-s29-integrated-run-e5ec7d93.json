@@ -1,0 +1,60 @@
+{
+  "head": "299e356e7952459e73b184b21fef86a22570bf0a",
+  "canonicalSourceHash": "e5ec7d931047bfec95c89bd04c4537d98555e510ec1ad6ef4a07c0b360634cfc",
+  "nodeAbi": "137",
+  "tempVolume": "B: NTFS",
+  "results": [
+    {
+      "case": "S29",
+      "worktree": "<INTEGRATION_VERIFY_WORKTREE>",
+      "command": "node test/test-s29-forward-open-contract.js",
+      "exitCode": 0,
+      "elapsedSeconds": 13.6204459,
+      "markers": [
+        "S29 five-release worker forward-open, reopen and rebuild passed"
+      ]
+    },
+    {
+      "case": "S17",
+      "worktree": "<INTEGRATION_WORKTREE>",
+      "command": "node test/r3/run-node.cjs --case s17",
+      "exitCode": 0,
+      "elapsedSeconds": 11.0845731,
+      "markers": [
+        "PASS case=s17 assertions=32"
+      ]
+    },
+    {
+      "case": "S19",
+      "worktree": "<INTEGRATION_WORKTREE>",
+      "command": "node test/r3/run-node.cjs --case s19",
+      "exitCode": 0,
+      "elapsedSeconds": 6.3516951,
+      "markers": [
+        "PASS case=s19 assertions=47"
+      ]
+    },
+    {
+      "case": "S20",
+      "worktree": "<INTEGRATION_WORKTREE>",
+      "command": "node test/r3/run-node.cjs --case s20",
+      "exitCode": 0,
+      "elapsedSeconds": 19.1415857,
+      "markers": [
+        "S20_STARTUP ready_ms=396 recovered=3101 page_limit=32",
+        "PASS case=s20 assertions=23"
+      ]
+    },
+    {
+      "case": "S23",
+      "worktree": "<INTEGRATION_WORKTREE>",
+      "command": "node test/r3/run-node.cjs --case s23",
+      "exitCode": 0,
+      "elapsedSeconds": 11.1415203,
+      "markers": [
+        "S23_EVIDENCE {\"ownerThreadId\":1,\"ownerOpenCount\":2,\"beforeFault\":{\"generationId\":\"generation-80457550-e7e3-4ca8-a848-b750b1074a46\",\"checksum\":\"1a12936640bb82849892afcb67fb035aba453f0ddb8c8675f85e453ea125fbfe\"},\"afterFault\":{\"generationId\":\"generation-80457550-e7e3-4ca8-a848-b750b1074a46\",\"checksum\":\"1a12936640bb82849892afcb67fb035aba453f0ddb8c8675f85e453ea125fbfe\"},\"beforeCancel\":{\"generationId\":\"generation-4f8dca2f-f6a6-4552-a81a-761cccedbdbd\",\"checksum\":\"19d5a2de6cba422183bf369e7b107e1040f13c1cd3897fc749febfcdc6f8416e\"},\"afterCancel\":{\"generationId\":\"generation-4f8dca2f-f6a6-4552-a81a-761cccedbdbd\",\"checksum\":\"19d5a2de6cba422183bf369e7b107e1040f13c1cd3897fc749febfcdc6f8416e\"},\"sparse160MiB\":{\"bytes\":167772165,\"completed\":true}}",
+        "PASS case=s23 assertions=45"
+      ]
+    }
+  ]
+}
