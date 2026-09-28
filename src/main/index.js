@@ -423,6 +423,22 @@ async function runPackageSmoke() {
     indexDataDir: runtimeIndexDataDir,
     keywordTokenizer: createKeywordTokenizer({ provider: 'garu' })
   });
+  // Keep the legacy smoke's direct search fixture separate from the real owner
+  // receipt. save_document now requires an owner ACK for indexing.jobId.
+  const ownerIndexDir = path.join(smokeRoot, 'owner-index');
+  const ownerIngressRoot = path.join(smokeRoot, 'owner-save-intents');
+  fs.mkdirSync(ownerIndexDir, { recursive: true });
+  fs.mkdirSync(ownerIngressRoot, { recursive: true });
+  const smokeOwner = new OwnerWorkerController({
+    ledgerPath: path.join(ownerIndexDir, 'smart-search.sqlite3'),
+    keywordPath: path.join(ownerIndexDir, SQLITE_INDEX_FILENAME),
+    sourceRoot: smokeRoot, publicationRoot: fs.realpathSync.native(smokeRoot),
+    ingressRoot: ownerIngressRoot, deriveDocuments: true
+  });
+  runtimeSearchEngine.getSaveDocumentOwner = async () => {
+    await smokeOwner.start();
+    return smokeOwner;
+  };
   let artifact = {
     ok: false,
     backend: 'sqlite-fts5',
@@ -633,9 +649,11 @@ async function runPackageSmoke() {
     if (!artifact.ok) {
       throw new Error('SQLite package smoke query returned no results');
     }
+    await smokeOwner.shutdown();
     writePackageSmokeArtifact(artifact);
     app.exit(0);
   } catch (err) {
+    await smokeOwner.shutdown();
     writePackageSmokeArtifact({
       ...artifact,
       ok: false,
@@ -2508,12 +2526,21 @@ async function handleIpcMessage(socket, msg) {
         }
         result = saveDocumentOwner ? saveDocumentOwner.getStatus() : { state: 'unavailable' };
         break;
+      case 'r3_test_set_save_fault':
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        if (params?.fault !== 'post_publish' && params?.fault !== null) throw new Error('Invalid test fault');
+        searchEngine.r3SaveFaultAt = params.fault;
+        result = { enabled: params.fault === 'post_publish' };
+        break;
       case 'r3_test_runtime_identity':
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
           throw new Error('Unknown action');
         }
         result = { isPackaged: app.isPackaged, profile: runtimeProfile.name,
-          userDataDir: app.getPath('userData') };
+          userDataDir: app.getPath('userData'), electronAbi: process.versions.modules,
+          pid: process.pid };
         break;
       case 'r3_test_owner_open_audit': {
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {

@@ -1,0 +1,73 @@
+{
+  "issue": 53,
+  "requirements": ["OPS-ARCH-009", "OPS-ARCH-010", "OPS-ARCH-012", "OPS-ARCH-013", "FR-DOC-019", "IR-APP-013"],
+  "baseCommit": "422fdd1360ecb2597184bb30b8ef321132abf474",
+  "sourceHash": "37b359d4663f17ff8f2368ebe3d35fe4acffb6cf44747bdd5c8129cda139a781",
+  "sourceHashScope": "r3-source-files; 318 tracked and untracked source files at this worktree state",
+  "artifact": {
+    "kind": "windows-x64-portable",
+    "sha256": "9816a71d91ab053a0f9b2ddca1917dc2dd3e6ce970f12ade44c6ad4fe3089b7c",
+    "signed": false
+  },
+  "unpackedArtifact": {
+    "kind": "windows-x64-unpacked",
+    "sha256": "beaf8eec757654194267eda7c1d0544989b0c2cbb95601b8c6cb557eb70e5c31",
+    "report": "docs/analysis/2026-09-29-s30-package-smoke-unpacked-win32-x64.json",
+    "reportSha256": "6380bb04dd22094b5fcb13d7a84ec16a43efc1f0ee9fcc5d4fa16139ad14c15b"
+  },
+  "build": {
+    "result": "passed",
+    "command": "npm run build:win -- nsis:x64 portable:x64 --config.win.signAndEditExecutable=false",
+    "filesystem": "B: NTFS",
+    "temp": "B: task-specific TEMP/TMP"
+  },
+  "checks": {
+    "test-package-smoke-launch-options": "passed",
+    "missing-app-path-cli-negative": "passed; existing fail-closed behavior reused",
+    "test-package-native-owner-evidence": "passed",
+    "test-package-native-abi-negative": "passed; intentional child exit 1",
+    "test-wave2-package-contract": "passed",
+    "direct-portable-package-smoke": "passed",
+    "no-argument-unpacked-package-smoke": "passed"
+  },
+  "semanticRedRecord": {
+    "observedDuringRepair": [
+      "explicit Linux AppImage selector: unpacked artifact required",
+      "lifecycle validator accepted missing child exitCode",
+      "previous portable build runtime identity omitted actual app PID"
+    ],
+    "rawLogsRetained": false,
+    "preImplementationSourceHash": "unavailable",
+    "note": "These historical RED outcomes were observed during repair; no raw output artifact or exact pre-implementation source hash was retained. They are not the current ABI negative control."
+  },
+  "nativeAbiNegativeControl": {
+    "result": "expected NODE_MODULE_VERSION mismatch",
+    "artifact": "docs/analysis/2026-09-29-s30-native-abi-negative.json",
+    "command": "node test/test-package-native-abi-negative.js --probe",
+    "exitCode": 1,
+    "rawStderrRedacted": "NODE_MODULE_VERSION_MISMATCH packaged=130 host=137",
+    "packagedElectronAbi": "130",
+    "nodeHostAbi": "137",
+    "note": "Intentional Node-host load of the packaged Electron native module failed; the packaged Electron smoke passed with ABI 130."
+  },
+  "nativeOwnerProof": {
+    "longOwnerBothSqliteOpens": true,
+    "mainWritableOpens": 0,
+    "activeStatusAndCancel": true,
+    "cancelledPublishedFileRetained": true,
+    "postPublishFailureFileRetained": true,
+    "bodyFreeRetryableIntentPresent": true,
+    "actualAppProcessExited": true,
+    "selectedLauncherExitCode": 0,
+    "isolatedProfileRemovedAfterExit": true
+  },
+  "reports": [
+    "docs/analysis/2026-09-29-s30-package-smoke-win32-x64.json",
+    "docs/analysis/2026-09-29-s30-package-smoke-unpacked-win32-x64.json",
+    "docs/analysis/2026-09-29-s30-package-platform-policy-win32-x64.json",
+    "docs/analysis/2026-09-29-s30-native-abi-negative.json"
+  ],
+  "platformLimit": "macOS arm64 and Linux x64 package smoke remain release workflow gates; this local result proves Windows x64 only.",
+  "releaseGateHandoff": "S31/#21 must run direct Windows portable, extracted macOS arm64 .app, and Linux x64 AppImage package smoke in their platform runners. Selector unit tests and Windows evidence cannot substitute for those mandatory gates.",
+  "signingLimit": "The default builder signing-tool extraction failed because Windows denied symbolic-link creation; the successful local artifacts used signAndEditExecutable=false and no certificate."
+}

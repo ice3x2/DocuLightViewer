@@ -1,0 +1,8 @@
+{
+  "version": "package-native-abi-negative.v1",
+  "command": "node test/test-package-native-abi-negative.js --probe",
+  "exitCode": 1,
+  "rawStderrRedacted": "NODE_MODULE_VERSION_MISMATCH packaged=130 host=137",
+  "nodeHostAbi": "137",
+  "outcome": "expected-negative-control"
+}

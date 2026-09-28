@@ -6,6 +6,8 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { getPackageSmokeLaunchArgs } = require('../src/main/package-smoke-launch-options');
+const { selectPackageSmokeArtifact } = require('./helpers/package-smoke-artifact');
+const { runPackageNativeOwnerSmoke } = require('./helpers/package-native-owner-smoke');
 
 const root = path.resolve(__dirname, '..');
 const platform = process.platform;
@@ -78,26 +80,6 @@ const WAVE2_SMART_SEARCH_ALLOWED_MINIMAL_ARGUMENT_KEYS = Object.freeze(new Set([
   'includeDiagnostics',
   'allowDegraded'
 ]));
-
-function findPackagedApp() {
-  if (platform === 'win32') {
-    return path.join(root, 'dist', 'win-unpacked', 'DocuLight.exe');
-  }
-  if (platform === 'darwin') {
-    return path.join(root, 'dist', 'mac-arm64', 'DocuLight.app', 'Contents', 'MacOS', 'DocuLight');
-  }
-  return path.join(root, 'dist', 'linux-unpacked', 'doculight');
-}
-
-function findUnpackedNativeDir(packageName) {
-  if (platform === 'win32') {
-    return path.join(root, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked', 'node_modules', packageName);
-  }
-  if (platform === 'darwin') {
-    return path.join(root, 'dist', 'mac-arm64', 'DocuLight.app', 'Contents', 'Resources', 'app.asar.unpacked', 'node_modules', packageName);
-  }
-  return path.join(root, 'dist', 'linux-unpacked', 'resources', 'app.asar.unpacked', 'node_modules', packageName);
-}
 
 function collectNodeFiles(dir) {
   const out = [];
@@ -199,11 +181,12 @@ function runSmoke(exePath, artifactPath) {
 
     let stdout = '';
     let stderr = '';
+    const deadline = Date.now() + 120000;
     const timer = setTimeout(() => {
       cleanup();
       child.kill('SIGKILL');
       reject(new Error(`Package smoke timed out. stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
-    }, 30000);
+    }, 120000);
 
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
@@ -212,11 +195,23 @@ function runSmoke(exePath, artifactPath) {
       cleanup();
       reject(new Error(`Package smoke failed to spawn packaged app: ${sanitizeProcessOutputForFailure(err && err.message ? err.message : String(err))}`));
     });
-    child.on('exit', (code) => {
-      clearTimeout(timer);
+    child.on('exit', async (code) => {
       if (code !== 0) {
+        clearTimeout(timer);
         cleanup();
-        reject(new Error(`Package smoke exited ${code}. stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
+        const failure = fs.existsSync(artifactPath)
+          ? JSON.parse(fs.readFileSync(artifactPath, 'utf-8')).error : '';
+        reject(new Error(`Package smoke exited ${code}. reason=${sanitizeProcessOutputForFailure(failure)} stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
+        return;
+      }
+      // A portable launcher can exit before its extracted app writes the result.
+      while (!fs.existsSync(artifactPath) && Date.now() < deadline) {
+        await new Promise((done) => setTimeout(done, 100));
+      }
+      clearTimeout(timer);
+      if (!fs.existsSync(artifactPath)) {
+        cleanup();
+        reject(new Error(`Package smoke did not produce an artifact. stdout=${sanitizeProcessOutputForFailure(stdout)} stderr=${sanitizeProcessOutputForFailure(stderr)}`));
         return;
       }
       cleanup();
@@ -395,7 +390,8 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
 }
 
 (async () => {
-  const exePath = findPackagedApp();
+  const selected = selectPackageSmokeArtifact(process.argv.slice(2), platform, root);
+  const exePath = selected.appPath;
   assert(fs.existsSync(exePath), 'packaged app exists at the expected packaged output path');
 
   assert(WAVE2_TYPED_TOOLS.includes('save_document') && WAVE2_TYPED_TOOLS.includes('smart_search'), 'Wave 2 typed save/search tools are declared');
@@ -409,13 +405,16 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
   const bundleSource = fs.readFileSync(bundlePath, 'utf-8');
   validateWave2PackageToolContracts(TOOLS, stdioSource, bundleSource);
 
-  const unpackedNativeDir = findUnpackedNativeDir('better-sqlite3');
-  const nodeFiles = collectNodeFiles(unpackedNativeDir);
-  assert(nodeFiles.length > 0, 'packaged app.asar.unpacked contains better-sqlite3 native .node file');
-  const hnswNativeDir = findUnpackedNativeDir('hnswlib-node');
-  const hnswNodeFiles = collectNodeFiles(hnswNativeDir);
-  const hnswNativeStatus = hnswNodeFiles.length > 0 ? 'present' : 'optional_missing';
-  assert(['present', 'optional_missing'].includes(hnswNativeStatus), 'hnswlib-node native package status is diagnosable');
+  const nodeFiles = selected.unpackedNativeRoot
+    ? collectNodeFiles(path.join(selected.unpackedNativeRoot, 'node_modules', 'better-sqlite3')) : [];
+  if (selected.unpackedNativeRoot) {
+    assert(nodeFiles.length > 0, 'selected unpacked app contains better-sqlite3 native .node file');
+  }
+  const hnswNodeFiles = selected.unpackedNativeRoot
+    ? collectNodeFiles(path.join(selected.unpackedNativeRoot, 'node_modules', 'hnswlib-node')) : [];
+  const hnswNativeStatus = selected.unpackedNativeRoot
+    ? (hnswNodeFiles.length > 0 ? 'present' : 'optional_missing') : 'runtime_checked';
+  assert(['present', 'optional_missing', 'runtime_checked'].includes(hnswNativeStatus), 'hnswlib-node native package status is diagnosable');
   const platformCoverage = buildPackageSmokePlatformCoverage(hnswNativeStatus);
   assert(platformCoverage.releaseGating.length === 3, 'package smoke platform policy declares three release-gating targets');
   assert(platformCoverage.bestEffort.length === 3, 'package smoke platform policy declares three best-effort targets');
@@ -443,7 +442,8 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
     assert(artifact.saveToSearch.smartSearchFound > 0, 'package smoke save_document marker is retrievable by smart_search');
     assert.strictEqual(artifact.saveToSearch.identityMatched, true, 'package smoke smart_search result matches saved document identity');
     assert(['queued', 'degraded', 'enqueue_failed'].includes(artifact.saveToSearch.indexingState), 'package smoke save_document records post-save indexing.state');
-    assert.strictEqual(artifact.saveToSearch.indexingJobIdPresent, true, 'package smoke save_document returns diagnostic indexing.jobId');
+    assert.strictEqual(artifact.saveToSearch.indexingJobIdPresent, true,
+      `package smoke save_document returns diagnostic indexing.jobId (state=${artifact.saveToSearch.indexingState})`);
     assert.strictEqual(artifact.saveToSearch.indexingJobIdDiagnosticOnly, true, 'package smoke indexing.jobId exposes no MCP status/cancel/retry/rebuild/import/reconciliation controls');
     assert.strictEqual(artifact.saveToSearch.queuedBooleanPresent, false, 'package smoke save_document envelope has no queued boolean');
     assert.strictEqual(artifact.saveToSearch.degraded, true, 'package smoke smart_search returns degraded keyword-only envelope when embeddings are disabled');
@@ -511,6 +511,11 @@ function writePackageSmokeReports(reportDir, artifact, platformCoverage) {
     if (hnswNativeStatus === 'optional_missing') {
       assert.strictEqual(hnswNativeStatus, 'optional_missing', 'optional hnswlib-node absence is recorded as degraded package state');
     }
+    artifact.nativeOwner = await runPackageNativeOwnerSmoke({
+      appPath: exePath, artifactKind: selected.artifactKind, root
+    });
+    assert(!containsRawArtifactEcho(JSON.stringify(artifact.nativeOwner)),
+      'normal packaged owner evidence contains no raw absolute paths or credentials');
     writePackageSmokeReports(process.env.DOCULIGHT_PACKAGE_SMOKE_REPORT_DIR, artifact, platformCoverage);
   } finally {
     try { fs.unlinkSync(artifactPath); } catch { /* ignore */ }
