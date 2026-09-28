@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S22 #45](https://github.com/ice3x2/DocuLightViewer/issues/45) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44). S23은 검토된 부분 커밋 뒤에도 열린 상태다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S28 #51](https://github.com/ice3x2/DocuLightViewer/issues/51) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)와 [S29 #52](https://github.com/ice3x2/DocuLightViewer/issues/52). S23은 검토된 부분 커밋 뒤에도 열린 상태다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `24/36` 완료(S01~S20, S22, S24~S26)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S21과 S23은 복구 확인·상위 전환 게이트가 남아 열린 상태다. 다음은 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)의 남은 `retry-check` 검증이다.
+실행 이슈는 `25/36` 완료(S01~S20, S22, S24~S26, S28)다. S26은 실제 Electron 앱의 저장·원본 alias·linked import·취소·재시작 후 최신 검색 핵심 흐름을 검증했다. S21과 S23은 상태 조합·상위 전환 게이트가 남아 열려 있고, S29는 다섯 릴리스의 전체 forward-open 검증이 남아 있다. 다음은 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44)와 [S29 #52](https://github.com/ice3x2/DocuLightViewer/issues/52)의 미완료 조건이다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -279,7 +279,7 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [최종 실제 Electron 원시 결과](../analysis/2026-09-25-s20-s26-7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf-raw.json): 제품 시작·Settings 상태·포커스·viewer 종료·재시작에서 main 쓰기 open 0건이며 상태·포커스·종료 전후 main SQLite open 카운터가 증가하지 않았다. 활성 구형 작업의 cached status도 원장 조회 없이 기존 상태 형태를 유지한다. SourceHash `7038c8ed48b3c135427a992af1506e0cabd628149399439dc3f3abdaf6d6fdbf`; S20 23/S21 23/S24 29/실제 S26 49 assertions 통과. 두 독립 검토의 차단 결함은 0건이다.
 - [x] #43은 `2e72de704865f84313f3e2cc6e4973ce842e8740`으로 게시하고 닫았다. #44/#45/#46 및 별도 릴리스 게이트는 남아 있으며 요구사항을 증거 없이 verified로 승급하지 않았다.
 
-## S21 사후 진행 기록 — owner 상태 UX와 복구 확인 분리
+## S21 당시 진행 기록 — owner 상태 UX와 복구 확인 분리
 
 - [x] [S21 실제 Renderer·IPC 증거](../analysis/2026-09-25-s21-final-ui-evidence.md): 활성 구형 작업과 owner READY의 혼합 상태에서 유지보수 버튼을 막고, owner 재구축·clear·문서 색인의 canonical 상태 및 중지 정책을 SRS에 맞췄다. private clear 취소 우회는 작업 변경 없이 거절하고, owner 작업 중 과거 실패 건수만으로 Retry가 켜지지 않게 했다. 네 locale 270개 key, 상태 ARIA·focus, S21 실제 Electron 35/S23 45/S26 49 assertions와 독립 검토를 확인했다. SourceHash `bd2209c0583a3f11ea6f70e35341dec3d8ca867d544b113297d19a68f8d65331`; 부분 게시 SHA `bb216a2c2d5a073192b1c136c1fb740b08a01cee`.
 - [ ] #44는 계속 OPEN이다. `IR-APP-013 AC-15`의 `CORRUPT_DEGRADED`·`INTERRUPTED` 전용 `retry-check`는 현재 owner 명령·복구 수명주기에 없다. 정확한 SRS 계약 변경과 구현·검증을 native 하위 이슈 [#64](https://github.com/ice3x2/DocuLightViewer/issues/64)에 순서대로 기록했다. 기존 keyword Retry를 복구 확인으로 대체하지 않으며 #44를 완료율에 넣지 않는다.
@@ -288,3 +288,13 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 
 - [x] [S22 패키지 증거](../analysis/2026-09-25-s22-product-latency-evidence.md): B:의 unpacked Windows 패키지 앱을 기본 프로필·격리 userData로 프로세스 콜드 실행했다. 10,484,650바이트 Markdown 색인 중 실제 Settings status 50건, 일반 viewer focus/close 각 25건, Settings cancel과 Electron main heartbeat의 모든 승인 임계치를 통과했다. 100개 표본마다 같은 owner 작업의 active marker를 확인했고 단일 owner writer 외 제품 main 쓰기 open은 없었다. 취소 후 외부 원본·저장소 복사본은 새 revision을, committed keyword index는 이전 완료 revision을 유지했다. 원시 표본·패키지 executable/asar·fixture SHA는 링크된 증거에 있다.
 - [x] SourceHash `4f52d186f02e8e2f8e3fe73b11453ad48c60d684538347fbfe74a985921dc53d`의 S22 제품 시험 294 assertions가 통과했다. 같은 해시의 Node ABI 137 격리 런타임에서 `test-search-index-worker-benchmark-contract`, `test-indexing-status-performance-contract`, `test-package-smoke-launch-options`도 각각 exit 0이었다. 두 독립 검토는 차단 결함 0건이며, `530ccbf65fbb21f3767acd91180ebb8161c89e3f`으로 게시하고 [#45](https://github.com/ice3x2/DocuLightViewer/issues/45)를 닫았다. `IR-APP-013` 전체 요구사항을 이 결과만으로 verified로 올리지 않는다.
+
+## S28 완료 기록 — 다섯 공개 태그 fixture 출처
+
+- [x] [불변 manifest](../../test/fixtures/legacy-release-manifest.json)와 태그 코드로 생성한 다섯 버전의 합성 SQLite·Markdown 15개 파일은 각 태그 SHA, 입력 파일, schema v1, 출력 SHA-256·크기와 sanitization 규칙을 기록한다. v1.0.5 원본 lexical/canonical 경로와 구형 hash-only 1:N 별칭은 태그별 실제 API로 만들었다. 태그·checksum·입출력 누락·바이트 변조·개인 경로 혼입을 실패시키고, 새 Windows 체크아웃에서 LF 원본 바이트의 재현성을 확인했다.
+- [x] 두 독립 검토 뒤 `01384a01c3d4cea032dfffdcab952e5214b315af` 및 줄바꿈 보존 `35bad792f0d34f889fc7828eadcb0e9e01e0f54d`를 통합 브랜치에 게시하고 [#51](https://github.com/ice3x2/DocuLightViewer/issues/51)을 닫았다. 좁은 기존 원장 열기·원본 resolver 검사는 이미 GREEN이므로 기능 RED를 꾸미지 않았다. [#52](https://github.com/ice3x2/DocuLightViewer/issues/52)는 worker migration·재시작·derived cache 재구축·origin fallback의 전체 검증 전까지 열린다.
+
+## S21a 완료 및 S21 잔여 기록 — 읽기 전용 health retry
+
+- [x] [#64 통합 증거](../analysis/2026-09-29-issue64-integration-evidence.md): `FR-DOC-019 AC-10`, `IR-APP-013 AC-13/15`의 private `retry_check`는 손상된 source/keyword DB를 production 쓰기 open 전 읽기 전용 전체 검사로 분류하고, `CORRUPT_DEGRADED`·`INTERRUPTED`에서만 수락한다. CHECKING 취소·재시작, 안전한 새 owner START, 원본·sidecar·기존 인덱스 보존, 손상 검색 fail-closed, 엄격한 Settings IPC와 네 locale를 RED→GREEN으로 검증했다. 통합 sourceHash `2a786621bcf1c2626eb871347298a5f31b680b3eeaea5dffbe94fa8452a84619`의 S20 23/S21 37/S23 45/S26 49 및 집중 계약 테스트가 통과했다. 두 독립 검토 후 `2e5c64bafac5810c0508ab9229f72d9fc5db340e`을 게시하고 [#64](https://github.com/ice3x2/DocuLightViewer/issues/64)를 닫았다.
+- [ ] #44는 계속 OPEN이다. 실제 저장 실패·지연 viewer 피드백, 4개 locale의 제품 문구·ARIA, 30상태 Cartesian 액션·redaction·MCP 조합, DB-free cancel과 최종 해시의 패키지 성능 조건을 [#65](https://github.com/ice3x2/DocuLightViewer/issues/65)로 분해했다. 요구사항 전체를 이 하위 이슈만으로 verified로 승급하지 않는다.
