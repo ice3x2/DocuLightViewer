@@ -142,6 +142,13 @@ function redactedCommandLine(commandLine, root) {
     .replaceAll(root, '<R3_ELECTRON_ROOT>');
 }
 
+function fixtureMarkers(seed) {
+  if (seed !== undefined && !/^[a-f0-9]{16}$/.test(seed)) throw new Error('invalid S26 seed');
+  return { marker: `s26${seed || crypto.randomBytes(8).toString('hex')}`,
+    oldMarker: `zzzxq${seed || crypto.randomBytes(8).toString('hex')}`,
+    newMarker: `qqqjz${seed || crypto.randomBytes(8).toString('hex')}` };
+}
+
 // @req FR-DOC-019 FR-DOC-033 FR-DOC-035 DR-DOC-014 IR-MCP-018 IR-APP-013
 module.exports = { name: 's26', async run({ executable, root, sourceHash, assert }) {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-s26-'));
@@ -158,11 +165,12 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     mcpAutoSave: true, mcpAutoSavePath: store, mcpSaveSubDir: '', mcpGitInfo: false,
     registerOpenedMarkdown: true
   }));
-  const marker = `s26${crypto.randomBytes(8).toString('hex')}`;
+  const selectedMarkers = fixtureMarkers(process.env.DOCULIGHT_R3_S26_SEED);
+  const marker = selectedMarkers.marker;
   const oldQuery = 'zzzxq';
   const newQuery = 'qqqjz';
-  const old = `${oldQuery}${crypto.randomBytes(8).toString('hex')}`;
-  const newer = `${newQuery}${crypto.randomBytes(8).toString('hex')}`;
+  const old = selectedMarkers.oldMarker;
+  const newer = selectedMarkers.newMarker;
   const firstBytes = Buffer.from(`---\nproject: s26-project\ncategory: s26-category\ndocumentTags: [s26-tag]\n---\n# S26 original\n\n${old}\n`);
   fs.writeFileSync(path.join(externalA, 'source.md'), firstBytes);
   const externalAFile = path.join(externalA, 'source.md');
@@ -584,5 +592,5 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
   }
   return { fixture, userData, store, marker, newMarker: newer, newQuery,
     openedDocumentId: evidence.openedDocumentId };
-}, helpers: { rpc, tool, privateAction, ledgerSnapshot, keywordSnapshot,
+}, fixtureMarkers, helpers: { rpc, tool, privateAction, ledgerSnapshot, keywordSnapshot,
   waitForExit, until, eventually, hasSearchHit, searchText } };
