@@ -1,6 +1,6 @@
 ﻿# 색인 재설계 실행 기록
 
-에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S23 #46](https://github.com/ice3x2/DocuLightViewer/issues/46) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50), [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54). 이전 섹션의 미완료 문구는 해당 시점의 기록이며 아래 최신 완료 기록이 우선한다.
+에픽 [#3](https://github.com/ice3x2/DocuLightViewer/issues/3) · 최근 완료 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) · 다음 [S21 #44](https://github.com/ice3x2/DocuLightViewer/issues/44), [S27 #50](https://github.com/ice3x2/DocuLightViewer/issues/50), [S32 #55](https://github.com/ice3x2/DocuLightViewer/issues/55). 이전 섹션의 미완료 문구는 해당 시점의 기록이며 아래 최신 완료 기록이 우선한다.
 요구사항 원본은 `docs/spec/`이며 관련 ID는 `FR-DOC-019`, `REL-DOC-009`, `DR-DOC-014`, `FR-DOC-033`, `FR-DOC-035`, `FR-DOC-036`, `IR-APP-013`, `FR-APP-013`이다.
 
 ## S01 기준과 보존 경계
@@ -58,7 +58,7 @@ SpecKiwi MCP를 `workspaceRoot=C:\Work\git\_Snoworca\DocuLightViewer-r3`로 조�
 
 S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. SpecKiwi `validate --json`은 exit 0, errors 0, warnings 6이었다. `SRS-W015` 4건은 기존 완료 로그가 재개되거나 supersede된 요구사항을 가리키는 이력 경고이고 `SRS-W073` 2건은 기존 index의 규칙 파일 버전 경고다. `FR-APP-012`는 verified-discard guard를 명시적으로 통과하는 `supersede --confirm-discard-verified`로 폐기했고, 정확히 `FR-APP-013`을 후속 요구로 할당했다. `IR-APP-013`은 16개 AC를 가진 `planned/evolving`으로 등록했다. 두 독립 검토가 승인 문장별 mapping, 기존 AC 의미, 새 ID·Status/Stability, 공개 8-tool·redaction·네 locale·저장 파일 보존, 3시간 핵심과 release gate의 구분을 확인했다.
 
-실행 이슈는 `28/36` 완료(S01~S20, S22~S26, S28~S30)다. S23은 통합 해시의 제품 전체 SQLite writer 감사, 실패·취소·손상 재확인, S17/S19 복구 회귀를 마치고 닫혔다. S21의 상태 조합·실제 저장 용량 정책과 S27의 독립 핵심 검토는 열려 있으며, macOS·Linux 실제 산출물과 CI 필수 게이트는 [S31 #54](https://github.com/ice3x2/DocuLightViewer/issues/54) 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
+실행 이슈는 `29/36` 완료(S01~S20, S22~S26, S28~S31)다. S31은 정확한 커밋·세 플랫폼 직접 패키지·체크섬·원시 응답성 증거가 누락되면 릴리스 게시 전에 실패하는 CI 계약을 구현했다. S21의 상태 조합·실제 저장 용량 정책과 S27의 독립 핵심 검토는 열려 있으며, 실제 Windows/macOS/Linux CI 실행과 릴리스 판정은 [S32 #55](https://github.com/ice3x2/DocuLightViewer/issues/55) 이후 및 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)에 남는다.
 
 ## S17 진행 기록 — 독립 검토 완료
 
@@ -317,3 +317,9 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [동일 통합 해시의 회귀 기록](../analysis/2026-09-29-s23d-integrated-regressions-ecfbbd96.json): S17/S19/S20/S23/S25는 각각 exit 0, PASS 32/47/23/45/16이었다. [호출 목록](../analysis/2026-09-29-s23d-caller-inventory.md)은 아직 사용되는 짧은 worker·S17/S19 독자를 보존하고 존재하지 않는 saga/grant/coordinator를 no-op으로 판정한다. #66의 실패 보고 거짓 성공을 재현·수정한 뒤 두 독립 검토와 통합 검토에서 차단 결함 0건을 확인했다.
 - [x] 작성 커밋 `2a242b9faa273a5d03476cf44de4aaf73d272251`을 통합 커밋 `3dfd72fec1782d4b09bb051e8155b16c407afe66`으로 반영하고, 증거만 추가한 `804d58edf35faa13551ed760ba19c9a08bf992ae`에서 상위 [#46](https://github.com/ice3x2/DocuLightViewer/issues/46)의 여섯 완료 조건을 독립 감사한 뒤 닫았다. 사용자 명시 삭제 동작은 실패 롤백과 구분해 유지했다. 관련 SRS를 근거 없이 일괄 verified로 올리지 않았다.
 - [ ] [#44 S21](https://github.com/ice3x2/DocuLightViewer/issues/44)의 저장·상태 UX와 [#50 S27](https://github.com/ice3x2/DocuLightViewer/issues/50)의 독립 핵심 검토는 별도 완료 조건으로 남는다.
+
+## S31 완료 기록 — 릴리스 CI 증거 게이트 구현
+
+- [x] [작성·변이 증거](../analysis/2026-09-29-s31-release-gate-evidence.json): 세 필수 플랫폼에서 직접 Windows portable, 압축 해제된 macOS arm64 `.app`, Linux x64 AppImage를 검사한다. 모든 업로드 패키지와 실제 실행 파일의 연결(맥 ZIP 내부 실행 파일 포함), 정확한 트리거 SHA, ABI/native 상태, 원시 상태·포커스·닫기 지연의 재계산과 각 취소 표본, 세 선택 아키텍처의 사유 있는 skipped 상태를 게시 전에 검증한다. 누락·변조 fixture의 semantic RED 뒤 관련 계약 테스트 7개가 통과했다. 작성 worktree sourceHash는 `a09c3d1a330b3caf1e062e4606951641d9a6de4a86f5cc1d5651aabf4a3bfdac`이다.
+- [x] [통합 증거](../analysis/2026-09-29-s31-integration-evidence.md): 작성 커밋 `11f6ae7644ca30d752a77efa978a44c9583f1c71`을 `9c14963d11afb7ea3d83562008ead9d33bafbcba`으로 반영했고, 통합 sourceHash `c0150280172060a8ce47a37042503073cac9c4db9757ccb77c5df228fb7e2345`에서 관련 테스트 7개가 각각 exit 0이었다. 두 독립 검토가 패키지 바이트·ABI·원시 표본·정책 변이와 필수 job 순서를 확인했다. 증거 커밋 `ac9fddb0677a0c6b94dbdb4e1f2c5f4526123d74` 뒤 [#54](https://github.com/ice3x2/DocuLightViewer/issues/54)를 CI 계약 구현 범위로 닫았다.
+- [ ] 변경된 릴리스 workflow는 아직 실행하지 않았다. 실제 Windows/macOS/Linux 패키지 결과·서명·태그·게시의 필수 게이트는 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21)과 후속 릴리스 검증 이슈에 남는다.
