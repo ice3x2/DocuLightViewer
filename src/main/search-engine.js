@@ -352,6 +352,7 @@ class SearchEngine {
    * @returns {Array<{ filePath, score, title, project, docName, description, date, snippet }>}
    */
   search(query, { limit = 20, project, docType, category, documentTags, tagMode, pathPrefix, filePaths } = {}) {
+    if (!this._ownerSearchAvailable()) return [];
     const searchPathPrefix = pathPrefix
       ? path.resolve(this._getSourceRoot(), String(pathPrefix).replace(/\\/g, path.sep))
       : undefined;
@@ -372,6 +373,7 @@ class SearchEngine {
       } catch (err) {
         console.error('[doculight] SQLite keyword search error:', err.message);
         this._lastDegradedReason = 'sqlite-error';
+        if (this.options.ownerManaged) return [];
         return this._fallbackSearch(query, { limit, project, docType, category, documentTags, tagMode, pathPrefix: searchPathPrefix, filePaths });
       }
     }
@@ -444,6 +446,8 @@ class SearchEngine {
 
   // @req FR-DOC-025
   async getSmartSearchSemanticCandidates(query, { limit = 20, filters = {} } = {}) {
+    if (!this._ownerSearchAvailable()) return { status: 'failed',
+      degradationReason: 'index_unavailable', backend: null, candidates: [] };
     const provider = this.options.semanticCandidateProvider;
     if (provider && typeof provider.search === 'function') {
       try {
@@ -683,6 +687,7 @@ class SearchEngine {
    * @returns {Array<{ project, description, documentCount, documents }>}
    */
   searchProjects(query, limit = 20) {
+    if (!this._ownerSearchAvailable()) return [];
     const projectMap = new Map();
     for (const [docId, meta] of this.docMeta) {
       const proj = meta.project || '(no project)';
@@ -1360,6 +1365,9 @@ class SearchEngine {
   }
 
   async ensureFresh() {
+    if (!this._ownerSearchAvailable()) {
+      return { rebuilt: false, stale: true, status: this.getStatus() };
+    }
     if (this.options.ownerManaged && this._usesSQLiteBackend()) {
       const indexPath = this.getIndexPath();
       if (fs.existsSync(indexPath)) {
@@ -1965,6 +1973,15 @@ class SearchEngine {
     };
   }
 
+  // @req FR-DOC-019 AC-10 IR-APP-013 AC-15
+  _ownerSearchAvailable() {
+    if (!this.options.ownerManaged || typeof this.options.ownerHealthProvider !== 'function') return true;
+    const health = this.options.ownerHealthProvider();
+    return health?.migrationComplete === true && health?.recoveryComplete === true
+      && ['ready', 'rebuilding', 'indexing', 'compacting', 'clearing',
+        'READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(health.state);
+  }
+
   getStatus(options = {}) {
     const publicPaths = !(options && options.publicPaths === false);
     const workerStatus = this._indexingWorkerController && typeof this._indexingWorkerController.getStatus === 'function'
@@ -1972,7 +1989,9 @@ class SearchEngine {
       : null;
     const activeWorkerStatus = workerStatus && workerStatus.active ? workerStatus : null;
     let state = this._status.state;
-    if (activeWorkerStatus && activeWorkerStatus.state) {
+    if (!this._ownerSearchAvailable()) {
+      state = 'degraded';
+    } else if (activeWorkerStatus && activeWorkerStatus.state) {
       state = activeWorkerStatus.state;
     } else if (this._rebuildPromise) {
       state = 'rebuilding';

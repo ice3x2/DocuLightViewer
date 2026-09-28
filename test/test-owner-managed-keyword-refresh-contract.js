@@ -18,8 +18,10 @@ const source = path.join(docs, 'original.md');
 const store = { get(key, fallback) {
   return key === 'mcpAutoSavePath' ? docs : key === 'mcpAutoSave' ? true : fallback;
 } };
+let ownerHealth = { state: 'ready', migrationComplete: true, recoveryComplete: true };
 const reader = new SearchEngine(store, { indexBackend: 'sqlite', indexDataDir,
   ownerManaged: true, keywordTokenizer: createBasicKeywordTokenizer(),
+  ownerHealthProvider: () => ownerHealth,
   disableIndexingWorkerController: true });
 const writer = new SQLiteKeywordIndex({ dbPath, sourceRoot: docs,
   tokenizer: createBasicKeywordTokenizer() });
@@ -79,6 +81,24 @@ function replace(text, revision) {
     await reader.ensureFresh();
     assert.equal(reader.getStatus().state, 'ready', 'transient read fault clears after compatible retry');
     assert.equal(reader.search('revisedneedle').length, 1, 'prior committed result survives owner read-fault recovery');
+    ownerHealth = { state: 'failed', diagnostic: { code: 'keyword_index_corrupt' } };
+    assert.deepEqual(reader.search('revisedneedle'), [],
+      'public keyword search fails closed when owner rejects corrupt keyword cache');
+    assert.deepEqual(reader.searchProjects('Refresh'), [],
+      'public project search cannot expose cached metadata after owner failure');
+    assert.equal((await reader.getSmartSearchSemanticCandidates('revisedneedle')).candidates.length, 0,
+      'smart search cannot expose semantic candidates after owner failure');
+    const unsafeRead = reader.sqliteIndex.getCommittedGeneration;
+    reader.sqliteIndex.getCommittedGeneration = () => { throw new Error('must not open during owner failure'); };
+    const stale = await reader.ensureFresh();
+    assert.equal(stale.stale, true, 'ensureFresh refuses to read unvalidated cache after owner failure');
+    reader.sqliteIndex.getCommittedGeneration = unsafeRead;
+    ownerHealth = { state: 'ready', migrationComplete: true, recoveryComplete: true };
+    const unsafeSearch = reader.sqliteIndex.search;
+    reader.sqliteIndex.search = () => { throw new Error('keyword read fault'); };
+    assert.deepEqual(reader.search('revisedneedle'), [],
+      'owner-managed SQLite read fault never falls back to unvalidated cached hits');
+    reader.sqliteIndex.search = unsafeSearch;
     console.log('test-owner-managed-keyword-refresh-contract: all assertions passed');
   } finally {
     reader.close();

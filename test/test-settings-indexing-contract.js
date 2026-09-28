@@ -19,6 +19,7 @@ const apiNames = [
   'startIndexingRebuild',
   'cancelIndexingJob',
   'retryIndexingFailures',
+  'retryIndexHealthCheck',
   'compactSearchIndex',
   'openIndexDataDir'
 ];
@@ -35,6 +36,7 @@ const ipcChannels = [
   'indexing:start-rebuild',
   'indexing:cancel-job',
   'indexing:retry-failures',
+  'indexing:retry-check',
   'indexing:compact',
   'indexing:clear',
   'indexing:open-data-dir'
@@ -138,7 +140,7 @@ assert(/fs\.statSync\([^)]*\)\.isDirectory\(\)/.test(main), 'main process treats
 assert(settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
   settingsJs.includes('status.indexingWorker.active && status.indexingWorker.kind !== \'rebuild\'') &&
   settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
-  settingsJs.includes('|| !(legacyCancelAvailable || ownerCancelAvailable)'),
+  settingsJs.includes("|| !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING')"),
   'settings renderer preserves full-rebuild cancel guard and permits supported document and legacy worker cancel');
 assert(settingsJs.includes('const showPhase'), 'technical phase text is hidden unless indexing is actively running');
 assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings renderer tracks an in-flight indexing status request');
@@ -160,7 +162,7 @@ assert(settingsJs.includes('confirm(t(\'settings.indexingCompactConfirm\'))'), '
 assert(
   settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
     settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
-    settingsJs.includes('|| !(legacyCancelAvailable || ownerCancelAvailable)'),
+    settingsJs.includes("|| !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING')"),
   'settings renderer keeps full-rebuild cancel disabled despite an owner snapshot'
 );
 assert(
@@ -205,6 +207,7 @@ for (const locale of ['en', 'ko', 'ja', 'es']) {
     'settings.indexingRebuildDescription',
     'settings.indexingCancelDescription',
     'settings.indexingRetryDescription',
+    'settings.indexingRetryCheckDescription',
     'settings.indexingCompactDescription',
     'settings.indexingClearDescription',
     'settings.indexingOpenDirDescription',

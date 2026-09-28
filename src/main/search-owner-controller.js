@@ -32,6 +32,11 @@ class OwnerWorkerController {
     this.readyReject = null;
     this.releaseOwnerLock = null;
     this.documentCancel = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    this.checker = null;
+    this.checkerPrior = null;
+    this.lastCheckAudit = null;
+    this.lastStartAudit = null;
+    this.awaitingRetryRecovery = false;
   }
 
   getStatus() { return { ...this.snapshot, sequence: this.sequence }; }
@@ -69,12 +74,20 @@ class OwnerWorkerController {
         if (message.tag === 'STATUS' && message.sequence > this.workerSequence) {
           this.workerSequence = message.sequence;
           this.sequence += 1;
-          this.snapshot = message.snapshot;
+          if (this.awaitingRetryRecovery
+            && (message.snapshot.migrationComplete !== true || message.snapshot.recoveryComplete !== true)) {
+            this.snapshot = { state: 'INTERRUPTED', active: false,
+              diagnostic: { code: 'owner_recovery_pending' } };
+          } else {
+            this.awaitingRetryRecovery = false;
+            this.snapshot = message.snapshot;
+          }
           if (typeof this.config.onStatus === 'function') {
             try { this.config.onStatus(this.snapshot); } catch { /* status delivery remains available */ }
           }
         } else if (message.tag === 'START') {
           this.readyReject = null;
+          this.lastStartAudit = message.audit || null;
           if (message.state === 'ready') resolve(message);
           else reject(failure(message.error?.code || 'owner_start_failed'));
         } else if (message.tag === 'RESULT') {
@@ -111,10 +124,15 @@ class OwnerWorkerController {
       this.failedWorker = null;
       if (this.releaseOwnerLock) this.releaseOwnerLock();
       this.releaseOwnerLock = null;
+      this.awaitingRetryRecovery = false;
     } else {
       this.failedWorker = worker;
     }
-    this.snapshot = { state: code === 'owner_shutdown' ? 'shutdown' : 'failed', active: false, diagnostic: { code } };
+    if (this.snapshot.state !== 'CORRUPT_DEGRADED'
+      && !(this.snapshot.state === 'INTERRUPTED'
+        && this.snapshot.diagnostic?.code === 'owner_start_failed')) {
+      this.snapshot = { state: code === 'owner_shutdown' ? 'shutdown' : 'failed', active: false, diagnostic: { code } };
+    }
     this.sequence += 1;
     for (const pending of this.pending.values()) pending.reject(failure(code));
     this.pending.clear();
@@ -140,9 +158,10 @@ class OwnerWorkerController {
     if (type === 'shutdown') return this.shutdown(id, true);
     if (type === 'manage_index' && (payload === null || typeof payload !== 'object'
       || Array.isArray(payload) || Object.keys(payload).length !== 1
-      || !['rebuild', 'retry', 'compact', 'clear'].includes(payload.operation))) {
+      || !['rebuild', 'retry', 'compact', 'clear', 'retry_check'].includes(payload.operation))) {
       return Promise.reject(failure('owner_invalid_manage_index_payload'));
     }
+    if (type === 'manage_index' && payload.operation === 'retry_check') return this.retryCheck();
     if (type === 'manage_index' && this.worker && !this.closing) {
       const snapshot = this.snapshot;
       if (snapshot.migrationComplete !== true || snapshot.recoveryComplete !== true) {
@@ -166,6 +185,71 @@ class OwnerWorkerController {
         .map(key => [key, payload[key]]));
     }
     return this._send('COMMAND', type, payload, id);
+  }
+
+  // @req FR-DOC-019 AC-10 IR-APP-013 AC-13 AC-15
+  retryCheck() {
+    const prior = this.snapshot.state;
+    if (this.closing || !['CORRUPT_DEGRADED', 'INTERRUPTED'].includes(prior) || this.worker || this.checker
+      || this.awaitingRetryRecovery) {
+      return Promise.resolve({ started: false, scheduled: false, reason: 'check-not-available' });
+    }
+    this.checkerPrior = { ...this.snapshot };
+    const checker = new Worker(path.join(__dirname, 'search-health-checker.js'), {
+      workerData: { ledgerPath: this.config.ledgerPath, keywordPath: this.config.keywordPath,
+        r3HealthCheckBarrier: this.config.r3HealthCheckBarrier }
+    });
+    this.checker = checker;
+    this.snapshot = { state: 'CHECKING', active: true, phase: 'health_check' };
+    this.sequence += 1;
+    let completed = false;
+    const timeout = setTimeout(() => { if (this.checker === checker) void checker.terminate(); }, 30000);
+    checker.on('message', message => {
+      if (this.checker !== checker || completed) return;
+      completed = true;
+      clearTimeout(timeout);
+      this.checker = null;
+      this.lastCheckAudit = message.audit || null;
+      if (message.ok === true) {
+        this.awaitingRetryRecovery = true;
+        this.snapshot = { state: 'INTERRUPTED', active: false,
+          diagnostic: { code: 'health_check_owner_start_pending' } };
+        this.sequence += 1;
+        void this.start().catch(() => {
+          this.awaitingRetryRecovery = false;
+          if (this.snapshot.state !== 'CORRUPT_DEGRADED') {
+            this.snapshot = { state: 'INTERRUPTED', active: false,
+              diagnostic: { code: 'owner_start_failed' } };
+            this.sequence += 1;
+          }
+        });
+      } else {
+        this.snapshot = { ...this.checkerPrior,
+          state: message.code === 'source_ledger_corrupt' ? 'CORRUPT_DEGRADED' : 'INTERRUPTED',
+          active: false, diagnostic: { code: message.code || 'health_check_failed' } };
+        this.sequence += 1;
+      }
+    });
+    checker.on('error', () => { /* exit handles interrupted check */ });
+    checker.on('exit', () => {
+      clearTimeout(timeout);
+      if (completed || this.checker !== checker) return;
+      this.checker = null;
+      this.snapshot = { state: 'INTERRUPTED', active: false,
+        diagnostic: { code: 'health_check_interrupted' } };
+      this.sequence += 1;
+    });
+    return Promise.resolve({ started: true, scheduled: true });
+  }
+
+  async cancelRetryCheck() {
+    if (!this.checker || this.snapshot.state !== 'CHECKING') return { cancelled: false };
+    const checker = this.checker;
+    this.checker = null;
+    await checker.terminate();
+    this.snapshot = this.checkerPrior;
+    this.sequence += 1;
+    return { cancelled: true };
   }
   // @req FR-DOC-019 REL-DOC-009
   async acceptPublishedSave(payload = {}) {
@@ -204,6 +288,7 @@ class OwnerWorkerController {
   }
 
   async shutdown(id, command = false) {
+    if (this.checker) await this.cancelRetryCheck();
     if (!this.worker) {
       this.closing = true;
       if (this.releaseOwnerLock) this.releaseOwnerLock();

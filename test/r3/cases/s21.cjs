@@ -17,6 +17,7 @@ module.exports = {
     let cancelCount = 0;
     let retryCount = 0;
     let ownerCancelCount = 0;
+    let checkerCancelCount = 0;
     let ownerRetryCount = 0;
     let ownerActionMode = false;
     let ownerSnapshot = { state: 'ready', active: false };
@@ -64,6 +65,7 @@ module.exports = {
         settingsIndexingWindow: () => win,
         saveDocumentOwner: {
           getStatus: () => ownerSnapshot,
+          cancelRetryCheck: async () => { checkerCancelCount += 1; return { cancelled: true }; },
           cancel: async () => { ownerCancelCount += 1; return { cancelled: true }; }
         },
         searchEngine: legacyEngine,
@@ -81,6 +83,8 @@ module.exports = {
         alert: document.getElementById('indexing-error').getAttribute('role'),
         diagnostic: document.getElementById('indexing-error').textContent,
         retryDisabled: document.getElementById('indexing-retry-btn').disabled,
+        retryCheckDisabled: document.getElementById('indexing-retry-check-btn').disabled,
+        retryCheckDescription: document.getElementById('indexing-retry-check-btn').parentElement.querySelector('small').textContent,
         cancelDisabled: document.getElementById('indexing-cancel-btn').disabled,
         rebuildDisabled: document.getElementById('indexing-rebuild-btn').disabled,
         compactDisabled: document.getElementById('indexing-compact-btn').disabled,
@@ -123,16 +127,25 @@ module.exports = {
       await update({ ledgerState: 'CORRUPT_DEGRADED', ledgerCode: 'ledger_recovery_required', ledgerCondition: null });
       view = await inspect();
       assert(view.retryDisabled && view.alert === null, 'recovery state does not offer unsupported legacy retry');
+      assert(!view.retryCheckDisabled, 'corrupt source state offers a distinct health check');
+      assert(/health check/i.test(view.retryCheckDescription)
+        && !/failed documents/i.test(view.retryCheckDescription),
+      'retry-check has its own localized health guidance, separate from failed-document retry');
       await win.webContents.executeJavaScript('document.getElementById("indexing-retry-btn").click()');
       assert(retryCount === 0, 'disabled canonical retry does not invoke the legacy rebuild IPC');
       await update({ ledgerState: 'OWNER_EXIT_BLOCKED', ledgerCode: 'ledger_owner_exit_blocked', ledgerCondition: null });
       view = await inspect();
       assert(view.alert === 'alert' && /restart|support/i.test(view.text), 'unrecoverable ledger state exposes localized restart/support alert');
+      ownerActionMode = true;
+      ownerSnapshot = { state: 'CHECKING', active: true, phase: 'health_check' };
       await update({ ledgerState: 'CHECKING', state: 'checking', ledgerCode: 'ledger_checking' });
       view = await inspect();
-      assert(view.cancelDisabled, 'checking does not offer unsupported legacy cancel');
+      assert(!view.cancelDisabled && view.retryCheckDisabled, 'checking offers safe cancel and blocks duplicate health check');
       await win.webContents.executeJavaScript('document.getElementById("indexing-cancel-btn").click()');
-      assert(cancelCount === 0, 'disabled canonical cancel does not invoke the legacy cancel IPC');
+      await win.webContents.executeJavaScript('new Promise(resolve => setTimeout(resolve, 30))');
+      assert(cancelCount === 0 && checkerCancelCount === 1,
+        'checking cancel targets the ephemeral checker rather than legacy cancel');
+      ownerActionMode = false;
       legacyRebuildActive = true;
       await update(composeIndexingStatusPayload({ state: 'rebuilding', failedCount: 0,
         rebuildSession: { active: true, indexedCount: 0, pendingCount: 1 } }, { state: 'ready' }, true));

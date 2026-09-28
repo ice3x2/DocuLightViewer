@@ -34,7 +34,7 @@ if (!safeTempRoot(nodeRoot) || !safeTempRoot(electronRoot) || path.resolve(nodeR
         const installedElectron = path.join(root, 'node_modules/electron');
         const sourceElectron = path.join(sourceRoot, 'node_modules/electron');
         if (!fs.existsSync(path.join(installedElectron, 'path.txt'))) {
-          const install = spawnSync(process.execPath, [path.join(installedElectron, 'install.js')], { cwd: root, stdio: 'inherit' });
+          const install = spawnSync(process.execPath, [path.join(installedElectron, 'install.js')], { cwd: root, stdio: 'inherit', windowsHide: true });
           if (!fs.existsSync(path.join(installedElectron, 'path.txt')) && fs.existsSync(path.join(sourceElectron, 'path.txt'))) {
             const expected = require(path.join(installedElectron, 'package.json')).version;
             const sourceVersion = require(path.join(sourceElectron, 'package.json')).version;
@@ -63,14 +63,15 @@ if (!safeTempRoot(nodeRoot) || !safeTempRoot(electronRoot) || path.resolve(nodeR
 }
 
 function command(file, commandArgs, cwd) {
-  const child = spawnSync(file, commandArgs, { cwd, stdio: 'inherit', shell: process.platform === 'win32' && file.endsWith('.cmd') });
+  const child = spawnSync(file, commandArgs, { cwd, stdio: 'inherit', windowsHide: true,
+    shell: process.platform === 'win32' && file.endsWith('.cmd') });
   if (child.status !== 0) throw new Error(`${file} ${commandArgs.join(' ')} failed (${child.status ?? child.error?.message})`);
 }
 
 function probeElectron(root) {
   const executable = require(path.join(root, 'node_modules/electron'));
   const child = spawnSync(executable, ['-p', 'process.versions.modules'], {
-    cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8'
+    cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', windowsHide: true
   });
   if (child.status !== 0) throw new Error(`Electron ABI probe failed (${child.status})`);
   return child.stdout.trim();
@@ -81,7 +82,8 @@ function probeSqlite(root, runtime) {
   if (runtime === 'node') command(process.execPath, ['-e', code], root);
   else {
     const executable = require(path.join(root, 'node_modules/electron'));
-    const child = spawnSync(executable, ['-e', code], { cwd: root, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit' });
+    const child = spawnSync(executable, ['-e', code], { cwd: root,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit', windowsHide: true });
     if (child.status !== 0) throw new Error('Electron SQLite ABI probe failed');
   }
 }

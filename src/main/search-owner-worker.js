@@ -17,12 +17,32 @@ const { SearchEngine } = require('./search-engine');
 const { redactToken } = require('./redaction');
 
 const opened = [];
+function verifyExistingDatabase(dbPath, corruptionCode) {
+  if (!fs.existsSync(dbPath)) return;
+  let check;
+  try {
+    const Database = require('better-sqlite3');
+    check = new Database(dbPath, { readonly: true, fileMustExist: true });
+    if (check.pragma('integrity_check', { simple: true }) !== 'ok') {
+      const error = new Error(corruptionCode);
+      error.code = corruptionCode;
+      throw error;
+    }
+  } catch (error) {
+    if (error.code === 'SQLITE_NOTADB' || error.code === 'SQLITE_CORRUPT') {
+      const corrupt = new Error(corruptionCode);
+      corrupt.code = corruptionCode;
+      throw corrupt;
+    }
+    throw error;
+  } finally { if (check) check.close(); }
+}
 function loadDatabase(role) {
   const Database = require('better-sqlite3');
   return class AuditedDatabase extends Database {
     constructor(file, options) {
       super(file, options);
-      opened.push({ role, threadId });
+      opened.push({ role, threadId, readOnly: options?.readonly === true });
     }
   };
 }
@@ -701,6 +721,8 @@ async function dispatch(message) {
         maxAnalysisChars: config.keywordTokenizerMaxAnalysisChars
       });
       await tokenizer.initialize();
+      verifyExistingDatabase(config.ledgerPath, 'source_ledger_corrupt');
+      verifyExistingDatabase(config.keywordPath, 'keyword_index_corrupt');
       ledger = new SourceLedgerStore({ dbPath: config.ledgerPath, loadDatabase: () => loadDatabase('ledger') });
       keyword = new SQLiteKeywordIndex({ dbPath: config.keywordPath, sourceRoot: config.sourceRoot,
         tokenizer,
@@ -743,9 +765,25 @@ async function dispatch(message) {
         ledgerOpenThreadId: ledgerOpen.threadId, keywordOpenThreadId: keywordOpen.threadId, openCount: opened.length
       } });
       setImmediate(resumeLegacyMigration);
-    } catch {
-      status('failed');
-      parentPort.postMessage({ tag: 'START', state: 'failed', error: { code: 'owner_start_failed' } });
+    } catch (error) {
+      let sourceCorrupt = error.code === 'source_ledger_corrupt'
+        || error.code === 'SOURCE_LEDGER_INTEGRITY_CHECK_FAILED';
+      if (!sourceCorrupt && ledger && fs.existsSync(ledger.dbPath)) {
+        try {
+          const Database = require('better-sqlite3');
+          const check = new Database(ledger.dbPath, { readonly: true, fileMustExist: true });
+          try { sourceCorrupt = check.pragma('quick_check(1)', { simple: true }) !== 'ok'; }
+          finally { check.close(); }
+        } catch (error) {
+          sourceCorrupt = error.code === 'SQLITE_NOTADB' || error.code === 'SQLITE_CORRUPT';
+        }
+      }
+      const code = sourceCorrupt ? 'source_ledger_corrupt'
+        : error.code === 'keyword_index_corrupt' ? 'keyword_index_corrupt' : 'owner_start_failed';
+      status(sourceCorrupt ? 'CORRUPT_DEGRADED' : 'failed', code);
+      parentPort.postMessage({ tag: 'START', state: 'failed',
+        audit: { opens: opened.map(({ role, threadId, readOnly }) => ({ role, threadId, readOnly })) },
+        error: { code: code === 'source_ledger_corrupt' ? 'owner_start_failed' : code } });
       if (ledger) ledger.close();
       if (keyword) keyword.close();
       parentPort.close();
