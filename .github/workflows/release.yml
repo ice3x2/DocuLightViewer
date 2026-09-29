@@ -2,6 +2,10 @@ name: Build and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*.*.*'
@@ -272,6 +276,7 @@ jobs:
         run: node scripts/release-evidence.js verify --sha "${{ needs.prepare.outputs.sha }}" --artifacts artifacts
 
       - name: Verify or create release tag
+        if: github.event_name == 'push' || inputs.publish_release == true
         shell: bash
         run: |
           TAG="${{ needs.prepare.outputs.tag }}"
@@ -305,7 +310,7 @@ jobs:
           fi
 
       - uses: softprops/action-gh-release@v2
-        if: steps.release-notes.outputs.found == 'true'
+        if: (github.event_name == 'push' || inputs.publish_release == true) && steps.release-notes.outputs.found == 'true'
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: "DocuLight Viewer ${{ needs.prepare.outputs.version }}"
@@ -317,7 +322,7 @@ jobs:
             artifacts/linux-x64-artifacts/*.deb
 
       - uses: softprops/action-gh-release@v2
-        if: steps.release-notes.outputs.found != 'true'
+        if: (github.event_name == 'push' || inputs.publish_release == true) && steps.release-notes.outputs.found != 'true'
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: "DocuLight Viewer ${{ needs.prepare.outputs.version }}"

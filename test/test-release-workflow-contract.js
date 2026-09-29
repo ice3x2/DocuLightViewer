@@ -54,13 +54,30 @@ for (const [platform, job, buildCommand, smokeCommand] of [
 }
 const verifyTagIndex = workflow.indexOf('- name: Verify or create release tag');
 const releaseActionIndex = workflow.indexOf('uses: softprops/action-gh-release@v2');
+const publishGate = "github.event_name == 'push' || inputs.publish_release == true";
+const tagStep = releaseJob.slice(verifyTagIndex - workflow.indexOf('  release:'),
+  releaseJob.indexOf('- name: Check for release notes'));
+const evidenceStep = releaseJob.slice(releaseJob.indexOf('- name: Verify all required package and smoke artifacts'),
+  releaseJob.indexOf('- name: Verify or create release tag'));
+const publisherConditions = Array.from(releaseJob.matchAll(
+  /uses: softprops\/action-gh-release@v2\r?\n\s*if: ([^\r\n]+)/g), match => match[1].trim());
+assertWorkflow(/workflow_dispatch:\s*\r?\n\s*inputs:\s*\r?\n\s*publish_release:\s*\r?\n\s*type: boolean\s*\r?\n\s*default: false/.test(workflow),
+  'manual dispatch defaults to verification without publication');
+assertWorkflow(!/^\s*if:/m.test(evidenceStep),
+  'aggregate evidence verification runs during verification-only dispatch');
+assertWorkflow(/^\s*if: github\.event_name == 'push' \|\| inputs\.publish_release == true\s*$/m.test(tagStep),
+  'manual verification skips tag mutation while tag push keeps the release route');
+assertWorkflow(publisherConditions.length === 2
+  && publisherConditions[0] === `(${publishGate}) && steps.release-notes.outputs.found == 'true'`
+  && publisherConditions[1] === `(${publishGate}) && steps.release-notes.outputs.found != 'true'`,
+  'both GitHub Release publishers require tag push or explicit manual publication');
 assertWorkflow(workflow.includes("- 'v*.*.*'") && !workflow.includes("- '*.*.*'"), 'release trigger accepts only canonical v-prefixed version tags');
 assertWorkflow(prepareJob.includes('GITHUB_REF_NAME') && prepareJob.includes('EXPECTED_TAG="v$VERSION"'), 'prepare derives and validates the canonical package version tag on tag-push events');
 assertWorkflow(prepareJob.includes('if [ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]'), 'tag-push package-version mismatch fails before platform builds');
 assertWorkflow(prepareJob.includes('TAG="$GITHUB_REF_NAME"') && prepareJob.includes('echo "tag=$TAG"'), 'tag-push release output preserves the triggering tag instead of silently substituting another tag');
 assertWorkflow(verifyTagIndex > workflow.indexOf('  release:'), 'release job owns tag verification/creation after all build jobs succeed');
 assertWorkflow(verifyTagIndex < releaseActionIndex, 'release tag provenance is checked before publishing GitHub Release assets');
-assertWorkflow(!workflow.slice(verifyTagIndex, workflow.indexOf('- name: Check for release notes')).includes("if: github.event_name == 'workflow_dispatch'"), 'release tag SHA provenance is checked for both tag-push and workflow-dispatch events');
+assertWorkflow(!workflow.slice(verifyTagIndex, workflow.indexOf('- name: Check for release notes')).includes("if: github.event_name == 'workflow_dispatch'"), 'release tag SHA provenance remains checked on both publication routes');
 assertWorkflow(workflow.includes('git rev-list -n 1 "$TAG"'), 'existing release tag SHA is resolved explicitly');
 assertWorkflow(workflow.includes('"$TAG_SHA" != "$GITHUB_SHA"'), 'existing release tag must point to the exact hotfix commit');
 assertWorkflow(workflow.includes('if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]'), 'only workflow-dispatch may create a missing release tag');
