@@ -343,3 +343,8 @@ S02에서 동작 코드·테스트·CLI behavior는 변경하지 않았다. Spec
 - [x] [최종 작성 브랜치의 5회 보고서](../analysis/p0-pg09-win32-x64-1388078-five-run.json): 작성 제품 커밋 `1388078ae6ce78703417be7d141719bc91267836`, sourceHash `dd1ee26f184b4a72061578442e582b23e1917c5ae11fea35826265d2a244c2d3`, portable SHA-256 `ff50eecf53f527e5ffe6be34839f0bec58a17bb581134baab4f653c46e752cfb`의 B: NTFS 패키지에서 5/5가 통과했다. `FILE_FLAG_NO_BUFFERING` 첫 쓰기~마지막 검증 읽기 구간에 status/focus/close/cancel이 겹쳤고 owner 1개·legacy/checker 0개를 관측했다. 각 표본은 저장 파일·완료된 linked import·정확한 취소 job 영속 상태를 유지했다.
 - [x] [작성·통합 근거](../analysis/2026-09-29-s33-integration-evidence.md): raw 최대 지연은 상태 22.825ms, 포커스 20.101ms, 닫기 23.851ms, 취소 1.147ms, 메인 heartbeat 48.810ms였다. C: 5/5 IPC timeout과 B: 3/5 조기 종료 보고서는 삭제하거나 최종 표본으로 바꿔 끼우지 않았다. 작성 커밋 `01fecee`/`c5c8594`/`1388078`과 증거 `a8b6f7c`을 통합 `f68b892`/`18dcc08`/`2782d91`/`15b6b5a`에 반영하고 통합 계약 테스트 3개가 통과했다. 독립 검토는 코드와 원시 표본에 차단 결함 0건을 확인해 [#56](https://github.com/ice3x2/DocuLightViewer/issues/56)을 닫았다. durable 취소 job의 phase는 null이라 완료 phase를 주장하지 않는다.
 - [ ] 이 Windows PG-09 결과는 다중 플랫폼 CI·서명·태그·릴리스 승인 근거가 아니다. [S34 #57](https://github.com/ice3x2/DocuLightViewer/issues/57) 요구사항별 증거와 상위 [#21](https://github.com/ice3x2/DocuLightViewer/issues/21) 릴리스 게이트를 별도로 마무리한다.
+
+## S34 진행 기록 — Requirement별 AC 감사 간극
+
+- [x] [6개 REQ·59개 AC 감사표](../analysis/2026-09-29-s34-requirement-ac-evidence-audit.md)를 현재 통합 기준으로 작성하고 독립 검토했다. 각 행에 구현 위치, 실행 근거의 SHA/플랫폼/결과/해시 또는 누락 상태와 담당 이슈를 표시했다. 잘못된 코드 위치와 과도한 역사 증거 연결을 고쳤고, 현재 SHA에서 3개 플랫폼 릴리스 workflow가 실행되지 않았다는 점을 명시했다.
+- [ ] [#57](https://github.com/ice3x2/DocuLightViewer/issues/57)은 #65 용량·상태 UX의 최종 통합 증거와 세 필수 플랫폼의 실제 CI 산출물 등 미해결 AC가 남아 OPEN이다. 감사표 작성이나 Windows PG-04/PG-09 통과만으로 REQ를 verified로 승급하지 않는다.
