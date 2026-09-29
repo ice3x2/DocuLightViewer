@@ -56,7 +56,7 @@ function processIsAlive(pid) {
 }
 
 // @req FR-DOC-019 AC-10 IR-APP-013 AC-13 OPS-ARCH-009 AC-2 OPS-ARCH-010 AC-3
-async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, requireProcessCold = false }) {
+async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, requireProcessCold = false, onActive }) {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-native-owner-'));
   const userData = path.join(fixtureRoot, 'user-data');
   const storeRoot = path.join(fixtureRoot, 'store');
@@ -91,6 +91,7 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
   child.stderr.on('data', (chunk) => { output = (output + chunk).slice(-2048); });
   let quitAccepted = false;
   let appPid = null;
+  let activeProbe = null;
   try {
     await until('normal packaged app IPC', 45000, async () =>
       (await privateAction(ipcPath, 'r3_test_runtime_identity').catch(() => null))?.result);
@@ -101,7 +102,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       electronAbi: identity?.electronAbi };
     evidence.processCold = { pid: identity?.pid, spawnPid: child.pid,
       processStartEpochMs: identity?.processStartEpochMs,
-      profileToken: sha256(path.resolve(userData)) };
+      profileToken: sha256(path.resolve(userData)),
+      commandLineRedacted: '[PACKAGED_APP] --user-data-dir=[PROFILE] --r3-test-lifecycle' };
     assert(Number.isInteger(identity?.pid) && identity.pid > 0,
       'runtime identity names the actual packaged app process');
     const saved = await privateAction(ipcPath, 'save_document', { content }, 20000);
@@ -150,6 +152,23 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
     const windowId = opened.result?.windowId;
     evidence.flow.opened = typeof windowId === 'string' && windowId.length > 0;
     if (evidence.flow.opened) {
+      let completedImport = null;
+      if (onActive) {
+        const importRoot = path.join(fixtureRoot, 'linked-import');
+        fs.mkdirSync(importRoot);
+        const entryBytes = Buffer.from('# PG-09 import\n\n[Completed](./completed.md)\n');
+        const linkedBytes = Buffer.from(`# Completed import\n\n${marker}imported\n`);
+        const importEntry = path.join(importRoot, 'entry.md');
+        fs.writeFileSync(importEntry, entryBytes);
+        fs.writeFileSync(path.join(importRoot, 'completed.md'), linkedBytes);
+        const imported = await privateAction(ipcPath, 'r3_test_settings_import',
+          { filePath: importEntry }, 30000);
+        completedImport = { completed: imported.result?.success === true
+          && imported.result.counts?.imported === 2,
+          retainedAfterCancel: false, sha256: sha256(linkedBytes),
+          entrySha256: sha256(entryBytes) };
+        assert(completedImport.completed, 'PG-09 Settings linked import completes before cancel');
+      }
       const activeMarker = `${marker}active`;
       const activeContent = `# Active owner\n\n${activeMarker}\n${'activeownerword '.repeat(270000)}`;
       const activeSave = await privateAction(ipcPath, 'save_document', {
@@ -166,6 +185,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       evidence.flow.activeStatusSeen = Boolean(active);
       evidence.responsiveness.workerMarker = Number.isInteger(audit?.workerThreadId)
         && audit.workerThreadId > 0 && active.jobId === activePayload.indexing.jobId;
+      const activeAudit = onActive
+        ? (await privateAction(ipcPath, 'r3_test_owner_open_audit')).result : null;
       evidence.processCold.workerReadyEpochMs = Date.now();
       const heartbeatStart = await privateAction(ipcPath, 'r3_test_main_heartbeat_start',
         { jobId: activePayload.indexing.jobId });
@@ -173,7 +194,9 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       const measure = async (kind, action, params) => {
         const start = performance.now();
         const response = await privateAction(ipcPath, action, params);
-        evidence.responsiveness.samples.push({ kind, ms: performance.now() - start });
+        const end = performance.now();
+        evidence.responsiveness.samples.push({ kind, ms: end - start,
+          startMonoMs: start, endMonoMs: end });
         return response;
       };
       for (let i = 0; i < 3; i += 1) {
@@ -248,6 +271,18 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       assert(evidence.activeSave.activeBefore && evidence.activeSave.activeAfter
         && evidence.activeSave.saved && evidence.activeSave.receiptJobId,
       'second save receives durable receipt while same owner job stays active');
+      activeProbe = onActive ? onActive({ fixtureRoot, userData,
+        workerJobId: activePayload.indexing.jobId }) : null;
+      if (activeProbe) {
+        evidence.pg09HelperStarted = true;
+        evidence.pg09HelperPid = activeProbe.helperPid;
+      }
+      if (activeProbe) await activeProbe.started;
+      if (activeProbe) {
+        const sampled = await measure('status', 'r3_test_settings_status');
+        assert(sampled.result?.sourceRootConfigured === true,
+          'cached Settings status remains available under direct I/O');
+      }
       const measureViewer = async (kind, action, event, params) => {
         const watch = await privateAction(ipcPath, 'r3_test_viewer_event_watch', { windowId, event });
         assert(watch.result?.token, `${kind} completion observer is armed`);
@@ -255,7 +290,9 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
         const response = await privateAction(ipcPath, action, params);
         const completion = await privateAction(ipcPath, 'r3_test_viewer_event_wait',
           { token: watch.result.token });
-        evidence.responsiveness.samples.push({ kind, ms: performance.now() - start });
+        const end = performance.now();
+        evidence.responsiveness.samples.push({ kind, ms: end - start,
+          startMonoMs: start, endMonoMs: end });
         assert(completion.result?.completed === true && completion.result.event === event,
           `${kind} completion event is observed`);
         return response;
@@ -272,7 +309,25 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       const status = await privateAction(ipcPath, 'r3_test_settings_status');
       evidence.flow.activeStatusSeen = evidence.flow.activeStatusSeen
         && status.result?.sourceRootConfigured === true;
+      const beforeCancel = activeProbe
+        ? (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result : null;
+      const beforeCancelAudit = activeProbe
+        ? (await privateAction(ipcPath, 'r3_test_owner_open_audit')).result : null;
       const cancelled = await measure('cancel', 'r3_test_settings_cancel');
+      if (activeProbe) {
+        evidence.pg09 = await activeProbe.completion;
+        evidence.pg09.scheduler.helperActiveBefore = activeAudit?.ownerActiveJobCount === 1
+          && activeAudit.ownerActiveJobId === activePayload.indexing.jobId;
+        evidence.pg09.scheduler.helperActiveAfter = beforeCancel?.active === true
+          && beforeCancel.jobId === activePayload.indexing.jobId;
+        evidence.pg09.scheduler.ownerWorkerCount = beforeCancelAudit?.ownerWorkerCount;
+        evidence.pg09.scheduler.legacyActiveWorkerCount = beforeCancelAudit?.legacyActiveWorkerCount;
+        evidence.pg09.scheduler.checkerWorkerCount = beforeCancelAudit?.checkerWorkerCount;
+        evidence.pg09.scheduler.ownerActiveJobCount = beforeCancelAudit?.ownerActiveJobCount;
+        evidence.pg09.scheduler.ownerActiveJobId = beforeCancelAudit?.ownerActiveJobId;
+        evidence.pg09.scheduler.ownerWorkerThreadId = beforeCancelAudit?.workerThreadId;
+        evidence.pg09.linkedImport = completedImport;
+      }
       const heartbeatStop = await privateAction(ipcPath, 'r3_test_main_heartbeat_stop',
         { jobId: activePayload.indexing.jobId });
       const heartbeat = heartbeatStop.result;
@@ -299,6 +354,16 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       const activePath = path.join(storeRoot, activePayload.sourceRelativePath);
       evidence.flow.cancelledFileRetained = fs.existsSync(activePath)
         && fs.readFileSync(activePath, 'utf8').includes(activeMarker);
+      if (completedImport) {
+        completedImport.retainedAfterCancel =
+          fs.existsSync(path.join(storeRoot, 'entry.md'))
+          && fs.existsSync(path.join(storeRoot, 'completed.md'))
+          && sha256(fs.readFileSync(path.join(storeRoot, 'entry.md')))
+            === completedImport.entrySha256
+          && sha256(fs.readFileSync(path.join(storeRoot, 'completed.md')))
+            === completedImport.sha256;
+        evidence.flow.completedImportRetained = completedImport.retainedAfterCancel;
+      }
       const secondPath = path.join(storeRoot, secondPayload.sourceRelativePath);
       const retainedBytes = fs.readFileSync(secondPath);
       evidence.activeSave.retainedBytes = retainedBytes.length;
@@ -351,7 +416,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       }
     }
     finally { ledger.close(); }
-    safeRemoveFixture(fixtureRoot);
+    if (!activeProbe || evidence.pg09?.scheduler?.helperProcessGone === true)
+      safeRemoveFixture(fixtureRoot);
     evidence.lifecycle.profileRemoved = !fs.existsSync(fixtureRoot);
     try { validateNativeOwnerEvidence(evidence, { requireProcessCold }); }
     catch (error) { error.evidence = evidence; throw error; }
@@ -360,6 +426,15 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
     error.evidence = evidence;
     throw error;
   } finally {
+    if (activeProbe) {
+      try {
+        const completedProbe = await activeProbe.completion;
+        if (!evidence.pg09) evidence.pg09 = completedProbe;
+      } catch (error) {
+        evidence.pg09ProbeDiagnostic = typeof error?.code === 'string'
+          ? error.code : 'helper_completion_failed';
+      }
+    }
     if (!quitAccepted) {
       await privateAction(ipcPath, 'r3_test_graceful_quit', {}, 1000).catch(() => null);
     }
@@ -370,7 +445,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
         try { process.kill(appPid); } catch { /* process exited between check and signal */ }
       }
     }
-    if (fs.existsSync(fixtureRoot) && (!Number.isInteger(appPid) || !processIsAlive(appPid))) {
+    if (fs.existsSync(fixtureRoot) && (!Number.isInteger(appPid) || !processIsAlive(appPid))
+      && (!activeProbe || evidence.pg09?.scheduler?.helperProcessGone === true)) {
       safeRemoveFixture(fixtureRoot);
     }
   }

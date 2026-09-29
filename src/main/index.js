@@ -2556,10 +2556,16 @@ async function handleIpcMessage(socket, msg) {
         }
         if (!saveDocumentOwner?.worker || !saveDocumentOwner.ready) throw new Error('No test owner');
         const ready = await saveDocumentOwner.ready;
+        const ownerStatus = saveDocumentOwner.getStatus();
         result = { workerThreadId: ready.threadId,
           ledgerOpenThreadId: ready.audit?.ledgerOpenThreadId,
           keywordOpenThreadId: ready.audit?.keywordOpenThreadId,
-          openCount: ready.audit?.openCount };
+          openCount: ready.audit?.openCount,
+          ownerWorkerCount: saveDocumentOwner.worker ? 1 : 0,
+          legacyActiveWorkerCount: searchEngine?._indexingWorkerController?.activeJob?.worker ? 1 : 0,
+          checkerWorkerCount: saveDocumentOwner.checker ? 1 : 0,
+          ownerActiveJobCount: ownerStatus?.active ? 1 : 0,
+          ownerActiveJobId: ownerStatus?.active ? ownerStatus.jobId : null };
         break;
       }
       case 'r3_test_main_heartbeat_start': {
