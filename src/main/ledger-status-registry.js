@@ -1,5 +1,27 @@
 'use strict';
 // @req IR-APP-013
+const { createRedactor } = require('./redaction');
+const statusRedactor = createRedactor();
+const omittedHealthKeys = new Set(['sourcerelativepath', 'sourcerelativelocator',
+  'documentbody', 'vector', 'quarantinecontent', 'gitcontext', 'credential']);
+
+function sanitizeHealthValue(value, key = '') {
+  if (value == null || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (key === 'errorSummary' && value === 'Search index requires an explicit rebuild from Settings.')
+      return 'index_rebuild_required';
+    if (key === 'errorSummary' && value === 'Keyword cache read failed; previous committed results remain available.')
+      return 'keyword_index_unavailable';
+    return /path|dir|locator|file|error|message|exception/i.test(key)
+      ? statusRedactor.redactPath(value) : statusRedactor.redactString(value);
+  }
+  if (Array.isArray(value)) return value.map(item => sanitizeHealthValue(item, key));
+  if (typeof value !== 'object') return null;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([name]) => !omittedHealthKeys.has(name.replace(/[_-]/g, '').toLowerCase()))
+    .map(([name, item]) => [name, sanitizeHealthValue(item, name)]));
+}
+
 const STATES = Object.freeze({
   NOT_CONFIGURED: 'ledger_storage_not_configured',
   COLD: 'ledger_initializing',
@@ -56,37 +78,40 @@ function fromOwnerSnapshot(snapshot, configured) {
       ? 'indexing_ingress_capacity' : null };
 }
 
-function composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured) {
+function composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured, ingressAtCapacity = false) {
+  const safeRawStatus = sanitizeHealthValue(rawStatus || {});
+  const safeOwnerStatus = sanitizeHealthValue(ownerStatus || null);
   const status = {
-    ...rawStatus,
+    ...safeRawStatus,
     sourceRootConfigured,
     canRebuild: sourceRootConfigured,
-    ledgerOwnerActive: ownerStatus?.active === true,
-    ...fromOwnerSnapshot(ownerStatus, sourceRootConfigured)
+    ledgerOwnerActive: safeOwnerStatus?.active === true,
+    ...fromOwnerSnapshot(safeOwnerStatus, sourceRootConfigured)
   };
+  if (ingressAtCapacity && sourceRootConfigured) status.ledgerCondition = 'indexing_ingress_capacity';
   if (!sourceRootConfigured) {
     Object.assign(status, { state: 'storage-not-configured', indexedCount: 0,
       pendingCount: 0, failedCount: 0, currentPath: null, phase: null,
       progress: null, rebuildSession: null, errorSummary: null });
   }
-  if (sourceRootConfigured && ['rebuild', 'clear'].includes(ownerStatus?.kind)) {
-    const session = ownerStatus.rebuildSession || null;
+  if (sourceRootConfigured && ['rebuild', 'clear'].includes(safeOwnerStatus?.kind)) {
+    const session = safeOwnerStatus.rebuildSession || null;
     Object.assign(status, {
-      state: ownerStatus.active ? ownerStatus.kind === 'clear' ? 'clearing' : 'rebuilding'
-        : ownerStatus.phase === 'failed' ? 'degraded'
-        : ownerStatus.phase === 'cancelled' ? 'stale' : status.state,
-      phase: ownerStatus.phase || null,
-      progress: ownerStatus.progress || status.progress,
+      state: safeOwnerStatus.active ? safeOwnerStatus.kind === 'clear' ? 'clearing' : 'rebuilding'
+        : safeOwnerStatus.phase === 'failed' ? 'degraded'
+        : safeOwnerStatus.phase === 'cancelled' ? 'stale' : status.state,
+      phase: safeOwnerStatus.phase || null,
+      progress: safeOwnerStatus.progress || status.progress,
       rebuildSession: session,
       indexedCount: session?.active ? session.indexedCount : status.indexedCount,
       pendingCount: session?.active ? session.pendingCount : status.pendingCount,
-      currentPath: ownerStatus.currentPath || null,
-      heartbeatAt: ownerStatus.heartbeatAt || null,
-      cancelRequested: ownerStatus.cancelRequested === true,
-      diagnostic: ownerStatus.diagnostic || status.diagnostic
+      currentPath: safeOwnerStatus.currentPath || null,
+      heartbeatAt: safeOwnerStatus.heartbeatAt || null,
+      cancelRequested: safeOwnerStatus.cancelRequested === true,
+      diagnostic: safeOwnerStatus.diagnostic || status.diagnostic
     });
   }
   return status;
 }
 
-module.exports = { STATES, fromOwnerSnapshot, composeIndexingStatusPayload };
+module.exports = { STATES, fromOwnerSnapshot, composeIndexingStatusPayload, sanitizeHealthValue };

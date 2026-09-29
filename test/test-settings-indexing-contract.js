@@ -133,15 +133,15 @@ assert(!settingsJs.includes('mcpAutoSaveCheckbox.checked = hasPath'), 'settings 
 assert(settingsJs.includes('indexingManageBtn.disabled = !hasSavedPath'), 'settings renderer disables search index management until the current path is saved');
 assert(/function showIndexingManagementView\(\)\s*{[\s\S]{0,180}if \(!hasSavedDocumentStorePath\(\)\) return;/.test(settingsJs), 'settings renderer prevents entering index management without a saved document store path');
 assert(/const sourceRootConfigured\s*=/.test(main), 'main process computes document store source-root availability for indexing status');
-assert(main.includes('composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured)') &&
+assert(main.includes('composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured,') &&
   composeIndexingStatusPayload({ state: 'ready' }, { state: 'ready' }, true).canRebuild === true,
   'main indexing status composes source-root rebuild capability with cached owner status');
 assert(/fs\.statSync\([^)]*\)\.isDirectory\(\)/.test(main), 'main process treats only existing directories as configured document store roots');
-assert(settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
-  settingsJs.includes('status.indexingWorker.active && status.indexingWorker.kind !== \'rebuild\'') &&
-  settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
-  settingsJs.includes("|| !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING')"),
-  'settings renderer preserves full-rebuild cancel guard and permits supported document and legacy worker cancel');
+assert(settingsJs.includes("const stopBlocked = nativeRepairActive || rebuildActive || state === 'clearing'") &&
+  settingsJs.includes("['KEYWORD_REPAIRING', 'ANN_BUILDING'].includes(ledgerState)") &&
+  settingsJs.includes('&& !stopBlocked && status.cancelRequested !== true') &&
+  settingsJs.includes("|| !(ownerCancelAvailable || (ledgerState === 'CHECKING' && !stopBlocked))"),
+  'settings renderer permits Cancel only in the three safe P0 ledger states');
 assert(settingsJs.includes('const showPhase'), 'technical phase text is hidden unless indexing is actively running');
 assert(settingsJs.includes('let indexingStatusRequest = null'), 'settings renderer tracks an in-flight indexing status request');
 assert(settingsJs.includes('if (indexingStatusRequest) return indexingStatusRequest'), 'settings renderer prevents overlapping indexing status polling');
@@ -160,9 +160,9 @@ assert(/phaseParts\.push\(formatIndexingDisplayPath\(status\.currentPath\)\)/.te
 assert(/formatLinkedImportMessage\(\(result && result\.message\)/.test(settingsJs), 'linked import result errors are sanitized before rendering');
 assert(settingsJs.includes('confirm(t(\'settings.indexingCompactConfirm\'))'), 'compact index requires confirmation');
 assert(
-  settingsJs.includes('const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive') &&
-    settingsJs.includes('&& !rebuildActive && status.cancelRequested !== true') &&
-    settingsJs.includes("|| !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING')"),
+  settingsJs.includes("const stopBlocked = nativeRepairActive || rebuildActive || state === 'clearing'") &&
+    settingsJs.includes('&& !stopBlocked && status.cancelRequested !== true') &&
+    settingsJs.includes("|| !(ownerCancelAvailable || (ledgerState === 'CHECKING' && !stopBlocked))"),
   'settings renderer keeps full-rebuild cancel disabled despite an owner snapshot'
 );
 assert(

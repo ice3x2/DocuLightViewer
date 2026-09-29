@@ -18,7 +18,8 @@ function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, windowMa
       store.set('lastSaveAsDirectory', path.dirname(savePath));
       const saved = await saveRendererFile(store, savePath, params, searchEngine);
       return { success: true, filePath: savePath, indexingState: saved.indexingState, warningCode: saved.warningCode };
-    } catch (error) { return { success: false, error: error.message }; }
+    } catch (error) { return { success: false, error: error.message,
+      ...(error.code === 'ingress_capacity' ? { errorCode: 'indexing_ingress_capacity' } : {}) }; }
   });
 
   ipcMain.handle('quick-save', async (_event, params) => {
@@ -28,7 +29,8 @@ function registerRendererSaveHandlers({ ipcMain, dialog, BrowserWindow, windowMa
       const savePath = path.join(lastDir, params.defaultFileName || 'untitled.md');
       const saved = await saveRendererFile(store, savePath, params, searchEngine);
       return { success: true, filePath: savePath, indexingState: saved.indexingState, warningCode: saved.warningCode };
-    } catch (error) { return { success: false, error: error.message }; }
+    } catch (error) { return { success: false, error: error.message,
+      ...(error.code === 'ingress_capacity' ? { errorCode: 'indexing_ingress_capacity' } : {}) }; }
   });
 
   ipcMain.handle('mcp-manual-save', async (event, params) => {

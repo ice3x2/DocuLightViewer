@@ -1493,7 +1493,8 @@
       saveAsFilePath = result.filePath;
       showSaveFeedback(result);
     } else if (result.error) {
-      showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
+      showViewerToast(result.errorCode === 'indexing_ingress_capacity'
+        ? t('viewer.saveCapacityFailed') : t('viewer.saveFailed') + ': ' + result.error);
     }
   }
 
@@ -1507,7 +1508,8 @@
     } else if (result.reason === 'no-directory') {
       handleSaveAs();
     } else if (result.error) {
-      showViewerToast(t('viewer.saveFailed') + ': ' + result.error);
+      showViewerToast(result.errorCode === 'indexing_ingress_capacity'
+        ? t('viewer.saveCapacityFailed') : t('viewer.saveFailed') + ': ' + result.error);
     }
   }
 

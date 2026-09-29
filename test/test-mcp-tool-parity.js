@@ -64,7 +64,8 @@ const path = require('path');
   assert(packageJson.scripts['bundle:mcp'].includes('--external:hnswlib-node'), 'MCP bundle keeps hnswlib-node external');
   assert(packageJson.scripts['bundle:mcp'].includes('--outfile=src/main/mcp-server.bundle.mjs'), 'MCP bundle writes generated bundle');
   for (const hook of ['prebuild', 'prebuild:win', 'prebuild:mac', 'prebuild:linux']) {
-    assert.strictEqual(packageJson.scripts[hook], 'npm run bundle:mcp', `${hook} regenerates MCP bundle`);
+    assert.match(packageJson.scripts[hook], /(?:^|&& )npm run bundle:mcp$/,
+      `${hook} regenerates MCP bundle`);
   }
   assert(builderYml.includes('src/main/mcp-server.bundle.mjs'), 'electron-builder asarUnpack includes MCP bundle');
 

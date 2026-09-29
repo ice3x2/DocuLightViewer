@@ -72,6 +72,7 @@ module.exports = { async run({ fixture, assert }) {
     finally { SourceLedgerStore.prototype.open = originalOpen; }
     assert(ledgerModes.length > 0 && ledgerModes.every(Boolean) && engine._sourceLedger === null,
       'active product status opens only a read-only main-process ledger');
+    engine.getIndexingWorkerController().activeJob = null;
     const product = fs.readFileSync(path.join(__dirname, '../../../src/main/index.js'), 'utf8');
     assert(/ownerManaged:\s*true/.test(product) && /getSaveDocumentOwner\(store\.get\('mcpAutoSavePath'/.test(product),
       'product startup wires owner-managed search and owner bootstrap');
@@ -127,7 +128,7 @@ module.exports = { async run({ fixture, assert }) {
       evidence.ownerThreadId = started.audit.ledgerOpenThreadId;
       evidence.ownerOpenCount = started.audit.openCount;
       const callbacks = new Map();
-      const first = product.indexOf('const startOwnerIndexMaintenance = async (operation) => {');
+      const first = product.indexOf('const isIndexingWorkActive = status =>');
       const last = product.indexOf("ipcMain.handle('indexing:compact'", first);
       assert(first > 0 && last > first, 'actual Settings maintenance IPC handlers are extractable');
       let shortWorkerCalls = 0;
@@ -254,7 +255,7 @@ module.exports = { async run({ fixture, assert }) {
       engine.getSaveDocumentOwner = async () => retryOwner;
       const retryCallbacks = new Map();
       const productSource = fs.readFileSync(path.join(__dirname, '../../../src/main/index.js'), 'utf8');
-      const startAt = productSource.indexOf('const startOwnerIndexMaintenance = async (operation) => {');
+      const startAt = productSource.indexOf('const isIndexingWorkActive = status =>');
       const endAt = productSource.indexOf("ipcMain.handle('indexing:compact'", startAt);
       const statusAt = productSource.indexOf('function getIndexingStatusPayload() {');
       const statusUntil = productSource.indexOf('\nfunction sanitizeSettingsPayload(', statusAt);

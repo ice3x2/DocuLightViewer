@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { injectFrontmatter, parseFrontmatter, buildYamlBlock, DOC_TYPE_VALUES } = require('./frontmatter');
 const { createRedactor, redactToken } = require('./redaction');
 const { publishSave } = require('./index-ingress-store');
+const { t } = require('./strings');
 
 const MAX_SAVE_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const SAVE_DOCUMENT_SCHEMA_VERSION = 'save_document.v1';
@@ -305,7 +306,22 @@ async function writeContainedMarkdown(basePath, destDir, destPath, content) {
  * @param {{ content?: string, filePath?: string, title?: string, noSave?: boolean, project?: string }} opts
  * @returns {Promise<string|null>} Saved file path, or null if skipped
  */
+function beginSaveIngressAttempt(searchEngine) {
+  if (!searchEngine) return null;
+  const order = (searchEngine.saveIngressAttemptOrder || 0) + 1;
+  searchEngine.saveIngressAttemptOrder = order;
+  return { epoch: searchEngine.saveIngressCapacityEpoch || 0, order };
+}
+
+function recordSaveIngressOutcome(searchEngine, attempt, full) {
+  if (!searchEngine || !attempt || (searchEngine.saveIngressCapacityEpoch || 0) !== attempt.epoch
+    || attempt.order < (searchEngine.saveIngressSettledOrder || 0)) return;
+  searchEngine.saveIngressSettledOrder = attempt.order;
+  searchEngine.saveIngressAtCapacity = full;
+}
+
 async function publishMcpSave(store, destPath, { content, filePath, operation }, searchEngine) {
+  const ingressAttempt = beginSaveIngressAttempt(searchEngine);
   const basePath = store.get('mcpAutoSavePath', '');
   const bytes = filePath ? await fs.promises.readFile(filePath) : Buffer.from(content || '', 'utf8');
   await fs.promises.mkdir(basePath, { recursive: true });
@@ -334,8 +350,11 @@ async function publishMcpSave(store, destPath, { content, filePath, operation },
       publication = await publishSave({ storeRoot, ingressRoot, contentBytes: bytes, contentHash,
         operation, requireVacant: operation !== 'update', sourceId, rootFingerprint,
         sourceRelativeLocator, provenance });
+      recordSaveIngressOutcome(searchEngine, ingressAttempt, false);
       published = true;
     } catch (error) {
+      if (error.code === 'ingress_capacity')
+        recordSaveIngressOutcome(searchEngine, ingressAttempt, true);
       if (error.code === 'published_file_mismatch' && operation !== 'update') continue;
       if (operation === 'update' && attempt < 4
         && ['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) {
@@ -440,6 +459,9 @@ async function mcpManualSave(store, { content, filePath, title, project, severit
     return { success: true, filePath: saved.savedPath, indexingState: saved.indexingState,
       warningCode: saved.warningCode };
   } catch (err) {
+    if (err.code === 'ingress_capacity') {
+      return { success: false, errorKey: 'viewer.saveCapacityFailed' };
+    }
     if (err.code === 'EACCES' || err.code === 'EPERM') {
       return { success: false, errorKey: 'viewer.saveErrorPermission' };
     }
@@ -479,6 +501,7 @@ async function saveRendererFile(store, savePath, { content, filePath }, searchEn
 
 // @req FR-DOC-028
 async function saveDocumentToStore(store, params = {}, searchEngine) {
+  const ingressAttempt = beginSaveIngressAttempt(searchEngine);
   const redactor = createRedactor({
     userDataDir: store.get('userDataPath', ''),
     sourceRoots: [store.get('mcpAutoSavePath', '')].filter(Boolean)
@@ -551,9 +574,12 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
           sourceId, rootFingerprint, sourceRelativeLocator: locator,
           faultAt: searchEngine?.r3SaveFaultAt,
           provenance: { aliases: [], metadata: {} } });
+        recordSaveIngressOutcome(searchEngine, ingressAttempt, false);
         savedPath = path.join(publishRoot, locator);
         break;
       } catch (error) {
+        if (error.code === 'ingress_capacity')
+          recordSaveIngressOutcome(searchEngine, ingressAttempt, true);
         if (error.code === 'published_file_mismatch') continue;
         if (error.published) {
           publication = { saved: true };
@@ -607,7 +633,9 @@ async function saveDocumentToStore(store, params = {}, searchEngine) {
     const rawCode = err && err.code ? err.code : 'write_failed';
     const code = SAVE_DOCUMENT_ERROR_CODES.has(rawCode) ? rawCode : 'write_failed';
     const retryable = err && Object.prototype.hasOwnProperty.call(err, 'retryable') ? err.retryable : code === 'write_failed';
-    const message = redactor.redactString(err && err.message ? err.message : String(err));
+    const message = rawCode === 'ingress_capacity'
+      ? t('viewer.saveCapacityFailed')
+      : redactor.redactString(err && err.message ? err.message : String(err));
     return {
       isError: true,
       content: [{

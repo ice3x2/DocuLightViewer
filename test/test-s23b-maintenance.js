@@ -458,7 +458,7 @@ async function main() {
   } finally { await finalized.shutdown(); }
 
   const product = fs.readFileSync(path.join(__dirname, '../src/main/index.js'), 'utf8');
-  const maintenanceStart = product.indexOf('const startOwnerIndexMaintenance = async (operation) => {');
+  const maintenanceStart = product.indexOf('const isIndexingWorkActive = status =>');
   const maintenanceEnd = product.indexOf("ipcMain.handle('indexing:compact'", maintenanceStart);
   assert(maintenanceStart > 0 && maintenanceEnd > maintenanceStart);
   const maintenanceHandlers = new Map();
@@ -503,8 +503,8 @@ async function main() {
       'cancel rejects non-Settings sender without owner work');
   }
   const cancelledFromSettings = await maintenanceHandlers.get('indexing:cancel-job')({ sender: { settings: true } });
-  assert(cancelledFromSettings.cancelled && ownerCancels === 1 && legacyCancels === 0,
-    'Settings cancel routes active clear to owner, not the short worker');
+  assert(cancelledFromSettings.cancelled === false && ownerCancels === 0 && legacyCancels === 0,
+    'Settings cancel rejects active clear without invoking owner or short worker');
 
   const start = product.indexOf("ipcMain.handle('indexing:clear'");
   const end = product.indexOf("ipcMain.handle('indexing:open-data-dir'", start);
@@ -542,14 +542,13 @@ async function main() {
   assert.equal(vm.runInNewContext(rebuildRule[1], { busy: false,
     ledgerState: 'READY_KEYWORD_DEGRADED', active: false, sourceRootConfigured: true }), false,
   'keyword rebuild remains available after successful clear');
-  const cancelStart = settingsSource.indexOf('const legacyCancelAvailable =');
+  const cancelStart = settingsSource.indexOf('const stopBlocked =');
   const cancelEnd = settingsSource.indexOf('const legacyRetryAvailable =', cancelStart);
   assert(cancelStart > 0 && cancelEnd > cancelStart);
-  const clearCancelAvailable = vm.runInNewContext(`${settingsSource.slice(cancelStart, cancelEnd)}\nlegacyCancelAvailable`, {
-    nativeRepairActive: false, rebuildActive: false, state: 'clearing',
-    status: { indexingWorker: { active: false } }
+  const clearStopBlocked = vm.runInNewContext(`${settingsSource.slice(cancelStart, cancelEnd)}\nstopBlocked`, {
+    nativeRepairActive: false, rebuildActive: false, state: 'clearing'
   });
-  assert(clearCancelAvailable, 'Settings enables Stop while owner clear is active');
+  assert(clearStopBlocked, 'Settings disables Stop while owner clear is active');
   const formatStart = settingsSource.indexOf('function formatIndexingActionResult(result) {');
   const formatEnd = settingsSource.indexOf('function formatLinkedImportMessage(', formatStart);
   assert(formatStart > 0 && formatEnd > formatStart);

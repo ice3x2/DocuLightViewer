@@ -5,6 +5,7 @@ const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const { saveDocumentToStore } = require('../src/main/mcp-save');
 
 const root = path.resolve(__dirname, '..');
 
@@ -84,11 +85,37 @@ async function withFakeIpcServer(label, handler, run) {
   }
 }
 
-async function validateStdioBridgeRuntime({ serverPath, args, label, expectedToolNames, extraEnv = {} }) {
+async function fullIntentSaveResult() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'doculight-mcp-capacity-'));
+  const documentRoot = path.join(root, 'documents');
+  const ingressRoot = path.join(root, 'intents');
+  fs.mkdirSync(documentRoot);
+  fs.mkdirSync(ingressRoot);
+  try {
+    for (let index = 0; index < 1024; index += 1) {
+      fs.writeFileSync(path.join(ingressRoot, `${String(index).padStart(4, '0')}.intent.json`), 'x');
+    }
+    const store = { get(key, fallback) { return ({ mcpAutoSave: true,
+      mcpAutoSavePath: documentRoot, userDataPath: root })[key] ?? fallback; } };
+    const response = await saveDocumentToStore(store, { content: '# Capacity bridge\n' },
+      { saveDocumentIngressRoot: ingressRoot });
+    wave2Assert(response.isError === true && fs.readdirSync(documentRoot).length === 0,
+      'real capacity failure is produced before Markdown publication');
+    return response;
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function validateStdioBridgeRuntime({ serverPath, args, label, expectedToolNames,
+  capacityResult, extraEnv = {} }) {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  let saveCalls = 0;
   await withFakeIpcServer(label, (message) => {
     if (message.action === 'save_document') {
+      saveCalls += 1;
+      if (saveCalls === 2) return capacityResult;
       return {
         content: [{
           type: 'text',
@@ -202,6 +229,13 @@ async function validateStdioBridgeRuntime({ serverPath, args, label, expectedToo
       wave2Assert(!Object.prototype.hasOwnProperty.call(savePayload.indexing, 'importTool'), `${label} indexing.jobId does not imply MCP import control`);
       wave2Assert(!Object.prototype.hasOwnProperty.call(savePayload.indexing, 'reconciliationTool'), `${label} indexing.jobId does not imply MCP reconciliation control`);
       wave2Assert(requests.some((request) => request.action === 'save_document'), `${label} valid save_document reaches fake IPC once schema validation passes`);
+      const capacity = await client.callTool({ name: 'save_document',
+        arguments: { content: '# Capacity bridge\n' } });
+      const capacityPayload = JSON.parse(capacity.content[0].text);
+      wave2Assert(capacity.isError === true && capacityPayload.saved === false
+        && capacityPayload.error.code === 'write_failed'
+        && !capacityPayload.indexing && !capacityPayload.jobId,
+      `${label} preserves actual full-intent write_failed without claiming acceptance`);
 
       const ipcErrorResult = await client.callTool({
         name: 'search_projects',
@@ -529,16 +563,19 @@ function assertSchemaTerms(source, label, terms) {
     wave2Assert(!toolSlice.includes('structuredContent'), 'v1 tool handler does not add structuredContent');
     wave2Assert(!toolSlice.includes('outputSchema'), 'v1 tool handler does not add outputSchema');
   }
+  const capacityResult = await fullIntentSaveResult();
   await validateStdioBridgeRuntime({
     serverPath: 'src/main/mcp-server.mjs',
     label: 'source',
-    expectedToolNames
+    expectedToolNames,
+    capacityResult
   });
   await validateStdioBridgeRuntime({
     serverPath: 'src/main/index.js',
     args: ['src/main/index.js', '--mcp-stdio'],
     label: 'main-entrypoint',
     expectedToolNames,
+    capacityResult,
     extraEnv: {
       ELECTRON_RUN_AS_NODE: '1'
     }
@@ -546,7 +583,8 @@ function assertSchemaTerms(source, label, terms) {
   await validateStdioBridgeRuntime({
     serverPath: 'src/main/mcp-server.bundle.mjs',
     label: 'bundle',
-    expectedToolNames
+    expectedToolNames,
+    capacityResult
   });
 
   console.log('test-wave2-mcp-contract: all assertions passed');

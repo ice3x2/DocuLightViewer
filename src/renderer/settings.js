@@ -359,6 +359,12 @@
   function formatIndexingDiagnostic(message) {
     const raw = String(message || '').trim();
     if (!raw) return '';
+    if (raw === 'index_rebuild_required') return t('settings.indexingRebuildDescription');
+    if (raw === 'keyword_index_unavailable') return t('settings.ledger.state.READY_KEYWORD_DEGRADED');
+    if (raw === 'native_reinstall_required') return t('settings.indexingNativeModuleMismatch');
+    if (raw === 'job-in-progress') return t('settings.indexingActionBusy');
+    if (raw === 'check-not-available') return t('settings.indexingCheckUnavailable');
+    if (raw === 'open-failed') return t('settings.indexingOpenDirFailed');
     if (/NODE_MODULE_VERSION|better_sqlite3\.node|better-sqlite3/i.test(raw)) {
       return t('settings.indexingNativeModuleMismatch');
     }
@@ -478,17 +484,21 @@
       Boolean(status.indexingWorker && status.indexingWorker.active);
     const displayPercent = legacyActive ? formatProgressPercent(status.progress) : ledgerPercent;
     const bucket = displayPercent === null ? '' : (displayPercent === 100 ? 100 : Math.floor(displayPercent / 10) * 10);
+    const ledgerBucket = ledgerPercent === null ? '' : (ledgerPercent === 100 ? 100 : Math.floor(ledgerPercent / 10) * 10);
     const recoveryRequired = ['CORRUPT_DEGRADED', 'CHECKER_EXIT_BLOCKED',
       'OWNER_EXIT_BLOCKED', 'ROLLBACK_REQUIRED'].includes(ledgerState);
-    const stateLabelKey = status.ledgerCondition === 'indexing_ingress_capacity'
-      ? 'settings.ledger.deferred' : 'settings.ledger.state.' + ledgerState;
     const label = legacyActive
       ? t('settings.indexingStatus', { state: t('settings.legacyState.' + state) })
-      : ledgerState ? t(stateLabelKey) : t('settings.indexingStatus', { state });
-    const condition = legacyActive && status.ledgerCondition === 'indexing_ingress_capacity'
-      ? ' ' + t('settings.ledger.deferred') : '';
-    const announcement = label + (bucket !== '' ? ' ' + t('settings.ledger.progress', { percent: displayPercent }) : '') + condition;
-    const announcementKey = `${legacyActive ? state : ledgerState || state}|${ledgerCode}|${status.ledgerCondition || ''}|${bucket}`;
+      : ledgerState ? t('settings.ledger.state.' + ledgerState) : t('settings.indexingStatus', { state });
+    const condition = status.ledgerCondition === 'indexing_ingress_capacity'
+      ? ' ' + t('settings.ledger.saveCapacity') : '';
+    const parallelLedger = legacyActive && ledgerState
+      ? ' ' + t('settings.ledger.state.' + ledgerState)
+        + (ledgerPercent !== null ? ' ' + t('settings.ledger.progress', { percent: ledgerPercent }) : '')
+      : '';
+    const announcement = label + (bucket !== '' ? ' ' + t('settings.ledger.progress', { percent: displayPercent }) : '')
+      + parallelLedger + condition;
+    const announcementKey = `${legacyActive ? state : ledgerState || state}|${ledgerCode}|${status.ledgerCondition || ''}|${bucket}|${legacyActive ? ledgerBucket : ''}`;
     if (announcementKey !== lastLedgerAnnouncement) {
       indexingStatusEl.textContent = announcement;
       lastLedgerAnnouncement = announcementKey;
@@ -527,7 +537,8 @@
     if (indexingErrorEl) {
       const nativeDiagnostic = nativeRepairFailed && nativeRepair.diagnostic
         ? t('settings.indexingNativeRepairFailed', {
-            reason: formatIndexingDiagnostic(nativeRepair.diagnostic.message || nativeRepair.diagnostic.code)
+            reason: formatIndexingDiagnostic(nativeRepair.diagnostic.code === 'native_reinstall_required'
+              ? nativeRepair.diagnostic.code : nativeRepair.diagnostic.message || nativeRepair.diagnostic.code)
           })
         : '';
       setIndexingDiagnostic(nativeDiagnostic || (recoveryRequired ? t('settings.ledger.recoveryHelp') : '') || status.errorSummary || '');
@@ -536,25 +547,25 @@
     const active = isIndexingWorkerActive(state) || nativeRepairActive;
     const rebuildActive = isFullRebuildActive(status, state);
     const sourceRootConfigured = status.sourceRootConfigured !== false;
-    const legacyCancelAvailable = status.ledgerOwnerActive !== true && !nativeRepairActive && !rebuildActive &&
-      (state === 'clearing' || Boolean(status.indexingWorker && status.indexingWorker.active && status.indexingWorker.kind !== 'rebuild'));
+    const stopBlocked = nativeRepairActive || rebuildActive || state === 'clearing';
     const legacyRetryAvailable = status.ledgerOwnerActive !== true && !active
       && sourceRootConfigured && (status.failedCount || 0) > 0
       && (!ledgerState || ['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState));
-    const ownerCancelAvailable = status.ledgerOwnerActive === true && ledgerState === 'KEYWORD_REPAIRING'
-      && !rebuildActive && status.cancelRequested !== true;
+    const ownerCancelAvailable = status.ledgerOwnerActive === true
+      && ['KEYWORD_REPAIRING', 'ANN_BUILDING'].includes(ledgerState)
+      && !stopBlocked && status.cancelRequested !== true;
     const ownerRetryAvailable = ledgerState === 'READY_KEYWORD_DEGRADED'
       && status.ledgerOwnerActive !== true && !active && sourceRootConfigured;
     if (indexingManageBtn) indexingManageBtn.disabled = !sourceRootConfigured || !hasSavedDocumentStorePath();
     const busy = Boolean(indexingActionRequest);
     if (indexingCancelBtn) indexingCancelBtn.disabled = (busy && indexingCancelBtn !== document.activeElement)
-      || !(legacyCancelAvailable || ownerCancelAvailable || ledgerState === 'CHECKING');
+      || !(ownerCancelAvailable || (ledgerState === 'CHECKING' && !stopBlocked));
     if (indexingRebuildBtn) indexingRebuildBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_KEYWORD_DEGRADED', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)
       : active || !sourceRootConfigured);
     if (indexingRetryBtn) indexingRetryBtn.disabled = (busy && indexingRetryBtn !== document.activeElement)
       || !(legacyRetryAvailable || ownerRetryAvailable);
-    if (indexingRetryCheckBtn) indexingRetryCheckBtn.disabled = busy
+    if (indexingRetryCheckBtn) indexingRetryCheckBtn.disabled = busy || active
       || !['CORRUPT_DEGRADED', 'INTERRUPTED'].includes(ledgerState);
     if (indexingCompactBtn) indexingCompactBtn.disabled = busy || active || (ledgerState
       ? !['READY', 'READY_KEYWORD_ONLY', 'READY_MAINTENANCE_PENDING'].includes(ledgerState)

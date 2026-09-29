@@ -405,6 +405,12 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     const cancel = await privateAction(ipcPath, 'r3_test_settings_cancel');
     assert(cancel.result?.cancelled === true,
       'S26 Settings cancel targets the active owner document job');
+    const afterCancelMain = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    evidence.mainSqlite.settingsCancel = { before: statusMain.result,
+      after: afterCancelMain.result };
+    assert(afterCancelMain.result?.sqliteOpenCalls === statusMain.result?.sqliteOpenCalls
+      && afterCancelMain.result?.writableOpenCount === 0,
+      'IR-APP-013 Settings document Cancel makes no main SQLite open');
     const cancelledSnapshot = await eventually(15000, () => {
       const snapshot = ledgerSnapshot(executable, root, ledgerPath);
       return snapshot.jobs.some(job => job.document_id === opened.document_id && job.status === 'cancelled')
@@ -579,6 +585,26 @@ module.exports = { name: 's26', async run({ executable, root, sourceHash, assert
     ].map(([name, value]) => [name, { started: value.started === true,
       scheduled: value.scheduled === true, compacted: value.compacted === true,
       cleared: value.cleared === true, reason: value.reason || null }]));
+    const checkFixture = await privateAction(ipcPath, 'r3_test_retry_check_fixture');
+    assert(checkFixture.result?.prepared === true && checkFixture.result?.state === 'INTERRUPTED',
+      'S26 isolated product fixture exits owner into an interrupted health-check state');
+    const retryCheckRoute = await privateAction(ipcPath, 'r3_test_settings_retry_check');
+    assert(retryCheckRoute.result?.started === true && retryCheckRoute.result?.scheduled === true
+      && !retryCheckRoute.result.jobId,
+      'S26 real Settings retry-check starts an ephemeral read-only checker without a jobId');
+    const checking = await privateAction(ipcPath, 'r3_test_owner_snapshot');
+    assert(checking.result?.state === 'CHECKING' && checking.result?.phase === 'health_check',
+      'S26 read-only checker is active before Settings Cancel');
+    const beforeCheckCancel = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    const checkCancel = await privateAction(ipcPath, 'r3_test_settings_cancel');
+    const afterCheckCancel = await privateAction(ipcPath, 'r3_test_main_sqlite_snapshot');
+    const afterCheckState = await privateAction(ipcPath, 'r3_test_owner_snapshot');
+    assert(checkCancel.result?.cancelled === true && afterCheckState.result?.state === 'INTERRUPTED'
+      && afterCheckCancel.result?.sqliteOpenCalls === beforeCheckCancel.result?.sqliteOpenCalls
+      && afterCheckCancel.result?.writableOpenCount === 0,
+      'IR-APP-013 real CHECKING Cancel restores interrupted state without a main SQLite open');
+    evidence.mainSqlite.checkingCancel = { before: beforeCheckCancel.result,
+      after: afterCheckCancel.result, restoredState: afterCheckState.result.state };
     console.error('S26_RESTART_RECOVERED');
     const secondQuit = await privateAction(ipcPath, 'r3_test_graceful_quit');
     assert(secondQuit.result?.accepted === true && await waitForExit(child, 10000) === 0,

@@ -1,0 +1,10 @@
+{
+  "sourceHash": "97dcaca5cf2e77ab465008870f357c82c70f09a5151981ee6298d9f2f10dce23",
+  "case": "s20",
+  "exitCode": 0,
+  "error": null,
+  "stdout": "",
+  "stderr": "S20_STARTUP ready_ms=424 recovered=3101 page_limit=32\nPASS case=s20 assertions=23\n",
+  "stdoutRawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderrRawSha256": "584e64ea07521bd71b04e894f5bb9361d2a240718f6b503954be437466cbf6c8"
+}

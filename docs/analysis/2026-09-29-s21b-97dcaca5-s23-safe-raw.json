@@ -1,0 +1,10 @@
+{
+  "sourceHash": "97dcaca5cf2e77ab465008870f357c82c70f09a5151981ee6298d9f2f10dce23",
+  "case": "s23",
+  "exitCode": 0,
+  "error": null,
+  "stdout": "[doculight] SQLite search index loaded: 1 documents\n[doculight] SQLite search index loaded: 1 documents\n[doculight] SQLite search index loaded: 2 documents\n[doculight] SQLite search index saved: [INDEX_DB] (3 docs, generation generation-6c3ec9db-0eb5-47c3-bbb7-6d7b194052d7)\n",
+  "stderr": "S23_EVIDENCE {\"ownerThreadId\":1,\"ownerOpenCount\":2,\"beforeFault\":{\"generationId\":\"generation-54b81407-8261-4e00-bd66-ad4fcea82fa0\",\"checksum\":\"d64cc0f376649d37faa4e8dde5c47fcfd150a0965222a1e8bc2f1885fe208eb3\"},\"afterFault\":{\"generationId\":\"generation-54b81407-8261-4e00-bd66-ad4fcea82fa0\",\"checksum\":\"d64cc0f376649d37faa4e8dde5c47fcfd150a0965222a1e8bc2f1885fe208eb3\"},\"beforeCancel\":{\"generationId\":\"generation-4d471e12-2e42-4d2a-9960-20c0d69dc55b\",\"checksum\":\"c86538aa2f74ae2307f1a312e8b101d1ea58543796072186c7f21b88e69cc82f\"},\"afterCancel\":{\"generationId\":\"generation-4d471e12-2e42-4d2a-9960-20c0d69dc55b\",\"checksum\":\"c86538aa2f74ae2307f1a312e8b101d1ea58543796072186c7f21b88e69cc82f\"},\"sparse160MiB\":{\"bytes\":167772165,\"completed\":true}}\nPASS case=s23 assertions=45\n",
+  "stdoutRawSha256": "e2b56d3f293ee872c0ad5212aae4e708e9a81e443ceb5be2bcd9e2299d50a397",
+  "stderrRawSha256": "e3386937a42269633102bddc3c33d92bd0355267c5bcdbfb6ed80fd50e936421"
+}

@@ -1,0 +1,228 @@
+{
+  "sourceHash": "97dcaca5cf2e77ab465008870f357c82c70f09a5151981ee6298d9f2f10dce23",
+  "marker": "s2689ace4465e08da71",
+  "oldMarker": "zzzxq21910683eba6ef8d",
+  "newMarker": "qqqjzf72d9d95910d428f",
+  "oldQuery": "zzzxq",
+  "newQuery": "qqqjz",
+  "fixtureSeed": "s2689ace4465e08da71",
+  "firstSha256": "75e5a0acb7812c3e63360371e16b65ce4af834c8d3358871d4ea0cab0fa90d74",
+  "firstBytes": 114,
+  "electronVersion": "33.4.11",
+  "nodeVersion": "v24.16.0",
+  "platform": "win32",
+  "arch": "x64",
+  "runs": [
+    {
+      "pid": 84264,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "475085a2615fb92e6680cb924412ce542b72639eaca4318e4e862686227a52de",
+      "port": 32581
+    },
+    {
+      "pid": 72972,
+      "commandLine": "<R3_ELECTRON_ROOT>\\node_modules\\electron\\dist\\electron.exe <R3_ELECTRON_ROOT> --profile=dev --r3-test-lifecycle",
+      "commandLineSha256": "475085a2615fb92e6680cb924412ce542b72639eaca4318e4e862686227a52de",
+      "port": 32581
+    }
+  ],
+  "secondaryPids": [
+    8424,
+    97568,
+    106964,
+    58312,
+    100956
+  ],
+  "mainSqlite": {
+    "cold": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 0,
+      "ledgerAllocated": false,
+      "keywordReadOnly": null
+    },
+    "afterSearch": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 25,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    },
+    "focus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 44,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "close": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 54,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 54,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "settingsStatus": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "settingsCancel": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 61,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      }
+    },
+    "restart": {
+      "writableOpenCount": 0,
+      "sqliteOpenCalls": 4,
+      "ledgerAllocated": false,
+      "keywordReadOnly": true
+    },
+    "checkingCancel": {
+      "before": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 73,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "after": {
+        "writableOpenCount": 0,
+        "sqliteOpenCalls": 73,
+        "ledgerAllocated": false,
+        "keywordReadOnly": true
+      },
+      "restoredState": "INTERRUPTED"
+    }
+  },
+  "documentId": "doc_36758f4522b6d38fec5a00ef",
+  "sourceRelativePath": "125630710_S26 lifecycle.md",
+  "controlSave": {
+    "saved": true,
+    "indexingState": "queued",
+    "jobId": "job_9e9abe4c85c47ab2584db50a93450edf9a10afa1c59d22ec3a3e86e3235b1e1a",
+    "terminalStatus": "completed"
+  },
+  "openedDocumentId": "doc_3c6c6ef8ce30950445e585d8",
+  "aliasCanonicalHash": "83f1114a912d82b6c49aafad57ef4ce9f366868fbbc672ab06c51d779649537f",
+  "publicToolsCalled": 8,
+  "importCounts": {
+    "imported": 2,
+    "updated": 0,
+    "existing": 0,
+    "skipped": 0,
+    "missing": 1,
+    "external": 0,
+    "path_policy_violation": 0,
+    "ambiguous": 0,
+    "stale": 0
+  },
+  "importedEntrySha256": "d1d0b83c0f3d004c9c5b6d40d8fb43e680b0ee1de23ac320f68006d931038471",
+  "importedCompletedSha256": "f5b0a542aa0f6c7a50526e94b50652960ecb06c35b7eea959be4f78ff2437557",
+  "containedDocumentId": "doc_53c9ff5c1f0e000a10d0a3b0",
+  "cancelJobId": "job_51070e6bdefff0fc5a3347fa2af6488d2fea8d460975c2cffad36c1fac060dbc",
+  "newSha256": "ec6ca083c99c17ead6464c35460b207bad9299f0e645b0528b2757c5ddbe43fa",
+  "newBytes": 2782074,
+  "storeCopySha256AfterCancel": "ec6ca083c99c17ead6464c35460b207bad9299f0e645b0528b2757c5ddbe43fa",
+  "externalSha256AfterCancel": "ec6ca083c99c17ead6464c35460b207bad9299f0e645b0528b2757c5ddbe43fa",
+  "pendingRevision": 2,
+  "cancelledJobCount": 1,
+  "restartRecoveryMs": 31978.062100000003,
+  "oldSearchText": "No results found for \"zzzxq\". (5 documents indexed)",
+  "recoveredRevision": 2,
+  "recoveredAliasCount": 2,
+  "recoveredStoreCopySha256": "ec6ca083c99c17ead6464c35460b207bad9299f0e645b0528b2757c5ddbe43fa",
+  "recoveredExternalSha256": "ec6ca083c99c17ead6464c35460b207bad9299f0e645b0528b2757c5ddbe43fa",
+  "recoveredJobStates": [
+    "completed",
+    "cancelled",
+    "completed"
+  ],
+  "settingsCompact": {
+    "reason": "compact-rebuild-required",
+    "beforeLogicalSha256": "5091a02be2e150146c67c27bec4fcfd7d8dea69498401f4607a52dbb317bc354",
+    "afterLogicalSha256": "5091a02be2e150146c67c27bec4fcfd7d8dea69498401f4607a52dbb317bc354",
+    "sourceAliasCount": 4
+  },
+  "settingsClear": {
+    "declinedReason": "confirmation-declined",
+    "started": true,
+    "terminalStatus": "completed",
+    "backupCount": 1,
+    "beforeLogicalSha256": "5091a02be2e150146c67c27bec4fcfd7d8dea69498401f4607a52dbb317bc354",
+    "afterLogicalSha256": "2d1b1e43c8be1842404dcce42cafa9e53269507c395e6a5e6f4c286a27702897",
+    "backupLogicalSha256": "5091a02be2e150146c67c27bec4fcfd7d8dea69498401f4607a52dbb317bc354",
+    "beforeGeneration": "incremental",
+    "afterGeneration": null,
+    "sourceDocumentCount": 5,
+    "sourceAliasCount": 4,
+    "sourceMetadataSha256": "a68c7f3bdc02290c9926138c68dadb4817801d9eb749cc90508fc75360e2d88c",
+    "preexistingJobCount": 7
+  },
+  "settingsMaintenance": {
+    "compact": {
+      "started": false,
+      "scheduled": false,
+      "compacted": false,
+      "cleared": false,
+      "reason": "compact-rebuild-required"
+    },
+    "privateRebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "retry": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "rebuild": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    },
+    "clear": {
+      "started": true,
+      "scheduled": true,
+      "compacted": false,
+      "cleared": false,
+      "reason": null
+    }
+  }
+}

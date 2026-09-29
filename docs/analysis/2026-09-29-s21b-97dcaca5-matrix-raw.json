@@ -1,0 +1,10 @@
+{
+  "sourceHash": "97dcaca5cf2e77ab465008870f357c82c70f09a5151981ee6298d9f2f10dce23",
+  "command": "node test/test-s21b-state-matrix.js",
+  "scope": "VM-extracted Settings/product functions and synthetic status axes; not 1440 Electron windows",
+  "exitCode": 0,
+  "error": null,
+  "stdout": "test-s21b-state-matrix: PASS statusCells=1440 overlapCells=1200 actionCells=10080 privateCells=2502 feedbackCells=40 release=P0\n",
+  "stderr": "",
+  "stdoutSha256": "983c17410a4f25374f8424180811c6399124e737e60fe564c232dd8a3272c64e"
+}

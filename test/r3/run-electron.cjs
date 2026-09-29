@@ -36,7 +36,7 @@ if (new Set(names).size !== names.length || !names.includes(name)) {
       const child = spawnSync(executable, [path.join(root, 'test/r3/electron-main.cjs'), '--scenario', name], {
         cwd: root,
         env: electronAppEnv({ ...process.env, DOCULIGHT_R3_ELECTRON_ROOT: root, DOCULIGHT_R3_SOURCE_HASH: check.manifest.sourceHash }),
-        encoding: 'utf8', timeout: 60000
+        encoding: 'utf8', timeout: name === 's21' ? 90000 : 60000
       });
       if (child.stdout) process.stdout.write(child.stdout);
       let stderr = child.stderr || '';

@@ -1760,10 +1760,12 @@ function getIndexingStatusPayload() {
   const rawStatus = searchEngine ? searchEngine.getStatus({ cachedOnly: true }) : { state: 'unavailable' };
   // The owner publishes an immutable in-memory snapshot. Never query its SQLite stores on this route.
   const ownerStatus = saveDocumentOwner ? saveDocumentOwner.getStatus() : null;
-  const { composeIndexingStatusPayload } = require('./ledger-status-registry');
-  const status = composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured);
+  const { composeIndexingStatusPayload, sanitizeHealthValue } = require('./ledger-status-registry');
+  const status = composeIndexingStatusPayload(rawStatus, ownerStatus, sourceRootConfigured,
+    searchEngine?.saveIngressAtCapacity === true);
   if (!nativeRebuildManager) return status;
-  const nativeRepair = nativeRebuildManager.getStatus();
+  const nativeRepair = sanitizeHealthValue(nativeRebuildManager.getStatus());
+  if (nativeRepair) delete nativeRepair.probe;
   const nativeActive = nativeRepair && (nativeRepair.active || nativeRepair.state === 'checking' || nativeRepair.state === 'repairing');
   if (!nativeRepair || nativeRepair.state === 'idle' || nativeRepair.state === 'ready') {
     return { ...status, nativeRepair };
@@ -2534,6 +2536,19 @@ async function handleIpcMessage(socket, msg) {
         }
         result = saveDocumentOwner ? saveDocumentOwner.getStatus() : { state: 'unavailable' };
         break;
+      case 'r3_test_retry_check_fixture': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
+          throw new Error('Unknown action');
+        }
+        if (!saveDocumentOwner) throw new Error('No test owner');
+        await saveDocumentOwner.shutdown();
+        saveDocumentOwner.closing = false;
+        saveDocumentOwner.snapshot = { state: 'INTERRUPTED', active: false,
+          diagnostic: { code: 'health_check_interrupted' } };
+        saveDocumentOwner.config.r3HealthCheckBarrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+        result = { prepared: true, state: saveDocumentOwner.getStatus().state };
+        break;
+      }
       case 'r3_test_set_save_fault':
         if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle')) {
           throw new Error('Unknown action');
@@ -3058,12 +3073,18 @@ function registerIpcHandlers() {
     return getIndexingStatusPayload();
   });
 
+  const isIndexingWorkActive = status => ['rebuilding', 'indexing', 'queued',
+    'compacting', 'clearing', 'checking', 'repairing'].includes(status?.state)
+    || status?.indexingWorker?.active === true || status?.rebuildSession?.active === true
+    || status?.nativeRepair?.active === true;
+
   const startOwnerIndexMaintenance = async (operation) => {
     const unavailable = (reason) => ({ started: false, scheduled: false, reason,
       status: getIndexingStatusPayload() });
     if (!isDocumentStoreSourceRootConfigured()) {
       return unavailable('source-root-unconfigured');
     }
+    if (isIndexingWorkActive(getIndexingStatusPayload())) return unavailable('job-in-progress');
     try {
       const owner = await searchEngine.getSaveDocumentOwner(store.get('mcpAutoSavePath', ''));
       const ownerStatus = owner.getStatus();
@@ -3101,17 +3122,17 @@ function registerIpcHandlers() {
     if (!settingsIndexingWindow(event)) return { cancelled: false,
       reason: 'settings-only', status: getIndexingStatusPayload() };
     const ownerStatus = saveDocumentOwner && saveDocumentOwner.getStatus();
+    const { fromOwnerSnapshot } = require('./ledger-status-registry');
+    const ledgerState = fromOwnerSnapshot(ownerStatus, isDocumentStoreSourceRootConfigured()).ledgerState;
     if (ownerStatus?.state === 'CHECKING') {
       return saveDocumentOwner.cancelRetryCheck().then(result => ({ ...result,
         status: getIndexingStatusPayload() }));
     }
-    if (ownerStatus?.active && ownerStatus.jobId
-      && (ownerStatus.phase === 'index_document' || ownerStatus.kind === 'rebuild')) {
+    if (ownerStatus?.active && ownerStatus.jobId && ownerStatus.kind !== 'rebuild'
+      && ['KEYWORD_REPAIRING', 'ANN_BUILDING'].includes(ledgerState)) {
       return saveDocumentOwner.cancel(ownerStatus.jobId);
     }
-    if (ownerStatus?.active) return { cancelled: false, reason: 'not-available',
-      status: getIndexingStatusPayload() };
-    return searchEngine.cancelRebuild();
+    return { cancelled: false, reason: 'not-available', status: getIndexingStatusPayload() };
   });
 
   ipcMain.handle('indexing:retry-failures', (event) => {
@@ -3128,9 +3149,22 @@ function registerIpcHandlers() {
     if (!isDocumentStoreSourceRootConfigured() || !saveDocumentOwner) {
       return denied('check-not-available');
     }
+    const ownerStatus = saveDocumentOwner.getStatus();
+    const { fromOwnerSnapshot } = require('./ledger-status-registry');
+    if (!['CORRUPT_DEGRADED', 'INTERRUPTED'].includes(fromOwnerSnapshot(ownerStatus, true).ledgerState)
+      || ownerStatus.active === true || isIndexingWorkActive(getIndexingStatusPayload())) {
+      return denied('check-not-available');
+    }
     const result = await saveDocumentOwner.command('manage_index', { operation: 'retry_check' });
     return { ...result, status: getIndexingStatusPayload() };
   });
+
+  const futurePhaseIndexingAction = event => ({ started: false, scheduled: false,
+    reason: settingsIndexingWindow(event) ? 'future_phase' : 'settings-only',
+    status: getIndexingStatusPayload() });
+  for (const operation of ['backup', 'migrate', 'restore', 'restore-health-ack']) {
+    ipcMain.handle(`indexing:${operation}`, futurePhaseIndexingAction);
+  }
 
   ipcMain.handle('indexing:compact', async (event) => {
     if (!settingsIndexingWindow(event)) {
@@ -3166,7 +3200,8 @@ function registerIpcHandlers() {
     return { cleared: false, ...result, status: getIndexingStatusPayload() };
   });
 
-  ipcMain.handle('indexing:open-data-dir', async () => {
+  ipcMain.handle('indexing:open-data-dir', async (event) => {
+    if (!settingsIndexingWindow(event)) return { success: false, reason: 'settings-only', error: null };
     const dataDir = searchEngine.getIndexDataDir();
     if (!dataDir || !isDocumentStoreSourceRootConfigured()) {
       return {
@@ -3176,7 +3211,8 @@ function registerIpcHandlers() {
       };
     }
     const error = await shell.openPath(dataDir);
-    return { success: !error, error: error || null, dataDir };
+    return { success: !error, reason: error ? 'open-failed' : null,
+      error: error ? 'open-failed' : null };
   });
 
   ipcMain.handle('document-import:linked-markdown', async (event) => {
@@ -3407,6 +3443,8 @@ function registerIpcHandlers() {
     }
 
     if ('mcpAutoSavePath' in settings && settings.mcpAutoSavePath !== oldMcpAutoSavePath && searchEngine) {
+      searchEngine.saveIngressCapacityEpoch = (searchEngine.saveIngressCapacityEpoch || 0) + 1;
+      searchEngine.saveIngressAtCapacity = false;
       searchEngine.resetForSourceRootChange();
       initializeSearchEngineIfConfigured();
     }
