@@ -32,14 +32,23 @@ function privateAction(ipcPath, action, params = {}, timeoutMs = 10000) {
   });
 }
 
+function awaitWithReferencedTimeout(promise, label, timeoutMs) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function armOwnerTerminalWatch(action, ipcPath, jobId) {
   const armed = await action(ipcPath, 'r3_test_owner_terminal_watch_arm',
     { jobId, phase: 'cancelled' });
   assert(typeof armed.result?.token === 'string' && armed.result.jobId === jobId,
     'bounded terminal observer is armed before cancel');
   return { token: armed.result.token,
-    wait: async () => (await action(ipcPath, 'r3_test_owner_terminal_watch_wait',
-      { token: armed.result.token }, 20000)).result };
+    wait: async () => (await awaitWithReferencedTimeout(action(ipcPath,
+      'r3_test_owner_terminal_watch_wait', { token: armed.result.token }, 20000),
+    'owner terminal event', 35000)).result };
 }
 
 function readDurableCancelledJob(userData, jobId) {
@@ -299,7 +308,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
         evidence.pg09HelperStarted = true;
         evidence.pg09HelperPid = activeProbe.helperPid;
       }
-      if (activeProbe) await activeProbe.started;
+      if (activeProbe) await awaitWithReferencedTimeout(activeProbe.started,
+        'PG-09 direct I/O start', 40000);
       if (activeProbe) {
         const sampled = await measure('status', 'r3_test_settings_status');
         assert(sampled.result?.sourceRootConfigured === true,
@@ -345,7 +355,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
         watcherToken: terminalWatch?.token || null,
         cancelResponseAccepted: evidence.flow.cancelAccepted };
       if (activeProbe) {
-        evidence.pg09 = await activeProbe.completion;
+        evidence.pg09 = await awaitWithReferencedTimeout(activeProbe.completion,
+          'PG-09 direct I/O completion', 40000);
         evidence.pg09.scheduler.helperActiveBefore = activeAudit?.ownerActiveJobCount === 1
           && activeAudit.ownerActiveJobId === activePayload.indexing.jobId;
         evidence.pg09.scheduler.helperActiveAfter = beforeCancel?.active === true
@@ -474,7 +485,8 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
   } finally {
     if (activeProbe) {
       try {
-        const completedProbe = await activeProbe.completion;
+        const completedProbe = await awaitWithReferencedTimeout(activeProbe.completion,
+          'PG-09 direct I/O cleanup', 40000);
         if (!evidence.pg09) evidence.pg09 = completedProbe;
       } catch (error) {
         evidence.pg09ProbeDiagnostic = typeof error?.code === 'string'
@@ -506,4 +518,4 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
 }
 
 module.exports = { runPackageNativeOwnerSmoke, armOwnerTerminalWatch,
-  readDurableCancelledJob };
+  readDurableCancelledJob, awaitWithReferencedTimeout };
