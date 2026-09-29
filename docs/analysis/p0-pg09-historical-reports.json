@@ -1,0 +1,19 @@
+{
+  "purpose": "Immutable pre-review PG-09 raw reports retained for audit; neither proves the current overlap-marker contract.",
+  "reports": [
+    {
+      "path": "docs/analysis/p0-pg09-win32-x64-1790638273916-7c8605ea.json",
+      "sha256": "a968b617350094c9ac3370dfd3a6dc88638ee74d95541ae182c9a3cd44ec71c4",
+      "sourceHash": "7925b8816125b611e58aaaeac4ba60955b5abc2246c9547b59cae54f4de69d5b",
+      "status": "historical-only",
+      "limitation": "No per-action direct-I/O interval evidence."
+    },
+    {
+      "path": "docs/analysis/p0-pg09-win32-x64-1790638405495-484d0090.json",
+      "sha256": "92055397f82636a6b2e4523a293c4e0c80c7a32dd9a0b9ad7eca05a06fb18f98",
+      "sourceHash": "ed222f82e5adf917b89684d8d7c0f71eff075c8497349fa667345bab970f08e4",
+      "status": "historical-only",
+      "limitation": "Helper lifetime stood in for the checked direct-I/O interval."
+    }
+  ]
+}
