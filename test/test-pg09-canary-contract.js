@@ -14,6 +14,10 @@ const good = {
   processCold: { pid: 123, workerReadyEpochMs: 1000,
     commandLineRedacted: '[PACKAGED_APP] --user-data-dir=[PROFILE] --r3-test-lifecycle' },
   activeSave: { activeBefore: true, activeAfter: true, saved: true, indexingState: 'queued' },
+  cancelObservation: { cancelRequestedAtEpochMs: 1000, requestedJobId: 'job-a',
+    watcherToken: 'watch-1', terminalJobId: 'job-a', terminalPhase: 'cancelled',
+    nextOwnerJobId: 'job-b', durableJob: { jobId: 'job-a', status: 'cancelled',
+      cancelRequested: true } },
   responsiveness: { workerMarker: true, heartbeatGaps: [50, 60],
     samples: ['status', 'focus', 'close', 'cancel'].map((kind, index) => ({ kind, ms: 10,
       startMonoMs: 110 + index * 20, endMonoMs: 120 + index * 20 })) },
@@ -60,6 +64,7 @@ for (const [name, changed] of Object.entries({
   helperStillAlive: { pg09: { ...good.pg09, scheduler: { ...good.pg09.scheduler, helperProcessGone: false } } },
   missingWorkerIdentity: { pg09: { ...good.pg09, scheduler: { ...good.pg09.scheduler, ownerWorkerThreadId: null } } },
   missingImport: { pg09: { ...good.pg09, linkedImport: null } },
+  missingTerminalEvidence: { cancelObservation: null },
   noCancelOverlap: { responsiveness: { ...good.responsiveness, samples: good.responsiveness.samples.map(
     entry => entry.kind === 'cancel' ? { ...entry, startMonoMs: 201, endMonoMs: 211 } : entry) } },
   noStatusOverlap: { responsiveness: { ...good.responsiveness, samples: good.responsiveness.samples.map(

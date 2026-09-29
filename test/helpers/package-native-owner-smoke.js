@@ -32,6 +32,28 @@ function privateAction(ipcPath, action, params = {}, timeoutMs = 10000) {
   });
 }
 
+async function armOwnerTerminalWatch(action, ipcPath, jobId) {
+  const armed = await action(ipcPath, 'r3_test_owner_terminal_watch_arm',
+    { jobId, phase: 'cancelled' });
+  assert(typeof armed.result?.token === 'string' && armed.result.jobId === jobId,
+    'bounded terminal observer is armed before cancel');
+  return { token: armed.result.token,
+    wait: async () => (await action(ipcPath, 'r3_test_owner_terminal_watch_wait',
+      { token: armed.result.token }, 20000)).result };
+}
+
+function readDurableCancelledJob(userData, jobId) {
+  const Database = require('better-sqlite3');
+  const ledger = new Database(path.join(userData, 'index', 'smart-search.sqlite3'),
+    { readonly: true, fileMustExist: true });
+  try {
+    const job = ledger.prepare(`SELECT job_id, status, phase, cancel_requested
+      FROM index_jobs WHERE job_id = ?`).get(jobId);
+    return job ? { jobId: job.job_id, status: job.status, phase: job.phase,
+      cancelRequested: Boolean(job.cancel_requested) } : null;
+  } finally { ledger.close(); }
+}
+
 async function until(label, durationMs, probe) {
   const deadline = Date.now() + durationMs;
   while (Date.now() < deadline) {
@@ -313,7 +335,15 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
         ? (await privateAction(ipcPath, 'r3_test_owner_snapshot')).result : null;
       const beforeCancelAudit = activeProbe
         ? (await privateAction(ipcPath, 'r3_test_owner_open_audit')).result : null;
+      const terminalWatch = activeProbe
+        ? await armOwnerTerminalWatch(privateAction, ipcPath, activePayload.indexing.jobId) : null;
+      const cancelRequestedAtEpochMs = Date.now();
       const cancelled = await measure('cancel', 'r3_test_settings_cancel');
+      evidence.flow.cancelAccepted = cancelled.result?.cancelled === true;
+      evidence.cancelObservation = { cancelRequestedAtEpochMs,
+        requestedJobId: activePayload.indexing.jobId,
+        watcherToken: terminalWatch?.token || null,
+        cancelResponseAccepted: evidence.flow.cancelAccepted };
       if (activeProbe) {
         evidence.pg09 = await activeProbe.completion;
         evidence.pg09.scheduler.helperActiveBefore = activeAudit?.ownerActiveJobCount === 1
@@ -345,11 +375,24 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       }));
       evidence.responsiveness.cancelMs = evidence.responsiveness.samples.find((sample) =>
         sample.kind === 'cancel').ms;
-      evidence.flow.cancelAccepted = cancelled.result?.cancelled === true;
       if (evidence.flow.cancelAccepted) {
-        const terminalCancel = await privateAction(ipcPath, 'r3_test_owner_wait_terminal',
-          { jobId: activePayload.indexing.jobId, phase: 'cancelled' }, 20000);
-        evidence.flow.cancelAccepted = terminalCancel.result?.phase === 'cancelled';
+        let terminalCancel = null;
+        try {
+          terminalCancel = terminalWatch ? await terminalWatch.wait()
+            : (await privateAction(ipcPath, 'r3_test_owner_wait_terminal',
+              { jobId: activePayload.indexing.jobId, phase: 'cancelled' }, 20000)).result;
+        } catch { /* recorded as missing terminal, not a substituted PASS */ }
+        const afterTerminal = (await privateAction(ipcPath, 'r3_test_owner_snapshot')
+          .catch(() => null))?.result;
+        Object.assign(evidence.cancelObservation, {
+          terminalJobId: terminalCancel?.jobId || null,
+          terminalPhase: terminalCancel?.phase || null,
+          snapshotJobId: afterTerminal?.jobId || null,
+          snapshotPhase: afterTerminal?.phase || null,
+          nextOwnerJobId: afterTerminal?.jobId !== activePayload.indexing.jobId
+            ? afterTerminal?.jobId || null : null });
+        evidence.flow.cancelAccepted = terminalCancel?.jobId === activePayload.indexing.jobId
+          && terminalCancel?.phase === 'cancelled';
       }
       const activePath = path.join(storeRoot, activePayload.sourceRelativePath);
       evidence.flow.cancelledFileRetained = fs.existsSync(activePath)
@@ -416,6 +459,9 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       }
     }
     finally { ledger.close(); }
+    if (evidence.cancelObservation?.requestedJobId)
+      evidence.cancelObservation.durableJob = readDurableCancelledJob(userData,
+        evidence.cancelObservation.requestedJobId);
     if (!activeProbe || evidence.pg09?.scheduler?.helperProcessGone === true)
       safeRemoveFixture(fixtureRoot);
     evidence.lifecycle.profileRemoved = !fs.existsSync(fixtureRoot);
@@ -433,6 +479,13 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
       } catch (error) {
         evidence.pg09ProbeDiagnostic = typeof error?.code === 'string'
           ? error.code : 'helper_completion_failed';
+      }
+      if (evidence.cancelObservation?.requestedJobId
+        && !Object.hasOwn(evidence.cancelObservation, 'durableJob')) {
+        try { evidence.cancelObservation.durableJob = readDurableCancelledJob(userData,
+          evidence.cancelObservation.requestedJobId); }
+        catch (error) { evidence.cancelObservation.durableJobDiagnostic =
+          typeof error?.code === 'string' ? error.code : 'durable_job_read_failed'; }
       }
     }
     if (!quitAccepted) {
@@ -452,4 +505,5 @@ async function runPackageNativeOwnerSmoke({ appPath, artifactKind, root, require
   }
 }
 
-module.exports = { runPackageNativeOwnerSmoke };
+module.exports = { runPackageNativeOwnerSmoke, armOwnerTerminalWatch,
+  readDurableCancelledJob };
