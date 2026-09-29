@@ -131,6 +131,7 @@ let nativeRebuildManager = null;
 let r3SettingsProbeWindow = null;
 let r3MainHeartbeat = null;
 const r3ViewerEventWatchers = new Map();
+const r3OwnerTerminalWatchers = new Map();
 const mediaViewerWindowsByParent = new Map();
 const mediaViewerParentByWindowId = new Map();
 const mediaViewerWindows = new Map();
@@ -2471,6 +2472,8 @@ async function handleIpcMessage(socket, msg) {
           if (r3MainHeartbeat) clearInterval(r3MainHeartbeat.timer);
           for (const watch of r3ViewerEventWatchers.values()) watch.cancel();
           r3ViewerEventWatchers.clear();
+          for (const watch of r3OwnerTerminalWatchers.values()) watch.cancel();
+          r3OwnerTerminalWatchers.clear();
           if (saveDocumentOwner) await saveDocumentOwner.shutdown();
           if (r3SettingsProbeWindow && !r3SettingsProbeWindow.isDestroyed()) r3SettingsProbeWindow.destroy();
           app.quit();
@@ -2663,6 +2666,47 @@ async function handleIpcMessage(socket, msg) {
             }
             owner.worker.on('message', receive);
           });
+        break;
+      }
+      case 'r3_test_owner_terminal_watch_arm': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle'))
+          throw new Error('Unknown action');
+        const owner = saveDocumentOwner;
+        if (!owner?.worker || typeof params?.jobId !== 'string'
+          || params.phase !== 'cancelled' || r3OwnerTerminalWatchers.size !== 0)
+          throw new Error('Invalid test terminal watch');
+        const current = owner.getStatus();
+        if (current.jobId !== params.jobId) throw new Error('Owner job is not current');
+        const token = crypto.randomUUID();
+        let cancel;
+        const terminal = current.phase === 'cancelled' ? Promise.resolve(current)
+          : new Promise(resolve => {
+            const finish = snapshot => {
+              clearTimeout(timer);
+              owner.worker.off('message', receive);
+              resolve(snapshot);
+            };
+            const timer = setTimeout(() => finish({ jobId: params.jobId,
+              phase: 'missing', diagnosticCode: 'terminal_event_missing' }), 30000);
+            const receive = message => {
+              if (message.tag === 'STATUS' && message.snapshot?.jobId === params.jobId
+                && message.snapshot.phase === 'cancelled') finish(message.snapshot);
+            };
+            owner.worker.on('message', receive);
+            cancel = () => finish({ jobId: params.jobId,
+              phase: 'missing', diagnosticCode: 'terminal_watch_cancelled' });
+          });
+        r3OwnerTerminalWatchers.set(token, { terminal, cancel: cancel || (() => {}) });
+        result = { token, jobId: params.jobId };
+        break;
+      }
+      case 'r3_test_owner_terminal_watch_wait': {
+        if (process.env.DOCULIGHT_R3_TEST_LIFECYCLE !== '1' || !process.argv.includes('--r3-test-lifecycle'))
+          throw new Error('Unknown action');
+        const watch = r3OwnerTerminalWatchers.get(params?.token);
+        if (!watch) throw new Error('Unknown test terminal watch');
+        result = await watch.terminal;
+        r3OwnerTerminalWatchers.delete(params.token);
         break;
       }
       case 'r3_test_main_sqlite_snapshot':

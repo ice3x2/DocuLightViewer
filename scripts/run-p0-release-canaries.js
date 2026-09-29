@@ -223,6 +223,16 @@ function validatePg09Sample(sample) {
     && Number.isFinite(scheduler.mainHeartbeatMaxMs)
     && scheduler.mainHeartbeatMaxMs <= 250,
   'PG-09 single-worker scheduler overlap required');
+  const cancel = sample.cancelObservation;
+  assert(Number.isFinite(cancel?.cancelRequestedAtEpochMs)
+    && typeof cancel.watcherToken === 'string' && cancel.watcherToken.length > 0
+    && cancel.requestedJobId === scheduler.workerJobId
+    && cancel.terminalJobId === scheduler.workerJobId
+    && cancel.terminalPhase === 'cancelled'
+    && cancel.durableJob?.jobId === scheduler.workerJobId
+    && cancel.durableJob.status === 'cancelled'
+    && cancel.durableJob.cancelRequested === true,
+  'PG-09 armed terminal observer and durable cancelled job required');
   for (const kind of ['status', 'focus', 'close', 'cancel']) {
     assert(sample.responsiveness.samples.some(entry => entry.kind === kind
       && Number.isFinite(entry.startMonoMs) && Number.isFinite(entry.endMonoMs)
