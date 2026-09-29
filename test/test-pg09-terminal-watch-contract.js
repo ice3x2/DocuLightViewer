@@ -5,7 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const Database = require('better-sqlite3');
-const { armOwnerTerminalWatch, readDurableCancelledJob } = require('./helpers/package-native-owner-smoke');
+const { armOwnerTerminalWatch, readDurableCancelledJob,
+  awaitWithReferencedTimeout } = require('./helpers/package-native-owner-smoke');
 
 // @req IR-APP-013 AC-13 REL-DOC-007 AC-2 REL-DOC-009 AC-4
 (async () => {
@@ -28,6 +29,8 @@ const { armOwnerTerminalWatch, readDurableCancelledJob } = require('./helpers/pa
     throw new Error(`unexpected action: ${action}`);
   };
   const watch = await armOwnerTerminalWatch(ipc, 'pipe', 'job-1');
+  await assert.rejects(awaitWithReferencedTimeout(new Promise(() => {}),
+    'terminal event', 10), /terminal event timeout/);
   assert.deepStrictEqual(calls, ['r3_test_owner_terminal_watch_arm'],
     'arm returns before cancellation; it cannot block the IPC server');
   await ipc('pipe', 'r3_test_settings_cancel');

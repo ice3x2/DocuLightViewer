@@ -354,6 +354,18 @@ function windowsSystemEvidence() {
     powerSchemeGuid };
 }
 
+function registerIncompleteReportExitGuard(report, write) {
+  const onExit = () => {
+    if (report.status !== 'running') return;
+    report.status = 'failed';
+    report.failures.push({ code: 'early_process_exit', completedSamples: report.samples.length });
+    try { write(); } catch { /* report may be unavailable during forced teardown */ }
+    process.exitCode = 1;
+  };
+  process.on('exit', onExit);
+  return () => process.off('exit', onExit);
+}
+
 function parseArgs(args) {
   const parsed = { samples: 5, requirePackaged: false, pg04Only: false,
     pg09Only: false, requireWindowsSystemCanary: false };
@@ -423,6 +435,7 @@ async function run(args = process.argv.slice(2)) {
     fs.fsyncSync(reportFd);
   };
   write();
+  registerIncompleteReportExitGuard(report, write);
   for (let sample = 1; sample <= 5; sample++) {
     let captured;
     try {
@@ -477,5 +490,5 @@ if (require.main === module) run().then(code => { process.exitCode = code; }, er
 });
 
 module.exports = { validatePg04Report, validatePg09Sample, shouldStopPg09Collection,
-  validatePackageProvenance,
+  validatePackageProvenance, registerIncompleteReportExitGuard,
   sanitizeDiagnostic, parseArgs, run };
